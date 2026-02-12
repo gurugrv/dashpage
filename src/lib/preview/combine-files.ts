@@ -29,7 +29,28 @@ export function combineForPreview(files: ProjectFiles, activePage = 'index.html'
   const cssFiles = Object.keys(files).filter(f => f.endsWith('.css')).sort();
   const jsFiles = Object.keys(files).filter(f => f.endsWith('.js')).sort();
 
-  if (cssFiles.length === 0 && jsFiles.length === 0) return html;
+  // Link interception script for multi-page navigation via postMessage
+  const linkInterceptScript = `<script>
+document.addEventListener('click', function(e) {
+  var anchor = e.target.closest('a');
+  if (!anchor) return;
+  var href = anchor.getAttribute('href');
+  if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('//') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+  if (href.endsWith('.html')) {
+    e.preventDefault();
+    parent.postMessage({ type: 'page-navigate', page: href }, '*');
+  }
+});
+</script>`;
+
+  if (cssFiles.length === 0 && jsFiles.length === 0) {
+    // Still need to inject link interception even without asset files
+    const bodyClose = html.lastIndexOf('</body>');
+    if (bodyClose !== -1) {
+      return `${html.slice(0, bodyClose)}${linkInterceptScript}\n${html.slice(bodyClose)}`;
+    }
+    return `${html}${linkInterceptScript}`;
+  }
 
   let result = html;
 
@@ -57,6 +78,14 @@ export function combineForPreview(files: ProjectFiles, activePage = 'index.html'
     } else {
       result = `${result}\n<script>\n${jsBlock}\n</script>`;
     }
+  }
+
+  // Inject link interception for multi-page navigation
+  const bodyClose = result.lastIndexOf('</body>');
+  if (bodyClose !== -1) {
+    result = `${result.slice(0, bodyClose)}${linkInterceptScript}\n${result.slice(bodyClose)}`;
+  } else {
+    result = `${result}${linkInterceptScript}`;
   }
 
   return result;

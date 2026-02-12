@@ -98,6 +98,19 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
     setIsFullscreen(document.fullscreenElement !== null);
   }, []);
 
+  // Listen for inter-page navigation messages from iframe
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'page-navigate' && typeof e.data.page === 'string') {
+        if (htmlPages.includes(e.data.page)) {
+          setSelectedPage(e.data.page);
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [htmlPages]);
+
   useEffect(() => {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
