@@ -28,13 +28,18 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const fallbackFiles = isGenerating ? lastValidFiles : (files['index.html'] ? files : lastValidFiles);
+  // During blueprint generation, prefer fresh files once they arrive (shown under overlay).
+  // During normal streaming, freeze on lastValidFiles to avoid flickering.
+  const isBlueprintActive = blueprintPhase && blueprintPhase !== 'idle' && blueprintPhase !== 'error';
+  const fallbackFiles = isGenerating && !isBlueprintActive
+    ? lastValidFiles
+    : (files['index.html'] ? files : lastValidFiles);
   const htmlPages = useMemo(() => getHtmlPages(fallbackFiles), [fallbackFiles]);
 
   // Derive effective active page — falls back to first available if selection is invalid
   const activePage = htmlPages.includes(selectedPage) ? selectedPage : (htmlPages[0] ?? 'index.html');
 
-  const srcDoc = isGenerating
+  const srcDoc = isGenerating && !isBlueprintActive
     ? combineForPreview(lastValidFiles, activePage)
     : (combineForPreview(files, activePage) || combineForPreview(lastValidFiles, activePage));
 

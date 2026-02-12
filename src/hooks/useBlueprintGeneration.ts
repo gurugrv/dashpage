@@ -198,15 +198,16 @@ export function useBlueprintGeneration({
                 filesAccumulatorRef.current[event.filename] = event.html;
               }
             } else if (event.type === 'pipeline-status' && event.status === 'complete') {
-              // Push all accumulated files at once on pipeline completion
+              // Push files first, then delay phase transition so the site
+              // renders under the loading overlay before it disappears
               onFilesReady({ ...filesAccumulatorRef.current });
-              setPhase('complete');
+              setTimeout(() => setPhase('complete'), 600);
             } else if (event.type === 'pipeline-status' && event.status === 'error') {
               setError('Some pages failed to generate');
               // Still set complete if we got at least some pages
               if (Object.keys(filesAccumulatorRef.current).length > 0) {
                 onFilesReady({ ...filesAccumulatorRef.current });
-                setPhase('complete');
+                setTimeout(() => setPhase('complete'), 600);
               } else {
                 setPhase('error');
               }

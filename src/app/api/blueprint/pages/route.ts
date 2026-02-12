@@ -1,10 +1,10 @@
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { prisma } from '@/lib/db/prisma';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
-import { isDebugEnabled, logAiPrompt, logAiResponse } from '@/lib/chat/stream-debug';
+import { createStreamDebugLogger, logAiPrompt } from '@/lib/chat/stream-debug';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 interface PagesRequestBody {
@@ -103,35 +103,35 @@ export async function POST(req: Request) {
       });
 
       let completedPages = 0;
+      let hasErrors = false;
 
-      const results = await Promise.allSettled(
-        pages.map(async (page) => {
-          if (abortSignal.aborted) throw new Error('Aborted');
+      // Generate pages sequentially so progress updates are visible one at a time
+      for (const page of pages) {
+        if (abortSignal.aborted) break;
 
-          sendEvent({
-            type: 'page-status',
-            filename: page.filename,
-            status: 'generating',
-            totalPages,
-            completedPages,
-          });
+        sendEvent({
+          type: 'page-status',
+          filename: page.filename,
+          status: 'generating',
+          totalPages,
+          completedPages,
+        });
 
-          const systemPrompt = getPageSystemPrompt(blueprint!, page);
-          const modelInstance = providerConfig.createModel(apiKey!, model);
-          const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
+        const systemPrompt = getPageSystemPrompt(blueprint!, page);
+        const modelInstance = providerConfig.createModel(apiKey!, model);
+        const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
-          if (isDebugEnabled()) {
-            logAiPrompt({
-              scope: `blueprint-page:${page.filename}`,
-              systemPrompt,
-              messages: [{ role: 'user', content: pagePrompt }],
-              model,
-              provider,
-              maxOutputTokens: 16000,
-            });
-          }
+        logAiPrompt({
+          scope: `blueprint-page:${page.filename}`,
+          systemPrompt,
+          messages: [{ role: 'user', content: pagePrompt }],
+          model,
+          provider,
+          maxOutputTokens: 16000,
+        });
 
-          const result = await generateText({
+        try {
+          const result = streamText({
             model: modelInstance,
             system: systemPrompt,
             prompt: pagePrompt,
@@ -139,14 +139,15 @@ export async function POST(req: Request) {
             abortSignal,
           });
 
-          if (isDebugEnabled()) {
-            logAiResponse({
-              scope: `blueprint-page:${page.filename}`,
-              response: result.text,
-              status: 'complete',
-              finishReason: result.finishReason,
-            });
+          const debugLogger = createStreamDebugLogger(`blueprint-page:${page.filename}`, { model });
+          for await (const delta of result.textStream) {
+            debugLogger.logDelta(delta);
           }
+          debugLogger.finish('complete');
+
+          const fullText = debugLogger.getFullResponse();
+          const finishReason = await result.finishReason;
+          debugLogger.logFullResponse(finishReason);
 
           completedPages += 1;
 
@@ -154,36 +155,27 @@ export async function POST(req: Request) {
             type: 'page-status',
             filename: page.filename,
             status: 'complete',
-            html: result.text,
+            html: fullText,
             totalPages,
             completedPages,
           });
-
-          return { filename: page.filename, html: result.text };
-        }),
-      );
-
-      // Check for errors
-      const errors = results
-        .map((r, i) => ({ result: r, page: pages[i] }))
-        .filter((item): item is { result: PromiseRejectedResult; page: typeof pages[0] } =>
-          item.result.status === 'rejected',
-        );
-
-      for (const { result, page } of errors) {
-        sendEvent({
-          type: 'page-status',
-          filename: page.filename,
-          status: 'error',
-          error: result.reason instanceof Error ? result.reason.message : 'Generation failed',
-          totalPages,
-          completedPages,
-        });
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === 'AbortError') break;
+          hasErrors = true;
+          sendEvent({
+            type: 'page-status',
+            filename: page.filename,
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Generation failed',
+            totalPages,
+            completedPages,
+          });
+        }
       }
 
       sendEvent({
         type: 'pipeline-status',
-        status: errors.length > 0 ? 'error' : 'complete',
+        status: hasErrors ? 'error' : 'complete',
         totalPages,
         completedPages,
       });
