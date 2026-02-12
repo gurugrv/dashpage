@@ -3,6 +3,7 @@
 import { useCallback, useEffect, type MutableRefObject } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
+import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 
 interface UseStreamingPersistenceOptions {
@@ -57,7 +58,7 @@ export function useStreamingPersistence({
 
     partialSavedRef.current = true;
     const files = currentFilesRef.current;
-    const htmlArtifact = files['index.html'] ? files : null;
+    const htmlArtifact = isPersistableArtifact(files) ? files : null;
     const payload = JSON.stringify({
       role: 'assistant',
       content: sanitizeAssistantMessageWithFallback(text, Boolean(htmlArtifact)),

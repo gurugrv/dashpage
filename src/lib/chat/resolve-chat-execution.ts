@@ -11,7 +11,7 @@ interface ResolveChatExecutionInput {
   clientMaxTokens?: number;
   savedTimeZone?: string | null;
   browserTimeZone?: string;
-  currentHtml?: string;
+  currentFiles?: Record<string, string>;
 }
 
 interface ResolvedChatExecution {
@@ -26,7 +26,7 @@ export async function resolveChatExecution({
   clientMaxTokens,
   savedTimeZone,
   browserTimeZone,
-  currentHtml,
+  currentFiles,
 }: ResolveChatExecutionInput): Promise<ResolvedChatExecution> {
   const apiKey = await resolveApiKey(provider);
   if (!apiKey) {
@@ -44,7 +44,7 @@ export async function resolveChatExecution({
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPrompt = getSystemPrompt(currentHtml, temporalContext);
+  const systemPrompt = getSystemPrompt(currentFiles, temporalContext);
   const modelInstance = providerConfig.createModel(apiKey, model);
 
   return { modelInstance, maxOutputTokens, systemPrompt };

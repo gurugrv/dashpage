@@ -15,6 +15,7 @@ const HTML_LANDMARKS: Landmark[] = [
   { pattern: /<footer[\s>]/i, phase: 'footer', label: 'Adding footer...' },
   { pattern: /<script[\s>](?!.*tailwind|.*cdn)/i, phase: 'scripts', label: 'Adding interactivity...' },
   { pattern: /<\/htmlOutput>/i, phase: 'html-complete', label: 'Finalizing...' },
+  { pattern: /<\/fileArtifact>/i, phase: 'fileArtifact-complete', label: 'Finalizing...' },
 ]
 
 const SECTION_COMMENT = /<!--\s*SECTION:\s*(.+?)\s*-->/i
@@ -58,7 +59,7 @@ export class BuildProgressDetector {
     // Detect <editOperations> or <htmlOutput> start
     if (!this.htmlStarted && !this.editMode) {
       const recent = this.buffer.slice(-200)
-      if (/<editOperations>/i.test(delta) || /<editOperations>/i.test(recent)) {
+      if (/<editOperations[\s>]/i.test(delta) || /<editOperations[\s>]/i.test(recent)) {
         this.editMode = true
         this.currentPhase = 'edit-started'
         this.currentLabel = 'Understanding your request...'
@@ -71,6 +72,13 @@ export class BuildProgressDetector {
         this.currentLabel = 'Starting generation...'
         this.lastEmittedPercent = 5
         return this.makeData('html-started', 'Starting generation...', 5)
+      }
+      if (/<fileArtifact>/i.test(delta) || /<fileArtifact>/i.test(recent)) {
+        this.htmlStarted = true
+        this.currentPhase = 'fileArtifact-started'
+        this.currentLabel = 'Starting generation...'
+        this.lastEmittedPercent = 5
+        return this.makeData('fileArtifact-started', 'Starting generation...', 5)
       }
       // Emit "explaining" once after some text arrives
       if (!this.emittedExplaining && this.totalChars > 20) {

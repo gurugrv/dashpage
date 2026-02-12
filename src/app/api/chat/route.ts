@@ -2,7 +2,7 @@ import { convertToModelMessages, createUIMessageStream, createUIMessageStreamRes
 import type { UIMessage } from 'ai';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
-import { createStreamDebugLogger } from '@/lib/chat/stream-debug';
+import { createStreamDebugLogger, logAiPrompt } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 
 interface ChatRequestBody {
@@ -16,7 +16,7 @@ interface ChatRequestBody {
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
-const CONTINUE_PROMPT = 'Continue from where you left off. Output the COMPLETE HTML document.';
+const CONTINUE_PROMPT = 'Continue from where you left off. Output the COMPLETE website files using the same output format.';
 
 export async function POST(req: Request) {
   let body: ChatRequestBody;
@@ -43,11 +43,28 @@ export async function POST(req: Request) {
       clientMaxTokens: maxOutputTokens,
       savedTimeZone,
       browserTimeZone,
-      currentHtml: currentFiles?.['index.html'],
+      currentFiles,
     });
 
     const detector = new BuildProgressDetector();
     const debugLogger = createStreamDebugLogger('chat');
+
+    // Log the prompt being sent to the AI
+    const messagesForLogging = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.parts
+        .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+        .map((p) => p.text)
+        .join('\n'),
+    }));
+    logAiPrompt({
+      scope: 'chat',
+      systemPrompt,
+      messages: messagesForLogging,
+      model,
+      provider,
+      maxOutputTokens: resolvedMaxOutputTokens,
+    });
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -105,10 +122,13 @@ export async function POST(req: Request) {
 
           writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });
           debugLogger.finish('complete');
+          // Log the full AI response
+          debugLogger.logFullResponse(finalFinishReason);
           writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
         } catch (err: unknown) {
           if (err instanceof Error && err.name === 'AbortError') {
             debugLogger.finish('aborted');
+            debugLogger.logFullResponse('aborted');
             return;
           }
           throw err;

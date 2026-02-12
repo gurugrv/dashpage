@@ -1,6 +1,6 @@
 export const BASE_RULES_SECTION = `<rules>
-1. Wrap your HTML output in <htmlOutput> tags (rewrite mode) or use <editOperations> tags (edit mode).
-2. Generate a SINGLE, complete HTML file.
+1. Output format is context-driven: <htmlOutput> for single-file (default), <fileArtifact> ONLY when user requests additional pages/files, <editOperations> for edits (supports file="..." attribute). See <format_selection> rules.
+2. Generate complete, self-contained website files. Each HTML page is a standalone document.
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
 4. All custom CSS goes in <style> tags, all scripts in <script> tags.
 5. Make designs responsive — mobile-first using Tailwind prefixes (sm:, md:, lg:).

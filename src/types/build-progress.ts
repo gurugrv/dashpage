@@ -9,6 +9,8 @@ export type BuildPhase =
   | 'footer'
   | 'scripts'
   | 'html-complete'
+  | 'fileArtifact-started'
+  | 'fileArtifact-complete'
   | 'edit-started'
   | 'edit-applying'
   | 'edit-complete'

@@ -20,7 +20,6 @@ interface UseConversationActionsOptions {
   setActiveConversationId: (id: string | null) => void;
   setMessages: (messages: UIMessage[]) => void;
   setFiles: (files: ProjectFiles) => void;
-  resetAutoContinue: () => void;
   resetProgress: () => void;
   setHasPartialMessage: (value: boolean) => void;
 }
@@ -31,7 +30,6 @@ export function useConversationActions({
   setActiveConversationId,
   setMessages,
   setFiles,
-  resetAutoContinue,
   resetProgress,
   setHasPartialMessage,
 }: UseConversationActionsOptions) {
@@ -40,17 +38,15 @@ export function useConversationActions({
     setActiveConversationId(conversation.id);
     setMessages([]);
     setFiles({});
-    resetAutoContinue();
     resetProgress();
     setHasPartialMessage(false);
-  }, [service, setActiveConversationId, setMessages, setFiles, resetAutoContinue, resetProgress, setHasPartialMessage]);
+  }, [service, setActiveConversationId, setMessages, setFiles, resetProgress, setHasPartialMessage]);
 
   const handleSelectConversation = useCallback(async (id: string) => {
     if (id === activeConversationId) return;
 
     setActiveConversationId(id);
     setFiles({});
-    resetAutoContinue();
     resetProgress();
 
     try {
@@ -101,7 +97,7 @@ export function useConversationActions({
       setFiles({});
       setHasPartialMessage(false);
     }
-  }, [activeConversationId, resetAutoContinue, resetProgress, setActiveConversationId, setFiles, setHasPartialMessage, setMessages]);
+  }, [activeConversationId, resetProgress, setActiveConversationId, setFiles, setHasPartialMessage, setMessages]);
 
   const handleDeleteConversation = useCallback(async (id: string) => {
     await service.remove(id);
@@ -111,10 +107,9 @@ export function useConversationActions({
     setActiveConversationId(null);
     setMessages([]);
     setFiles({});
-    resetAutoContinue();
     resetProgress();
     setHasPartialMessage(false);
-  }, [service, activeConversationId, resetAutoContinue, resetProgress, setActiveConversationId, setFiles, setHasPartialMessage, setMessages]);
+  }, [service, activeConversationId, resetProgress, setActiveConversationId, setFiles, setHasPartialMessage, setMessages]);
 
   return {
     handleCreateConversation,

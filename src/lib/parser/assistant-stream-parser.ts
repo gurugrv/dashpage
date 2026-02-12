@@ -4,8 +4,9 @@ type StructuredTag = {
 };
 
 const STRUCTURED_TAGS: StructuredTag[] = [
-  { open: '<editOperations>', close: '</editOperations>' },
+  { open: '<editOperations', close: '</editOperations>' },
   { open: '<htmlOutput>', close: '</htmlOutput>' },
+  { open: '<fileArtifact>', close: '</fileArtifact>' },
 ];
 
 function startsWithIgnoreCase(input: string, search: string, position: number): boolean {
@@ -50,7 +51,9 @@ export function parseAssistantForChat(input: string): string {
     const openTag = STRUCTURED_TAGS.find((tag) => startsWithIgnoreCase(input, tag.open, i));
     if (openTag) {
       insideTag = openTag;
-      i += openTag.open.length;
+      // Advance past the full opening tag including attributes and closing >
+      const closingBracket = input.indexOf('>', i + openTag.open.length);
+      i = closingBracket !== -1 ? closingBracket + 1 : i + openTag.open.length;
       continue;
     }
 

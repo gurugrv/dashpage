@@ -1,14 +1,17 @@
-const STRUCTURED_TAGS = ['editOperations', 'htmlOutput'] as const;
-const STRUCTURED_TAG_OPENERS = STRUCTURED_TAGS.map((tag) => `<${tag}>`);
-const STRUCTURED_TAG_CLOSERS = STRUCTURED_TAGS.map((tag) => `</${tag}>`);
+const STRUCTURED_TAGS = ['editOperations', 'htmlOutput', 'fileArtifact'] as const;
 
 export const ARTIFACT_COMPLETION_MESSAGE = 'Generation complete. Preview updated.';
 
 function stripStructuredBlock(input: string, tag: (typeof STRUCTURED_TAGS)[number]): string {
-  const completeBlock = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'gi');
-  const trailingBlock = new RegExp(`<${tag}>[\\s\\S]*$`, 'i');
+  // editOperations may have attributes (e.g. file="styles.css")
+  const tagPattern = tag === 'editOperations' ? 'editOperations[^>]*' : tag;
+  const completeBlock = new RegExp(`<${tagPattern}>[\\s\\S]*?<\\/${tag}>`, 'gi');
+  const trailingBlock = new RegExp(`<${tagPattern}>[\\s\\S]*$`, 'i');
   return input.replace(completeBlock, '').replace(trailingBlock, '');
 }
+
+const STRUCTURED_TAG_OPENERS = STRUCTURED_TAGS.map((tag) => `<${tag}`);
+const STRUCTURED_TAG_CLOSERS = STRUCTURED_TAGS.map((tag) => `</${tag}>`);
 
 export function sanitizeAssistantMessage(content: string): string {
   let cleaned = content;
@@ -22,7 +25,7 @@ export function sanitizeAssistantMessage(content: string): string {
 
 export function hasStructuredArtifactOutput(content: string): boolean {
   const lower = content.toLowerCase();
-  return STRUCTURED_TAG_OPENERS.some((opener) => lower.includes(opener));
+  return STRUCTURED_TAG_OPENERS.some((opener) => lower.includes(opener.toLowerCase()));
 }
 
 function findLastStructuredCloseIndex(content: string): number {

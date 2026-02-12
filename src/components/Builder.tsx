@@ -6,6 +6,7 @@ import type { UIMessage } from '@ai-sdk/react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { PreviewPanel } from '@/components/PreviewPanel';
 import { PromptPanel } from '@/components/PromptPanel';
@@ -14,7 +15,6 @@ import { useConversationActions } from '@/features/builder/hooks/use-conversatio
 import { useModelSelection } from '@/features/builder/hooks/use-model-selection';
 import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-persistence';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
-import { useAutoContinue } from '@/hooks/useAutoContinue';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
@@ -24,22 +24,39 @@ import {
   sanitizeAssistantMessageWithFallback,
 } from '@/lib/chat/sanitize-assistant-message';
 import { extractPostArtifactSummary, parseAssistantForChat } from '@/lib/parser/assistant-stream-parser';
+import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 import type { BuildProgressData } from '@/types/build-progress';
 
 const chatTransport = new DefaultChatTransport({ api: '/api/chat' });
 
 export function Builder() {
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const conversationIdFromUrl = searchParams.get('conversation');
+
+  const [activeConversationId, setActiveConversationIdState] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [input, setInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasPartialMessage, setHasPartialMessage] = useState(false);
 
+  // Sync active conversation with URL
+  const setActiveConversationId = useCallback((id: string | null) => {
+    setActiveConversationIdState(id);
+    const params = new URLSearchParams(searchParams);
+    if (id) {
+      params.set('conversation', id);
+    } else {
+      params.delete('conversation');
+    }
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  // Restore conversation from URL when conversations are loaded
   const { currentFiles, lastValidFiles, isGenerating, editFailed, processMessages, setFiles, resetEditFailed } = useHtmlParser();
   const { conversations, create, rename, remove } = useConversations();
   const { availableProviders, refetch } = useModels();
-  const { resetAutoContinue } = useAutoContinue();
   const { progress: buildProgress, handleProgressData, resetProgress } = useBuildProgress();
 
   const {
@@ -80,7 +97,7 @@ export function Builder() {
       }
 
       if (convId) {
-        const htmlArtifact = files['index.html'] ? files : null;
+        const htmlArtifact = isPersistableArtifact(files) ? files : null;
         const textContent = message.parts
           ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
           .map((part) => part.text)
@@ -141,7 +158,8 @@ export function Builder() {
       .join('') ?? '';
     const preface = parseAssistantForChat(rawText);
     const isLastMessage = index === messages.length - 1;
-    const hasCompletedTurn = !isLoading && isLastMessage;
+    const isCurrentlyStreaming = isLastMessage && isLoading;
+    const hasCompletedTurn = !isCurrentlyStreaming;
     const postSummary = hasCompletedTurn ? extractPostArtifactSummary(rawText) : '';
     const summary = hasCompletedTurn
       ? ensureArtifactCompletionMessage(
@@ -195,10 +213,88 @@ export function Builder() {
     setActiveConversationId,
     setMessages: (nextMessages: UIMessage[]) => setMessages(nextMessages),
     setFiles,
-    resetAutoContinue,
     resetProgress,
     setHasPartialMessage,
   });
+
+  // Restore conversation from URL when conversations are loaded
+  useEffect(() => {
+    if (conversationIdFromUrl && conversations.length > 0 && !activeConversationId) {
+      const conversationExists = conversations.some(c => c.id === conversationIdFromUrl);
+      if (conversationExists) {
+        handleSelectConversation(conversationIdFromUrl);
+      } else {
+        // Clear invalid conversation ID from URL
+        const params = new URLSearchParams(searchParams);
+        params.delete('conversation');
+        router.replace(`?${params.toString()}`, { scroll: false });
+      }
+    }
+  }, [conversationIdFromUrl, conversations, activeConversationId, handleSelectConversation, searchParams, router]);
+
+  // Handle initial prompt from landing page - using ref to avoid cascading renders
+  const initialPromptProcessedRef = useRef(false);
+  const pendingInitialPromptRef = useRef<string | null>(null);
+  
+  // Check for initial prompt on mount
+  useEffect(() => {
+    if (initialPromptProcessedRef.current) return;
+    const initialPrompt = sessionStorage.getItem('initialPrompt');
+    if (initialPrompt) {
+      pendingInitialPromptRef.current = initialPrompt;
+      sessionStorage.removeItem('initialPrompt');
+    }
+  }, []);
+
+  // Submit the pending prompt when ready
+  useEffect(() => {
+    if (
+      !initialPromptProcessedRef.current &&
+      pendingInitialPromptRef.current &&
+      !isLoading &&
+      messages.length === 0 &&
+      availableProviders.length > 0
+    ) {
+      initialPromptProcessedRef.current = true;
+      const promptToSubmit = pendingInitialPromptRef.current;
+      pendingInitialPromptRef.current = null;
+      
+      // Directly call the submit logic with the prompt
+      const submitWithPrompt = async () => {
+        const title = promptToSubmit.slice(0, 50);
+        const conversation = await create(title);
+        setActiveConversationId(conversation.id);
+
+        await fetch(`/api/conversations/${conversation.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'user', content: promptToSubmit }),
+        });
+
+        rename(conversation.id, title);
+        resetProgress();
+        partialSavedRef.current = false;
+        streamingTextRef.current = '';
+        setHasPartialMessage(false);
+
+        await sendMessage(
+          { text: promptToSubmit },
+          {
+            body: {
+              currentFiles: currentFilesRef.current,
+              provider: effectiveSelectedProvider,
+              model: effectiveSelectedModel,
+              maxOutputTokens: resolveMaxOutputTokens(),
+              savedTimeZone: getSavedTimeZone(),
+              browserTimeZone: getBrowserTimeZone(),
+            },
+          },
+        );
+      };
+      
+      submitWithPrompt();
+    }
+  }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, resetProgress, sendMessage, effectiveSelectedProvider, effectiveSelectedModel, resolveMaxOutputTokens]);
 
   useEffect(() => {
     processMessages(messages, isLoading);
@@ -209,7 +305,7 @@ export function Builder() {
 
     resetEditFailed();
     sendMessage(
-      { text: 'The previous edit could not be applied. Please provide the complete updated HTML using <htmlOutput> tags.' },
+      { text: 'The previous edit could not be applied. Please provide the complete updated files.' },
       {
         body: {
           currentFiles: currentFilesRef.current,
@@ -254,7 +350,6 @@ export function Builder() {
       rename(conversationId, input.trim().slice(0, 50));
     }
 
-    resetAutoContinue();
     resetProgress();
     partialSavedRef.current = false;
     streamingTextRef.current = '';
@@ -280,11 +375,11 @@ export function Builder() {
     input,
     isLoading,
     activeConversationId,
+    setActiveConversationId,
     currentFilesRef,
     create,
     messages.length,
     rename,
-    resetAutoContinue,
     resetProgress,
     sendMessage,
     effectiveSelectedProvider,
@@ -296,7 +391,7 @@ export function Builder() {
     const convId = activeConversationId;
     if (!convId || isLoading) return;
 
-    const continuePrompt = 'Continue generating from where you left off. Output the COMPLETE HTML document.';
+    const continuePrompt = 'Continue from where you left off. Output the COMPLETE website files using the same output format.';
 
     await fetch(`/api/conversations/${convId}/messages`, {
       method: 'POST',

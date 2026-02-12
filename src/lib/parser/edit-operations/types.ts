@@ -8,6 +8,7 @@ export interface EditParseResult {
   explanation: string;
   isComplete: boolean;
   hasEditTag: boolean;
+  targetFile: string;
 }
 
 export interface ApplyResult {

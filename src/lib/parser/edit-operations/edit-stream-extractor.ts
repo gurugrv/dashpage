@@ -1,6 +1,6 @@
 import type { EditOperation, EditParseResult } from '@/lib/parser/edit-operations/types';
 
-const TAG_OPEN = '<editOperations>';
+const TAG_OPEN_REGEX = /<editOperations(\s+file="([^"]*)")?\s*>/i;
 const TAG_CLOSE = '</editOperations>';
 const EDIT_OPEN = '<edit>';
 const EDIT_CLOSE = '</edit>';
@@ -13,19 +13,22 @@ export class EditStreamExtractor {
   private buffer = '';
   private insideEdits = false;
   private explanation = '';
+  private targetFile = 'index.html';
 
   parse(chunk: string): EditParseResult {
     this.buffer += chunk;
 
     if (!this.insideEdits) {
-      const openIndex = this.buffer.indexOf(TAG_OPEN);
-      if (openIndex === -1) {
-        return { operations: [], explanation: this.buffer, isComplete: false, hasEditTag: false };
+      const match = TAG_OPEN_REGEX.exec(this.buffer);
+      if (!match) {
+        return { operations: [], explanation: this.buffer, isComplete: false, hasEditTag: false, targetFile: this.targetFile };
       }
 
+      const openIndex = match.index;
       this.explanation = this.buffer.slice(0, openIndex).trim();
+      this.targetFile = match[2] || 'index.html';
       this.insideEdits = true;
-      this.buffer = this.buffer.slice(openIndex + TAG_OPEN.length);
+      this.buffer = this.buffer.slice(openIndex + match[0].length);
     }
 
     const isComplete = this.buffer.includes(TAG_CLOSE);
@@ -38,6 +41,7 @@ export class EditStreamExtractor {
       explanation: this.explanation,
       isComplete,
       hasEditTag: true,
+      targetFile: this.targetFile,
     };
   }
 
@@ -45,6 +49,7 @@ export class EditStreamExtractor {
     this.buffer = '';
     this.insideEdits = false;
     this.explanation = '';
+    this.targetFile = 'index.html';
   }
 
   private extractOperations(content: string): EditOperation[] {

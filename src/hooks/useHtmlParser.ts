@@ -1,7 +1,9 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
 import { HtmlStreamExtractor } from '@/lib/parser/html-extractor';
+import { FileArtifactExtractor } from '@/lib/parser/file-artifact-extractor';
 import { EditStreamExtractor, applyEditOperations } from '@/lib/parser/edit-operations';
+import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 import type { UIMessage } from '@ai-sdk/react';
 
@@ -12,6 +14,7 @@ export function useHtmlParser() {
   const [editFailed, setEditFailed] = useState(false);
   const extractorRef = useRef(new HtmlStreamExtractor());
   const editExtractorRef = useRef(new EditStreamExtractor());
+  const fileArtifactExtractorRef = useRef(new FileArtifactExtractor());
   const lastValidFilesRef = useRef<ProjectFiles>({});
 
   // Keep ref in sync for use inside callbacks
@@ -36,28 +39,28 @@ export function useHtmlParser() {
 
     if (!textContent) return;
 
-    // Strategy 0: Edit operations parsing
+    // Strategy 0: Edit operations parsing (supports <editOperations file="...">)
     editExtractorRef.current.reset();
     const editResult = editExtractorRef.current.parse(textContent);
 
     if (editResult.hasEditTag) {
-      // We detected <editOperations> — handle edit mode
       if (!isLoading && editResult.isComplete && editResult.operations.length > 0) {
-        // Stream finished, apply edits to last valid HTML
-        const currentHtml = lastValidFilesRef.current['index.html'];
-        if (currentHtml) {
-          const applied = applyEditOperations(currentHtml, editResult.operations);
+        // Stream finished, apply edits to the targeted file
+        const targetFile = editResult.targetFile || 'index.html';
+        const sourceText = lastValidFilesRef.current[targetFile];
+        if (sourceText) {
+          const applied = applyEditOperations(sourceText, editResult.operations);
           if (applied.success) {
-            const files: ProjectFiles = { 'index.html': applied.html };
+            const files: ProjectFiles = { ...lastValidFilesRef.current, [targetFile]: applied.html };
             setCurrentFiles(files);
-            updateLastValid(files);
+            if (isPersistableArtifact(files)) {
+              updateLastValid(files);
+            }
             setEditFailed(false);
           } else {
-            // Edit failed — signal for fallback
             setEditFailed(true);
           }
         } else {
-          // No existing HTML to edit — shouldn't happen but treat as failure
           setEditFailed(true);
         }
       }
@@ -65,13 +68,28 @@ export function useHtmlParser() {
       return;
     }
 
-    // Strategy 1: Try structured JSON parsing
+    // Strategy 1: <fileArtifact> extraction
+    fileArtifactExtractorRef.current.reset();
+    const fileArtifactResult = fileArtifactExtractorRef.current.parse(textContent);
+
+    if (fileArtifactResult.hasFileArtifactTag) {
+      const files = fileArtifactResult.files;
+      if (Object.keys(files).length > 0) {
+        setCurrentFiles(files);
+        if (!isLoading && fileArtifactResult.isComplete && isPersistableArtifact(files)) {
+          updateLastValid(files);
+        }
+      }
+      return;
+    }
+
+    // Strategy 2: Try structured JSON parsing
     try {
       const parsed = JSON.parse(textContent);
       if (parsed.files && typeof parsed.files === 'object') {
         const files = parsed.files as ProjectFiles;
         setCurrentFiles(files);
-        if (!isLoading && Object.keys(files).length > 0) {
+        if (!isLoading && Object.keys(files).length > 0 && isPersistableArtifact(files)) {
           updateLastValid(files);
         }
         return;
@@ -80,14 +98,14 @@ export function useHtmlParser() {
       // Not valid JSON, fall through to tag parsing
     }
 
-    // Strategy 2: Tag-based parsing with HtmlStreamExtractor
+    // Strategy 3: Tag-based parsing with HtmlStreamExtractor (<htmlOutput>)
     extractorRef.current.reset();
     const result = extractorRef.current.parse(textContent);
 
     if (result.html) {
       const files: ProjectFiles = { 'index.html': result.html };
       setCurrentFiles(files);
-      if (!isLoading && result.isComplete) {
+      if (!isLoading && result.isComplete && isPersistableArtifact(files)) {
         updateLastValid(files);
       }
     }
