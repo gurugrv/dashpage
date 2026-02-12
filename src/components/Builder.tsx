@@ -15,6 +15,8 @@ import { useConversationActions } from '@/features/builder/hooks/use-conversatio
 import { useModelSelection } from '@/features/builder/hooks/use-model-selection';
 import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-persistence';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
+import { useBlueprintGeneration } from '@/hooks/useBlueprintGeneration';
+import { detectMultiPageIntent } from '@/lib/blueprint/detect-multi-page';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
@@ -40,6 +42,7 @@ export function Builder() {
   const [input, setInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasPartialMessage, setHasPartialMessage] = useState(false);
+  const [blueprintMode, setBlueprintMode] = useState(false);
 
   // Sync active conversation with URL
   const setActiveConversationId = useCallback((id: string | null) => {
@@ -66,6 +69,25 @@ export function Builder() {
     handleProviderChange,
     resolveMaxOutputTokens,
   } = useModelSelection(availableProviders);
+
+  const {
+    phase: blueprintPhase,
+    blueprint,
+    pageStatuses,
+    error: blueprintError,
+    generateBlueprint,
+    generatePages,
+    cancel: cancelBlueprint,
+    reset: resetBlueprint,
+  } = useBlueprintGeneration({
+    provider: effectiveSelectedProvider,
+    model: effectiveSelectedModel,
+    savedTimeZone: getSavedTimeZone(),
+    browserTimeZone: getBrowserTimeZone(),
+    onFilesReady: setFiles,
+  });
+
+  const isBlueprintBusy = blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
 
   const currentFilesRef = useRef<ProjectFiles>(currentFiles);
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
@@ -215,6 +237,7 @@ export function Builder() {
     setFiles,
     resetProgress,
     setHasPartialMessage,
+    resetBlueprint,
   });
 
   // Restore conversation from URL when conversations are loaded
@@ -329,7 +352,7 @@ export function Builder() {
 
   const handleSubmit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isBlueprintBusy) return;
 
     let conversationId = activeConversationId;
 
@@ -348,6 +371,21 @@ export function Builder() {
 
     if (messages.length === 0) {
       rename(conversationId, input.trim().slice(0, 50));
+    }
+
+    // Blueprint mode: first message triggers blueprint generation instead of chat
+    // Auto-detect multi-page intent OR respect manual toggle
+    const useBlueprint = messages.length === 0 && (blueprintMode || detectMultiPageIntent(input));
+    if (useBlueprint) {
+      const promptText = input;
+      setInput('');
+      setMessages([{
+        id: `user-${Date.now()}`,
+        role: 'user',
+        parts: [{ type: 'text', text: promptText }],
+      }]);
+      await generateBlueprint(promptText, conversationId);
+      return;
     }
 
     resetProgress();
@@ -374,6 +412,8 @@ export function Builder() {
   }, [
     input,
     isLoading,
+    isBlueprintBusy,
+    blueprintMode,
     activeConversationId,
     setActiveConversationId,
     currentFilesRef,
@@ -382,6 +422,8 @@ export function Builder() {
     rename,
     resetProgress,
     sendMessage,
+    setMessages,
+    generateBlueprint,
     effectiveSelectedProvider,
     effectiveSelectedModel,
     resolveMaxOutputTokens,
@@ -425,6 +467,70 @@ export function Builder() {
     effectiveSelectedModel,
     resolveMaxOutputTokens,
   ]);
+
+  const handleBlueprintApprove = useCallback(async () => {
+    if (!activeConversationId || !blueprint) return;
+    await generatePages(activeConversationId, blueprint);
+  }, [activeConversationId, blueprint, generatePages]);
+
+  const handleBlueprintRegenerate = useCallback(async () => {
+    if (!activeConversationId) return;
+    const lastUserMessage = messages.findLast((m) => m.role === 'user');
+    if (lastUserMessage) {
+      const text = lastUserMessage.parts?.find((p): p is { type: 'text'; text: string } => p.type === 'text')?.text;
+      if (text) await generateBlueprint(text, activeConversationId);
+    }
+  }, [activeConversationId, messages, generateBlueprint]);
+
+  // Persist artifact when blueprint pipeline completes
+  useEffect(() => {
+    if (blueprintPhase !== 'complete') return;
+    const files = currentFilesRef.current;
+    const convId = activeConversationIdRef.current;
+    if (!convId || !isPersistableArtifact(files)) return;
+
+    const htmlPages = Object.keys(files).filter((f) => f.endsWith('.html'));
+    let content: string;
+
+    if (blueprint) {
+      const pageList = blueprint.pages
+        .map((p) => `- **${p.title}** (\`${p.filename}\`) — ${p.purpose}`)
+        .join('\n');
+      const design = blueprint.designSystem;
+      content = [
+        `**${blueprint.siteName}** — ${blueprint.siteDescription}`,
+        '',
+        `Generated ${htmlPages.length} pages:`,
+        pageList,
+        '',
+        `Design: ${design.mood} · ${design.headingFont} / ${design.bodyFont} · ${design.primaryColor}`,
+      ].join('\n');
+    } else {
+      content = `Generated ${htmlPages.length}-page website: ${htmlPages.join(', ')}`;
+    }
+
+    // Show completion message in chat immediately
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `blueprint-complete-${Date.now()}`,
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, text: content }],
+      },
+    ]);
+
+    fetch(`/api/conversations/${convId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: 'assistant',
+        content,
+        htmlArtifact: files,
+      }),
+    });
+
+    resetBlueprint();
+  }, [blueprintPhase, blueprint, resetBlueprint, setMessages]);
 
   return (
     <>
@@ -471,6 +577,16 @@ export function Builder() {
               onOpenConversations={() => setDrawerOpen(true)}
               hasPartialMessage={hasPartialMessage}
               onContinueGeneration={handleContinueGeneration}
+              blueprintMode={blueprintMode}
+              onBlueprintModeChange={setBlueprintMode}
+              isBlueprintBusy={isBlueprintBusy}
+              blueprintPhase={blueprintPhase}
+              blueprint={blueprint}
+              pageStatuses={pageStatuses}
+              onBlueprintApprove={handleBlueprintApprove}
+              onBlueprintRegenerate={handleBlueprintRegenerate}
+              onBlueprintCancel={cancelBlueprint}
+              blueprintError={blueprintError}
             />
           </Panel>
 
@@ -480,8 +596,10 @@ export function Builder() {
             <PreviewPanel
               files={currentFiles}
               lastValidFiles={lastValidFiles}
-              isGenerating={isGenerating}
+              isGenerating={isGenerating || isBlueprintBusy}
               buildProgress={buildProgress}
+              blueprintPhase={blueprintPhase}
+              pageStatuses={pageStatuses}
             />
           </Panel>
         </PanelGroup>

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { combineForPreview, getHtmlPages } from '@/lib/preview/combine-files';
 import type { BuildProgressState } from '@/hooks/useBuildProgress';
 import type { ProjectFiles } from '@/types';
+import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 import { DEVICE_WIDTHS, type DeviceSize } from '@/features/preview/constants';
 import { PreviewEmptyState } from '@/features/preview/preview-empty-state';
 import { PreviewLoadingOverlay } from '@/features/preview/preview-loading-overlay';
@@ -16,9 +17,11 @@ interface PreviewPanelProps {
   lastValidFiles: ProjectFiles;
   isGenerating: boolean;
   buildProgress?: BuildProgressState;
+  blueprintPhase?: BlueprintPhase;
+  pageStatuses?: PageGenerationStatus[];
 }
 
-export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress }: PreviewPanelProps) {
+export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress, blueprintPhase, pageStatuses }: PreviewPanelProps) {
   const [device, setDevice] = useState<DeviceSize>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedPage, setSelectedPage] = useState('index.html');
@@ -159,11 +162,11 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
           </div>
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-muted-foreground">
-            <PreviewEmptyState isGenerating={isGenerating} buildProgress={buildProgress} />
+            <PreviewEmptyState isGenerating={isGenerating} buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />
           </div>
         )}
 
-        {isGenerating && hasContent && <PreviewLoadingOverlay buildProgress={buildProgress} />}
+        {isGenerating && hasContent && <PreviewLoadingOverlay buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />}
       </div>
     </div>
   );
