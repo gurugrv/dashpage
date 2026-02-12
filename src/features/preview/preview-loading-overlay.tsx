@@ -79,7 +79,7 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
   const percent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   const label = isComponentsPhase
-    ? 'Header & footer'
+    ? 'Styles & components'
     : generating
       ? `${generating.filename} (${currentNum}/${total})`
       : `Pages (${completed}/${total})`;
@@ -96,7 +96,7 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
       <div className="flex flex-col gap-0.5">
         <span className="text-sm font-medium text-foreground">{label}</span>
         <span className="text-[11px] text-muted-foreground">
-          {isComponentsPhase ? 'Crafting shared navigation...' : 'Generating content & layout...'}
+          {isComponentsPhase ? 'Building shared styles & components...' : 'Generating content & layout...'}
         </span>
       </div>
     </div>
@@ -107,23 +107,21 @@ export function PreviewLoadingOverlay({ buildProgress, blueprintPhase, pageStatu
   const isBlueprintActive = blueprintPhase && blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[1px]">
+    <div className="absolute inset-0 flex items-center justify-center bg-background/30 backdrop-blur-[1px]">
       {isBlueprintActive ? (
         <BlueprintOverlayContent blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />
       ) : (
-        <div className="flex flex-col items-center gap-2 rounded-xl border bg-background/90 px-5 py-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span className="text-sm text-muted-foreground">{buildProgress?.label || 'Generating...'}</span>
+        <div className="flex items-center gap-3 rounded-xl border border-muted-foreground/10 bg-background/90 pl-2 pr-4 py-2 shadow-lg backdrop-blur-sm">
+          <OverlayRing
+            size={64}
+            strokeWidth={3.5}
+            percent={buildProgress?.percent ?? 0}
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-foreground">
+              {buildProgress?.label || 'Generating...'}
+            </span>
           </div>
-          {buildProgress?.isActive && (
-            <div className="h-1 w-28 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                style={{ width: `${buildProgress.percent ?? 0}%` }}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>

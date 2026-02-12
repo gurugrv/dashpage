@@ -9,6 +9,7 @@ export function getPageSystemPrompt(
   blueprint: Blueprint,
   page: BlueprintPage,
   sharedHtml?: SharedHtml,
+  headTags?: string,
 ): string {
   const { designSystem, sharedComponents, contentStrategy } = blueprint;
 
@@ -60,9 +61,22 @@ Keep the footer structure simple and consistent — all pages share the same foo
     ? '5. Embed the shared footer HTML VERBATIM at the end of <body> — do not modify it in any way.'
     : '5. Generate footer per footer_spec at end of <body>.';
 
-  return `You are a web developer generating a single HTML page from a site blueprint. Output ONLY the complete HTML document — no explanation, no markdown fences.
+  const designSystemSection = headTags
+    ? `<shared_head>
+Include these tags VERBATIM in <head> (do NOT generate your own CSS custom properties, Tailwind CDN, or Google Fonts setup):
+${headTags}
+</shared_head>
 
-<design_system>
+<design_system_reference>
+Available CSS custom properties (defined in styles.css — do NOT redefine them):
+  --color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
+  --font-heading, --font-body
+  --shadow-sm, --shadow-md, --shadow-lg
+  --radius, --transition
+
+Mood: ${designSystem.mood}
+</design_system_reference>`
+    : `<design_system>
 CSS Custom Properties to define in <style>:
   --color-primary: ${designSystem.primaryColor};
   --color-secondary: ${designSystem.secondaryColor};
@@ -80,7 +94,15 @@ CSS Custom Properties to define in <style>:
   --transition: all 0.2s ease-in-out;
 
 Mood: ${designSystem.mood}
-</design_system>
+</design_system>`;
+
+  const requirement2 = headTags
+    ? '2. In <head>: charset, viewport, <title>, meta description, then the shared_head tags VERBATIM. Do NOT generate your own CSS custom properties, Tailwind CDN script, Google Fonts links, or Tailwind config — they are all provided in the shared head.'
+    : `2. In <head>: charset, viewport, <title>, meta description, Tailwind CDN, Google Fonts for ${designSystem.headingFont} and ${designSystem.bodyFont}, <style> with ALL CSS custom properties, Tailwind config extending theme with tokens.`;
+
+  return `You are a web developer generating a single HTML page from a site blueprint. Output ONLY the complete HTML document — no explanation, no markdown fences.
+
+${designSystemSection}
 
 <page_spec>
 Filename: ${page.filename}
@@ -112,7 +134,7 @@ ${footerSection}
 
 <requirements>
 1. Output a COMPLETE <!DOCTYPE html> document.
-2. In <head>: charset, viewport, <title>, meta description, Tailwind CDN, Google Fonts for ${designSystem.headingFont} and ${designSystem.bodyFont}, <style> with ALL CSS custom properties, Tailwind config extending theme with tokens.
+${requirement2}
 ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}

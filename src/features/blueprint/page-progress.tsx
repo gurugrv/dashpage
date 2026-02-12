@@ -28,7 +28,7 @@ export function PageProgress({ pageStatuses, componentsStatus, onCancel }: PageP
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">
             {hasComponentsStep && !componentsComplete
-              ? 'Preparing shared components...'
+              ? 'Preparing shared styles & components...'
               : `Generating pages (${completedPages} of ${totalPages})`}
           </span>
           {onCancel && (
@@ -63,7 +63,7 @@ export function PageProgress({ pageStatuses, componentsStatus, onCancel }: PageP
                     : 'text-foreground font-medium'
                 }`}
               >
-                Shared header & footer
+                Shared styles, header & footer
               </span>
             </div>
           )}

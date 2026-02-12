@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Blueprint } from '@/lib/blueprint/types';
 import type { ProjectFiles } from '@/types';
+import { generateSharedStyles } from '@/lib/blueprint/generate-shared-styles';
 
 export type BlueprintPhase =
   | 'idle'
@@ -79,6 +80,7 @@ export function useBlueprintGeneration({
     setHeaderHtml(null);
     setFooterHtml(null);
     filesAccumulatorRef.current = {};
+    sharedStylesRef.current = null;
   }, []);
 
   const generateBlueprint = useCallback(async (prompt: string, conversationId: string) => {
@@ -171,6 +173,7 @@ export function useBlueprintGeneration({
     conversationId: string,
     blueprintOverride?: Blueprint,
     sharedHtml?: { headerHtml: string; footerHtml: string },
+    headTags?: string,
   ) => {
     const activeBlueprint = blueprintOverride ?? blueprint;
     if (!activeBlueprint || !provider || !model) {
@@ -204,6 +207,7 @@ export function useBlueprintGeneration({
           blueprint: activeBlueprint,
           headerHtml: sharedHtml?.headerHtml,
           footerHtml: sharedHtml?.footerHtml,
+          headTags,
         }),
         signal: controller.signal,
       });
@@ -251,15 +255,24 @@ export function useBlueprintGeneration({
                 filesAccumulatorRef.current[event.filename] = event.html;
               }
             } else if (event.type === 'pipeline-status' && event.status === 'complete') {
+              // Merge shared styles.css into files if available
+              const files = { ...filesAccumulatorRef.current };
+              if (sharedStylesRef.current) {
+                files['styles.css'] = sharedStylesRef.current.stylesCss;
+              }
               // Push files first, then delay phase transition so the site
               // renders under the loading overlay before it disappears
-              onFilesReady({ ...filesAccumulatorRef.current });
+              onFilesReady(files);
               setTimeout(() => setPhase('complete'), 600);
             } else if (event.type === 'pipeline-status' && event.status === 'error') {
               setError('Some pages failed to generate');
               // Still set complete if we got at least some pages
               if (Object.keys(filesAccumulatorRef.current).length > 0) {
-                onFilesReady({ ...filesAccumulatorRef.current });
+                const files = { ...filesAccumulatorRef.current };
+                if (sharedStylesRef.current) {
+                  files['styles.css'] = sharedStylesRef.current.stylesCss;
+                }
+                onFilesReady(files);
                 setTimeout(() => setPhase('complete'), 600);
               } else {
                 setPhase('error');
@@ -277,11 +290,17 @@ export function useBlueprintGeneration({
     }
   }, [blueprint, provider, model, onFilesReady]);
 
+  const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
+
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
     const components = await generateComponents(activeBlueprint);
     if (!components) return; // Error already set by generateComponents
 
-    await generatePages(conversationId, activeBlueprint, components);
+    // Build shared styles synchronously from design system — no AI call needed
+    const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
+    sharedStylesRef.current = sharedStyles;
+
+    await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags);
   }, [generateComponents, generatePages]);
 
   return {

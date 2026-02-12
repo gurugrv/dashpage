@@ -178,8 +178,8 @@ function BlueprintWireframe({
     headline = 'Blueprint ready';
     subtitle = 'Review and approve in the prompt panel';
   } else if (isComponentsPhase) {
-    headline = 'Building navigation';
-    subtitle = 'Crafting shared header & footer components...';
+    headline = 'Building shared styles';
+    subtitle = 'Generating design system, header & footer...';
   } else if (isPagesPhase && generating) {
     headline = `${generating.filename}`;
     subtitle = `Page ${currentNum} of ${total} — generating content & layout`;
@@ -329,18 +329,18 @@ export function PreviewEmptyState({ isGenerating, buildProgress, blueprintPhase,
     }
 
     return (
-      <>
-        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm">{buildProgress?.label || 'Generating your website...'}</p>
-        {buildProgress?.isActive && (
-          <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-              style={{ width: `${buildProgress.percent ?? 0}%` }}
-            />
-          </div>
-        )}
-      </>
+      <div className="flex items-center gap-3 rounded-xl border border-muted-foreground/10 bg-background/90 pl-2 pr-4 py-2 shadow-lg backdrop-blur-sm">
+        <ProgressRing
+          size={64}
+          strokeWidth={3.5}
+          percent={buildProgress?.percent ?? 0}
+        />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-foreground">
+            {buildProgress?.label || 'Generating...'}
+          </span>
+        </div>
+      </div>
     );
   }
 

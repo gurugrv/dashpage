@@ -14,7 +14,7 @@ export function getComponentsSystemPrompt(blueprint: Blueprint): string {
   return `You are a web developer generating shared header and footer HTML components for a multi-page website. Output ONLY the two HTML blocks described below — no explanation, no markdown fences.
 
 <design_system>
-CSS Custom Properties (already defined in each page's <style>):
+CSS Custom Properties (defined in shared styles.css):
   --color-primary: ${designSystem.primaryColor};
   --color-secondary: ${designSystem.secondaryColor};
   --color-accent: ${designSystem.accentColor};
