@@ -1,0 +1,104 @@
+'use client';
+
+import { useCallback } from 'react';
+import type { UIMessage } from '@ai-sdk/react';
+import type { ProjectFiles } from '@/types';
+import type { StoredMessage } from '@/features/builder/types';
+
+interface ConversationService {
+  create: (title?: string) => Promise<{ id: string }>;
+  remove: (id: string) => Promise<void>;
+}
+
+interface UseConversationActionsOptions {
+  service: ConversationService;
+  activeConversationId: string | null;
+  setActiveConversationId: (id: string | null) => void;
+  setMessages: (messages: UIMessage[]) => void;
+  setFiles: (files: ProjectFiles) => void;
+  resetAutoContinue: () => void;
+  resetProgress: () => void;
+  setHasPartialMessage: (value: boolean) => void;
+}
+
+export function useConversationActions({
+  service,
+  activeConversationId,
+  setActiveConversationId,
+  setMessages,
+  setFiles,
+  resetAutoContinue,
+  resetProgress,
+  setHasPartialMessage,
+}: UseConversationActionsOptions) {
+  const handleCreateConversation = useCallback(async () => {
+    const conversation = await service.create();
+    setActiveConversationId(conversation.id);
+    setMessages([]);
+    setFiles({});
+    resetAutoContinue();
+    resetProgress();
+    setHasPartialMessage(false);
+  }, [service, setActiveConversationId, setMessages, setFiles, resetAutoContinue, resetProgress, setHasPartialMessage]);
+
+  const handleSelectConversation = useCallback(async (id: string) => {
+    if (id === activeConversationId) return;
+
+    setActiveConversationId(id);
+    resetAutoContinue();
+    resetProgress();
+
+    try {
+      const response = await fetch(`/api/conversations/${id}/messages`);
+      const messages = await response.json() as StoredMessage[];
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        setMessages([]);
+        setFiles({});
+        setHasPartialMessage(false);
+        return;
+      }
+
+      const uiMessages: UIMessage[] = messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        parts: [{ type: 'text' as const, text: message.content }],
+        ...(message.isPartial ? { isPartial: true } : {}),
+      }));
+
+      setMessages(uiMessages);
+      const lastMessage = messages[messages.length - 1];
+      setHasPartialMessage(lastMessage.role === 'assistant' && lastMessage.isPartial === true);
+
+      for (let index = messages.length - 1; index >= 0; index--) {
+        if (messages[index].htmlArtifact) {
+          setFiles(messages[index].htmlArtifact as ProjectFiles);
+          break;
+        }
+      }
+    } catch {
+      setMessages([]);
+      setFiles({});
+      setHasPartialMessage(false);
+    }
+  }, [activeConversationId, resetAutoContinue, resetProgress, setActiveConversationId, setFiles, setHasPartialMessage, setMessages]);
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    await service.remove(id);
+
+    if (activeConversationId !== id) return;
+
+    setActiveConversationId(null);
+    setMessages([]);
+    setFiles({});
+    resetAutoContinue();
+    resetProgress();
+    setHasPartialMessage(false);
+  }, [service, activeConversationId, resetAutoContinue, resetProgress, setActiveConversationId, setFiles, setHasPartialMessage, setMessages]);
+
+  return {
+    handleCreateConversation,
+    handleSelectConversation,
+    handleDeleteConversation,
+  };
+}
