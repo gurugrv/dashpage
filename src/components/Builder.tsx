@@ -19,6 +19,8 @@ import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
 import { useModels } from '@/hooks/useModels';
+import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
+import { parseAssistantForChat } from '@/lib/parser/assistant-stream-parser';
 import type { ProjectFiles } from '@/types';
 import type { BuildProgressData } from '@/types/build-progress';
 
@@ -34,7 +36,7 @@ export function Builder() {
   const { currentFiles, lastValidFiles, isGenerating, editFailed, processMessages, setFiles, resetEditFailed } = useHtmlParser();
   const { conversations, create, rename, remove } = useConversations();
   const { availableProviders, refetch } = useModels();
-  const { triggerAutoContinue, resetAutoContinue } = useAutoContinue();
+  const { resetAutoContinue } = useAutoContinue();
   const { progress: buildProgress, handleProgressData, resetProgress } = useBuildProgress();
 
   const {
@@ -65,7 +67,7 @@ export function Builder() {
         handleProgressData(part.data as BuildProgressData);
       }
     },
-    onFinish: async ({ message, finishReason }) => {
+    onFinish: async ({ message }) => {
       const convId = activeConversationIdRef.current;
       const files = currentFilesRef.current;
 
@@ -80,29 +82,44 @@ export function Builder() {
           ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
           .map((part) => part.text)
           .join('') ?? '';
+        const persistedContent = message.role === 'assistant'
+          ? sanitizeAssistantMessageWithFallback(textContent, Boolean(htmlArtifact))
+          : textContent;
 
         await fetch(`/api/conversations/${convId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: message.role, content: textContent, htmlArtifact }),
+          body: JSON.stringify({ role: message.role, content: persistedContent, htmlArtifact }),
         });
       }
 
       streamingTextRef.current = '';
 
-      if (finishReason === 'length' && effectiveSelectedProvider && effectiveSelectedModel) {
-        triggerAutoContinue(
-          messages,
-          effectiveSelectedProvider,
-          effectiveSelectedModel,
-          getSavedTimeZone(),
-          getBrowserTimeZone(),
-        );
-      }
     },
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
+
+  const displayMessages: UIMessage[] = messages.map((message, index) => {
+    if (message.role !== 'assistant') return message;
+
+    const rawText = message.parts
+      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+      .map((part) => part.text)
+      .join('') ?? '';
+    const parsed = parseAssistantForChat(rawText);
+    const isLastMessage = index === messages.length - 1;
+    const text = parsed || (
+      !isLoading && isLastMessage
+        ? sanitizeAssistantMessageWithFallback(rawText)
+        : ''
+    );
+
+    return {
+      ...message,
+      parts: [{ type: 'text', text }],
+    };
+  });
 
   const { savePartial } = useStreamingPersistence({
     currentFiles,
@@ -206,6 +223,7 @@ export function Builder() {
     input,
     isLoading,
     activeConversationId,
+    currentFilesRef,
     create,
     messages.length,
     rename,
@@ -249,6 +267,7 @@ export function Builder() {
   }, [
     activeConversationId,
     isLoading,
+    currentFilesRef,
     sendMessage,
     effectiveSelectedProvider,
     effectiveSelectedModel,
@@ -272,7 +291,7 @@ export function Builder() {
         <PanelGroup id="builder-panels" orientation="horizontal" className="flex-1">
           <Panel id="prompt-panel" defaultSize={35} minSize={25}>
             <PromptPanel
-              messages={messages}
+              messages={displayMessages}
               input={input}
               setInput={setInput}
               onSubmit={handleSubmit}

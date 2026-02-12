@@ -22,6 +22,7 @@ const SECTION_TAG = /<section[\s>]/i
 
 // Typical HTML page is 6000-15000 chars. Start conservative, grow if exceeded.
 const INITIAL_ESTIMATED_SIZE = 8000
+const INITIAL_EDIT_ESTIMATED_SIZE = 1600
 // Minimum percent jump to emit an update (avoids flooding)
 const MIN_PERCENT_STEP = 3
 
@@ -36,7 +37,9 @@ export class BuildProgressDetector {
   private htmlStarted = false
   private editMode = false
   private charsSinceHtmlStart = 0
+  private charsSinceEditStart = 0
   private estimatedSize = INITIAL_ESTIMATED_SIZE
+  private editEstimatedSize = INITIAL_EDIT_ESTIMATED_SIZE
   private emittedExplaining = false
 
   constructor(file = 'index.html') {
@@ -58,9 +61,9 @@ export class BuildProgressDetector {
       if (/<editOperations>/i.test(delta) || /<editOperations>/i.test(recent)) {
         this.editMode = true
         this.currentPhase = 'edit-started'
-        this.currentLabel = 'Applying edits...'
-        this.lastEmittedPercent = 10
-        return this.makeData('edit-started', 'Applying edits...', 10)
+        this.currentLabel = 'Understanding your request...'
+        this.lastEmittedPercent = 5
+        return this.makeData('edit-started', 'Understanding your request...', 5)
       }
       if (/<htmlOutput>/i.test(delta) || /<htmlOutput>/i.test(recent)) {
         this.htmlStarted = true
@@ -78,18 +81,25 @@ export class BuildProgressDetector {
       return null
     }
 
-    // Edit mode: simpler progress (edits are fast)
+    // Edit mode: keep the same step progression as full generation
     if (this.editMode) {
       if (/<\/editOperations>/i.test(delta) || /<\/editOperations>/i.test(this.buffer.slice(-200))) {
-        this.lastEmittedPercent = 90
-        return this.makeData('edit-applying', 'Applying edits...', 90)
+        this.lastEmittedPercent = 95
+        return this.makeData('edit-complete', 'Finalizing...', 95)
       }
-      // Each <edit> block bumps progress
-      const editCount = (this.buffer.match(/<\/edit>/gi) || []).length
-      const percent = Math.min(85, 10 + editCount * 15)
+
+      this.charsSinceEditStart += delta.length
+      if (this.charsSinceEditStart > this.editEstimatedSize * 0.85) {
+        this.editEstimatedSize = Math.round(this.charsSinceEditStart * 1.4)
+      }
+
+      const ratio = this.charsSinceEditStart / this.editEstimatedSize
+      const percent = Math.min(90, Math.round(5 + ratio * 85))
+      const label = this.getStepLabel(percent)
+
       if (percent > this.lastEmittedPercent + MIN_PERCENT_STEP) {
         this.lastEmittedPercent = percent
-        return this.makeData('edit-applying', 'Applying edits...', percent)
+        return this.makeData('edit-applying', label, percent)
       }
       return null
     }
@@ -151,5 +161,13 @@ export class BuildProgressDetector {
 
   private makeData(phase: BuildPhase, label: string, percent: number): BuildProgressData {
     return { phase, label, file: this.file, percent, timestamp: Date.now() }
+  }
+
+  private getStepLabel(percent: number): string {
+    if (percent >= 95) return 'Finalizing...'
+    if (percent >= 80) return 'Building content...'
+    if (percent >= 40) return 'Building page structure...'
+    if (percent >= 20) return 'Defining design system...'
+    return 'Understanding your request...'
   }
 }

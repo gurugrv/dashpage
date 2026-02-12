@@ -4,18 +4,11 @@ import { User, Bot } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { UIMessage } from '@ai-sdk/react'
 import { cn } from '@/lib/utils'
+import { sanitizeAssistantMessage } from '@/lib/chat/sanitize-assistant-message'
 
 interface ChatMessageProps {
   message: UIMessage
   isPartial?: boolean
-}
-
-function stripHtmlOutput(content: string): string {
-  const idx = content.indexOf('<htmlOutput>')
-  if (idx !== -1) {
-    return content.slice(0, idx).trim()
-  }
-  return content
 }
 
 function getTextContent(message: UIMessage): string {
@@ -27,7 +20,8 @@ function getTextContent(message: UIMessage): string {
 
 export function ChatMessage({ message, isPartial }: ChatMessageProps) {
   const isUser = message.role === 'user'
-  const text = stripHtmlOutput(getTextContent(message))
+  const rawText = getTextContent(message)
+  const text = isUser ? rawText : sanitizeAssistantMessage(rawText)
 
   if (!text) return null
 

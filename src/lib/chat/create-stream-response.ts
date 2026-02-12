@@ -1,8 +1,8 @@
-import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
+import { createUIMessageStream, createUIMessageStreamResponse, type UIMessageChunk } from 'ai';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 
 interface UIStreamSource {
-  toUIMessageStream: () => AsyncIterable<any>;
+  toUIMessageStream: () => AsyncIterable<UIMessageChunk>;
 }
 
 export function createProgressStreamResponse(result: UIStreamSource) {

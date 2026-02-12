@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import type { ProjectFiles } from '@/types';
 import type { StoredMessage } from '@/features/builder/types';
+import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
 
 interface ConversationService {
   create: (title?: string) => Promise<{ id: string }>;
@@ -62,7 +63,12 @@ export function useConversationActions({
       const uiMessages: UIMessage[] = messages.map((message) => ({
         id: message.id,
         role: message.role,
-        parts: [{ type: 'text' as const, text: message.content }],
+        parts: [{
+          type: 'text' as const,
+          text: message.role === 'assistant'
+            ? sanitizeAssistantMessageWithFallback(message.content, Boolean(message.htmlArtifact))
+            : message.content,
+        }],
         ...(message.isPartial ? { isPartial: true } : {}),
       }));
 

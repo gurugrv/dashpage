@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, type MutableRefObject } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
+import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
 import type { ProjectFiles } from '@/types';
 
 interface UseStreamingPersistenceOptions {
@@ -57,7 +58,11 @@ export function useStreamingPersistence({
     partialSavedRef.current = true;
     const files = currentFilesRef.current;
     const htmlArtifact = files['index.html'] ? files : null;
-    const payload = JSON.stringify({ role: 'assistant', content: text, htmlArtifact });
+    const payload = JSON.stringify({
+      role: 'assistant',
+      content: sanitizeAssistantMessageWithFallback(text, Boolean(htmlArtifact)),
+      htmlArtifact,
+    });
     const url = `/api/conversations/${convId}/messages/partial`;
 
     if (useSendBeacon && typeof navigator.sendBeacon === 'function') {

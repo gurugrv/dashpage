@@ -29,21 +29,28 @@ npx shadcn@latest add <component>       # Add shadcn/ui component (new-york styl
 
 **Data flow:**
 ```
-User prompt -> sendMessage() -> POST /api/chat -> resolveApiKey() -> provider registry
--> streamText() + system prompt (with current HTML context) -> SSE stream
--> Client: useHtmlParser dual parsing (JSON structured output || <htmlOutput> tag fallback)
--> Extract HTML into ProjectFiles map -> iframe srcdoc (debounced 300ms during stream)
--> onFinish: save to DB + auto-continue if finishReason === 'length'
+User prompt -> sendMessage() -> POST /api/chat -> resolveChatExecution()
+-> streamText() + system prompt -> createProgressStreamResponse() SSE stream
+-> Client parse order in useHtmlParser:
+   1) <editOperations> extraction + applyEditOperations()
+   2) JSON with files map
+   3) <htmlOutput> fallback extraction
+-> ProjectFiles update -> iframe preview
+-> onFinish: save assistant message + htmlArtifact
+-> if finishReason === 'length': POST /api/chat/continue (max 3 attempts)
+-> if interrupted/unload: POST /api/conversations/[id]/messages/partial
 ```
 
 **Key patterns:**
 - `ProjectFiles` type (`Record<string, string>`) used everywhere instead of raw HTML strings. V1 always uses `{ "index.html": "..." }` key.
-- API key resolution: `.env.local` (priority 1) -> encrypted DB column (priority 2) via `key-manager.ts`
+- API key resolution supports env + encrypted DB via `key-manager.ts`.
 - `sendMessage()` receives fresh `body` at call time (currentFiles, provider, model) to avoid stale closures
 - `onFinish` callback handles both DB persistence and auto-continue detection
 - Builder component uses refs (`currentFilesRef`, `activeConversationIdRef`) to avoid stale closure issues in async callbacks
 - iframe uses `sandbox="allow-scripts allow-forms"` (NO `allow-same-origin` to prevent XSS)
 - Auto-continue on token limit: requests full HTML replacement (not fragment concatenation), up to 3 retries
+- Assistant content is sanitized before persistence via `sanitizeAssistantMessage()`
+- Partial assistant messages are persisted with `isPartial = true` and surfaced in UI on resume
 
 ### Source Layout
 
@@ -55,26 +62,33 @@ User prompt -> sendMessage() -> POST /api/chat -> resolveApiKey() -> provider re
 - `src/lib/providers/registry.ts` - 4 LLM providers (OpenRouter, Anthropic, Google, OpenAI) with factory functions + dynamic model fetching
 - `src/lib/prompts/system-prompt.ts` - System prompt with `<current_website>` context injection and anti-generic-aesthetic rules
 - `src/lib/parser/html-extractor.ts` - Streaming `<htmlOutput>` tag parser (fallback)
-- `src/lib/parser/output-parser.ts` - Zod schema for structured output (primary)
+- `src/lib/parser/edit-operations/*` - `<editOperations>` extraction + safe apply logic
+- `src/lib/parser/output-parser.ts` - Zod schema/types for structured output contracts
 - `src/lib/keys/key-manager.ts` - AES-256-CBC encryption for DB-stored API keys
-- `src/hooks/useHtmlParser.ts` - Dual parsing: tries JSON structured output first, falls back to tag extraction
+- `src/hooks/useHtmlParser.ts` - Parse priority: edit operations -> JSON files -> html tags
 - `src/hooks/useAutoContinue.ts` - Auto-continue on `finishReason === 'length'`
 - `src/hooks/useConversations.ts` - CRUD for conversation sidebar
 - `src/hooks/useModels.ts` - Fetches + caches available models per provider
+- `src/features/builder/hooks/use-streaming-persistence.ts` - Persist partial responses on stop/unload
+- `src/features/builder/hooks/use-conversation-actions.ts` - Hydrates messages/files when switching conversations
 
 ### API Routes
 
-- `POST /api/chat` - Streaming chat via `streamText()` + `toUIMessageStreamResponse()`
+- `POST /api/chat` - Streaming chat via `streamText()` + `createProgressStreamResponse()`
 - `POST /api/chat/continue` - Auto-continue truncated generations
 - `GET /api/models` - Lists available models per configured provider
 - `GET|POST /api/conversations` - List/create conversations
 - `GET|PATCH|DELETE /api/conversations/[id]` - Single conversation CRUD
 - `GET|POST /api/conversations/[id]/messages` - Messages for a conversation
-- `GET|POST /api/keys` - API key management (encrypted storage)
+- `POST /api/conversations/[id]/messages/partial` - Persist partial assistant output
+- `GET|POST|DELETE /api/keys` - API key management (encrypted storage)
 
 ### Database
 
-PostgreSQL via Docker. Prisma 7 with `@prisma/adapter-pg` (driver adapter pattern). Generated client at `src/generated/prisma/` (gitignored). Three models: `Conversation`, `Message` (with `htmlArtifact` JSON column for ProjectFiles), `ApiKey` (encrypted).
+PostgreSQL via Docker. Prisma 7 with `@prisma/adapter-pg` (driver adapter pattern). Generated client at `src/generated/prisma/` (gitignored). Three models:
+- `Conversation`
+- `Message` (`htmlArtifact` JSON snapshot + `isPartial` flag)
+- `ApiKey` (encrypted)
 
 ## Environment
 
