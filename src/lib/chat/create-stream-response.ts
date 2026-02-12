@@ -2,7 +2,7 @@ import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 
 interface UIStreamSource {
-  toUIMessageStream: () => AsyncIterable<unknown>;
+  toUIMessageStream: () => AsyncIterable<any>;
 }
 
 export function createProgressStreamResponse(result: UIStreamSource) {
