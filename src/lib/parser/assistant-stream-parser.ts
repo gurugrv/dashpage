@@ -25,6 +25,7 @@ export function parseAssistantForChat(input: string): string {
   let i = 0;
   let output = '';
   let insideTag: StructuredTag | undefined;
+  let consumedStructuredArtifact = false;
 
   while (i < input.length) {
     if (insideTag) {
@@ -32,7 +33,12 @@ export function parseAssistantForChat(input: string): string {
       if (closeIndex === -1) break;
       i = closeIndex + insideTag.close.length;
       insideTag = undefined;
+      consumedStructuredArtifact = true;
       continue;
+    }
+
+    if (consumedStructuredArtifact) {
+      break;
     }
 
     const closeTag = STRUCTURED_TAGS.find((tag) => startsWithIgnoreCase(input, tag.close, i));
@@ -57,4 +63,23 @@ export function parseAssistantForChat(input: string): string {
   }
 
   return output.trim();
+}
+
+export function extractPostArtifactSummary(input: string): string {
+  const lower = input.toLowerCase();
+  let lastCloseEnd = -1;
+
+  for (const tag of STRUCTURED_TAGS) {
+    const close = tag.close.toLowerCase();
+    const index = lower.lastIndexOf(close);
+    if (index !== -1) {
+      const closeEnd = index + tag.close.length;
+      if (closeEnd > lastCloseEnd) {
+        lastCloseEnd = closeEnd;
+      }
+    }
+  }
+
+  if (lastCloseEnd === -1) return '';
+  return input.slice(lastCloseEnd).trim();
 }

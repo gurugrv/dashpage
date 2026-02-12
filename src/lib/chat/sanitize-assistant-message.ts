@@ -1,5 +1,6 @@
 const STRUCTURED_TAGS = ['editOperations', 'htmlOutput'] as const;
 const STRUCTURED_TAG_OPENERS = STRUCTURED_TAGS.map((tag) => `<${tag}>`);
+const STRUCTURED_TAG_CLOSERS = STRUCTURED_TAGS.map((tag) => `</${tag}>`);
 
 export const ARTIFACT_COMPLETION_MESSAGE = 'Generation complete. Preview updated.';
 
@@ -24,6 +25,29 @@ export function hasStructuredArtifactOutput(content: string): boolean {
   return STRUCTURED_TAG_OPENERS.some((opener) => lower.includes(opener));
 }
 
+function findLastStructuredCloseIndex(content: string): number {
+  const lower = content.toLowerCase();
+  let lastCloseEnd = -1;
+
+  for (const closer of STRUCTURED_TAG_CLOSERS) {
+    const index = lower.lastIndexOf(closer.toLowerCase());
+    if (index !== -1) {
+      const closeEnd = index + closer.length;
+      if (closeEnd > lastCloseEnd) {
+        lastCloseEnd = closeEnd;
+      }
+    }
+  }
+
+  return lastCloseEnd;
+}
+
+function hasPostArtifactSummary(content: string): boolean {
+  const lastCloseEnd = findLastStructuredCloseIndex(content);
+  if (lastCloseEnd === -1) return false;
+  return content.slice(lastCloseEnd).trim().length > 0;
+}
+
 export function sanitizeAssistantMessageWithFallback(content: string, hasHtmlArtifact = false): string {
   const sanitized = sanitizeAssistantMessage(content);
   if (sanitized) return sanitized;
@@ -33,4 +57,18 @@ export function sanitizeAssistantMessageWithFallback(content: string, hasHtmlArt
   }
 
   return '';
+}
+
+export function ensureArtifactCompletionMessage(
+  visibleContent: string,
+  sourceContent: string,
+  hasHtmlArtifact = false,
+): string {
+  const cleaned = visibleContent.trim();
+  const hasArtifact = hasHtmlArtifact || hasStructuredArtifactOutput(sourceContent);
+
+  if (!hasArtifact) return cleaned;
+  if (!cleaned) return ARTIFACT_COMPLETION_MESSAGE;
+  if (hasPostArtifactSummary(sourceContent)) return cleaned;
+  return cleaned;
 }

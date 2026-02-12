@@ -19,8 +19,11 @@ import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
 import { useModels } from '@/hooks/useModels';
-import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
-import { parseAssistantForChat } from '@/lib/parser/assistant-stream-parser';
+import {
+  ensureArtifactCompletionMessage,
+  sanitizeAssistantMessageWithFallback,
+} from '@/lib/chat/sanitize-assistant-message';
+import { extractPostArtifactSummary, parseAssistantForChat } from '@/lib/parser/assistant-stream-parser';
 import type { ProjectFiles } from '@/types';
 import type { BuildProgressData } from '@/types/build-progress';
 
@@ -82,15 +85,44 @@ export function Builder() {
           ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
           .map((part) => part.text)
           .join('') ?? '';
-        const persistedContent = message.role === 'assistant'
-          ? sanitizeAssistantMessageWithFallback(textContent, Boolean(htmlArtifact))
-          : textContent;
+        const preface = parseAssistantForChat(textContent);
+        const postSummary = extractPostArtifactSummary(textContent);
 
-        await fetch(`/api/conversations/${convId}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: message.role, content: persistedContent, htmlArtifact }),
-        });
+        if (message.role === 'assistant' && htmlArtifact) {
+          const completionSummary = ensureArtifactCompletionMessage(
+            postSummary || sanitizeAssistantMessageWithFallback(textContent, true),
+            textContent,
+            true,
+          );
+          const trimmedPreface = preface.trim();
+          const trimmedSummary = completionSummary.trim();
+
+          if (trimmedPreface) {
+            await fetch(`/api/conversations/${convId}/messages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'assistant', content: trimmedPreface, htmlArtifact: null }),
+            });
+          }
+
+          if (trimmedSummary && trimmedSummary !== trimmedPreface) {
+            await fetch(`/api/conversations/${convId}/messages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'assistant', content: trimmedSummary, htmlArtifact }),
+            });
+          }
+        } else {
+          const persistedContent = message.role === 'assistant'
+            ? sanitizeAssistantMessageWithFallback(textContent, Boolean(htmlArtifact))
+            : textContent;
+
+          await fetch(`/api/conversations/${convId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: message.role, content: persistedContent, htmlArtifact }),
+          });
+        }
       }
 
       streamingTextRef.current = '';
@@ -100,25 +132,50 @@ export function Builder() {
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
-  const displayMessages: UIMessage[] = messages.map((message, index) => {
-    if (message.role !== 'assistant') return message;
+  const displayMessages: UIMessage[] = messages.flatMap((message, index) => {
+    if (message.role !== 'assistant') return [message];
 
     const rawText = message.parts
       ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
       .map((part) => part.text)
       .join('') ?? '';
-    const parsed = parseAssistantForChat(rawText);
+    const preface = parseAssistantForChat(rawText);
     const isLastMessage = index === messages.length - 1;
-    const text = parsed || (
-      !isLoading && isLastMessage
-        ? sanitizeAssistantMessageWithFallback(rawText)
-        : ''
-    );
+    const hasCompletedTurn = !isLoading && isLastMessage;
+    const postSummary = hasCompletedTurn ? extractPostArtifactSummary(rawText) : '';
+    const summary = hasCompletedTurn
+      ? ensureArtifactCompletionMessage(
+        postSummary || sanitizeAssistantMessageWithFallback(rawText),
+        rawText,
+      )
+      : '';
 
-    return {
-      ...message,
-      parts: [{ type: 'text', text }],
-    };
+    const output: UIMessage[] = [];
+    if (preface) {
+      output.push({
+        ...message,
+        parts: [{ type: 'text', text: preface }],
+      });
+    }
+
+    if (summary && summary !== preface) {
+      output.push({
+        ...message,
+        id: `${message.id}-completion`,
+        parts: [{ type: 'text', text: summary }],
+      });
+    }
+
+    if (output.length > 0) return output;
+
+    if (hasCompletedTurn && summary) {
+      return [{
+        ...message,
+        parts: [{ type: 'text', text: summary }],
+      }];
+    }
+
+    return [];
   });
 
   const { savePartial } = useStreamingPersistence({

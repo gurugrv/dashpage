@@ -2,6 +2,7 @@ import { convertToModelMessages, createUIMessageStream, createUIMessageStreamRes
 import type { UIMessage } from 'ai';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
+import { createStreamDebugLogger } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 
 interface ChatRequestBody {
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
     });
 
     const detector = new BuildProgressDetector();
+    const debugLogger = createStreamDebugLogger('chat');
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -75,6 +77,7 @@ export async function POST(req: Request) {
                 && typeof (part as { delta?: unknown }).delta === 'string'
               ) {
                 const delta = (part as { delta: string }).delta;
+                debugLogger.logDelta(delta);
                 segmentText += delta;
                 const progress = detector.processDelta(delta);
                 if (progress) {
@@ -101,9 +104,13 @@ export async function POST(req: Request) {
           }
 
           writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });
+          debugLogger.finish('complete');
           writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
         } catch (err: unknown) {
-          if (err instanceof Error && err.name === 'AbortError') return;
+          if (err instanceof Error && err.name === 'AbortError') {
+            debugLogger.finish('aborted');
+            return;
+          }
           throw err;
         }
       },

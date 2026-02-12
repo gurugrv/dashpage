@@ -7,8 +7,9 @@ export const BASE_RULES_SECTION = `<rules>
 6. For images, use https://images.unsplash.com/photo-{id}?w={width}&h={height}&fit=crop or https://placehold.co/WIDTHxHEIGHT as fallback. Use inline SVG for icons.
 7. Include Google Fonts via CDN link in <head>.
 8. ALWAYS output the COMPLETE HTML document. Never use placeholders like "rest of content here."
-9. Before <htmlOutput>, explain what you're building in 2-3 sentences max.
-10. ALWAYS define a design system in <style> using CSS custom properties BEFORE any markup uses them.
+9. Before <htmlOutput> (or <editOperations>), explain what you're building/changing in 2-3 sentences max.
+10. After closing </htmlOutput> or </editOperations>, add 1 short completion sentence that names the concrete sections/components you just delivered.
+11. ALWAYS define a design system in <style> using CSS custom properties BEFORE any markup uses them.
 </rules>
 
 <design_system>

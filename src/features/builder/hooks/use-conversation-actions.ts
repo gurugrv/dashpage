@@ -4,7 +4,10 @@ import { useCallback } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import type { ProjectFiles } from '@/types';
 import type { StoredMessage } from '@/features/builder/types';
-import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
+import {
+  ensureArtifactCompletionMessage,
+  sanitizeAssistantMessageWithFallback,
+} from '@/lib/chat/sanitize-assistant-message';
 
 interface ConversationService {
   create: (title?: string) => Promise<{ id: string }>;
@@ -46,6 +49,7 @@ export function useConversationActions({
     if (id === activeConversationId) return;
 
     setActiveConversationId(id);
+    setFiles({});
     resetAutoContinue();
     resetProgress();
 
@@ -66,7 +70,11 @@ export function useConversationActions({
         parts: [{
           type: 'text' as const,
           text: message.role === 'assistant'
-            ? sanitizeAssistantMessageWithFallback(message.content, Boolean(message.htmlArtifact))
+            ? ensureArtifactCompletionMessage(
+              sanitizeAssistantMessageWithFallback(message.content, Boolean(message.htmlArtifact)),
+              message.content,
+              Boolean(message.htmlArtifact),
+            )
             : message.content,
         }],
         ...(message.isPartial ? { isPartial: true } : {}),
@@ -76,11 +84,17 @@ export function useConversationActions({
       const lastMessage = messages[messages.length - 1];
       setHasPartialMessage(lastMessage.role === 'assistant' && lastMessage.isPartial === true);
 
+      let hasArtifact = false;
       for (let index = messages.length - 1; index >= 0; index--) {
         if (messages[index].htmlArtifact) {
           setFiles(messages[index].htmlArtifact as ProjectFiles);
+          hasArtifact = true;
           break;
         }
+      }
+
+      if (!hasArtifact) {
+        setFiles({});
       }
     } catch {
       setMessages([]);

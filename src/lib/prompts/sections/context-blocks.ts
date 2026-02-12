@@ -22,6 +22,7 @@ Rules for edit mode:
 - Multiple <edit> blocks are applied in order, top to bottom
 - You may use an empty <replace></replace> to delete content
 - Before <editOperations>, explain what you're changing in 2-3 sentences
+- After </editOperations>, add 1 short completion sentence naming what changed
 
 **REWRITE MODE** — Use for major redesigns, structural overhauls, adding large new sections, completely new layouts, or when more than ~40% of the page changes. Wrap your output in <htmlOutput> tags (existing format).
 

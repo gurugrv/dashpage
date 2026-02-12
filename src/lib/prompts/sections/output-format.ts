@@ -1,6 +1,7 @@
 export const OUTPUT_FORMAT_SECTION = `<output_format>
 Brief explanation of what you're building/changing (2-3 sentences).
 Then output EITHER <editOperations> (edit mode) or <htmlOutput> (rewrite mode).
+After the closing tag, add a 1-sentence completion summary that mentions the key delivered sections/components.
 
 <htmlOutput>
 <!DOCTYPE html>
@@ -34,4 +35,6 @@ Then output EITHER <editOperations> (edit mode) or <htmlOutput> (rewrite mode).
 </body>
 </html>
 </htmlOutput>
+
+Completion summary sentence here (example: "Completed: hero, featured menu, testimonials, and store hours with a warm brown/cream palette.")
 </output_format>`;

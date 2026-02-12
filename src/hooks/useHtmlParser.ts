@@ -95,9 +95,7 @@ export function useHtmlParser() {
 
   const setFiles = useCallback((files: ProjectFiles) => {
     setCurrentFiles(files);
-    if (Object.keys(files).length > 0) {
-      updateLastValid(files);
-    }
+    updateLastValid(files);
   }, [updateLastValid]);
 
   const resetEditFailed = useCallback(() => {
