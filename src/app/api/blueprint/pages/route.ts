@@ -12,6 +12,8 @@ interface PagesRequestBody {
   provider: string;
   model: string;
   blueprint?: Blueprint;
+  headerHtml?: string;
+  footerHtml?: string;
 }
 
 export async function POST(req: Request) {
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { conversationId, provider, model } = body;
+  const { conversationId, provider, model, headerHtml, footerHtml } = body;
   let blueprint = body.blueprint;
 
   if (!conversationId || !provider || !model) {
@@ -117,7 +119,8 @@ export async function POST(req: Request) {
           completedPages,
         });
 
-        const systemPrompt = getPageSystemPrompt(blueprint!, page);
+        const sharedHtml = headerHtml && footerHtml ? { headerHtml, footerHtml } : undefined;
+        const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml);
         const modelInstance = providerConfig.createModel(apiKey!, model);
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 

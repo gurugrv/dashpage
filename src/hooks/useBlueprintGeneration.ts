@@ -8,6 +8,7 @@ export type BlueprintPhase =
   | 'idle'
   | 'generating-blueprint'
   | 'awaiting-approval'
+  | 'generating-components'
   | 'generating-pages'
   | 'complete'
   | 'error';
@@ -56,6 +57,8 @@ export function useBlueprintGeneration({
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [pageStatuses, setPageStatuses] = useState<PageGenerationStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [headerHtml, setHeaderHtml] = useState<string | null>(null);
+  const [footerHtml, setFooterHtml] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
@@ -73,6 +76,8 @@ export function useBlueprintGeneration({
     setBlueprint(null);
     setPageStatuses([]);
     setError(null);
+    setHeaderHtml(null);
+    setFooterHtml(null);
     filesAccumulatorRef.current = {};
   }, []);
 
@@ -120,7 +125,53 @@ export function useBlueprintGeneration({
     }
   }, [provider, model, savedTimeZone, browserTimeZone]);
 
-  const generatePages = useCallback(async (conversationId: string, blueprintOverride?: Blueprint) => {
+  const generateComponents = useCallback(async (activeBlueprint: Blueprint): Promise<{ headerHtml: string; footerHtml: string } | null> => {
+    if (!provider || !model) {
+      setError('No provider or model selected');
+      setPhase('error');
+      return null;
+    }
+
+    setPhase('generating-components');
+    setError(null);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const response = await fetch('/api/blueprint/components', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blueprint: activeBlueprint,
+          provider,
+          model,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Components generation failed' }));
+        throw new Error(data.error || 'Components generation failed');
+      }
+
+      const data = await response.json();
+      setHeaderHtml(data.headerHtml);
+      setFooterHtml(data.footerHtml);
+      return { headerHtml: data.headerHtml, footerHtml: data.footerHtml };
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return null;
+      setError(err instanceof Error ? err.message : 'Components generation failed');
+      setPhase('error');
+      return null;
+    }
+  }, [provider, model]);
+
+  const generatePages = useCallback(async (
+    conversationId: string,
+    blueprintOverride?: Blueprint,
+    sharedHtml?: { headerHtml: string; footerHtml: string },
+  ) => {
     const activeBlueprint = blueprintOverride ?? blueprint;
     if (!activeBlueprint || !provider || !model) {
       setError('Missing blueprint, provider, or model');
@@ -151,6 +202,8 @@ export function useBlueprintGeneration({
           provider,
           model,
           blueprint: activeBlueprint,
+          headerHtml: sharedHtml?.headerHtml,
+          footerHtml: sharedHtml?.footerHtml,
         }),
         signal: controller.signal,
       });
@@ -224,13 +277,23 @@ export function useBlueprintGeneration({
     }
   }, [blueprint, provider, model, onFilesReady]);
 
+  const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
+    const components = await generateComponents(activeBlueprint);
+    if (!components) return; // Error already set by generateComponents
+
+    await generatePages(conversationId, activeBlueprint, components);
+  }, [generateComponents, generatePages]);
+
   return {
     phase,
     blueprint,
     pageStatuses,
     error,
+    headerHtml,
+    footerHtml,
     generateBlueprint,
     generatePages,
+    approveAndGenerate,
     cancel,
     reset,
   };

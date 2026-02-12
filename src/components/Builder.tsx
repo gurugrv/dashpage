@@ -76,7 +76,7 @@ export function Builder() {
     pageStatuses,
     error: blueprintError,
     generateBlueprint,
-    generatePages,
+    approveAndGenerate,
     cancel: cancelBlueprint,
     reset: resetBlueprint,
   } = useBlueprintGeneration({
@@ -470,8 +470,8 @@ export function Builder() {
 
   const handleBlueprintApprove = useCallback(async () => {
     if (!activeConversationId || !blueprint) return;
-    await generatePages(activeConversationId, blueprint);
-  }, [activeConversationId, blueprint, generatePages]);
+    await approveAndGenerate(activeConversationId, blueprint);
+  }, [activeConversationId, blueprint, approveAndGenerate]);
 
   const handleBlueprintRegenerate = useCallback(async () => {
     if (!activeConversationId) return;
