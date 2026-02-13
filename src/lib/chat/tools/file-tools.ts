@@ -7,7 +7,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
   return {
     writeFiles: tool({
       description:
-        'Create or rewrite complete HTML files. Use for new sites, major redesigns (>40% of page changes), or adding new pages. Include ONLY new or rewritten files — unchanged files are preserved automatically.',
+        'Create or rewrite complete HTML files. Use for new sites, major redesigns, structural overhauls, or adding new pages. Include ONLY files being created or fully rewritten — unchanged files are preserved automatically. Returns { success, files } with the written file map.',
       inputSchema: z.object({
         files: z
           .record(z.string(), z.string())
@@ -23,7 +23,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
 
     editFile: tool({
       description:
-        'Apply targeted search/replace edits to an existing file. Use for small-medium changes: colors, text, adding/removing elements, CSS tweaks, bug fixes. Each search string must match EXACTLY in the file (including whitespace). Preferred over writeFiles when changes are localized.',
+        'Apply targeted search/replace edits to an existing file. Each search string must match EXACTLY including whitespace and indentation. Batch multiple changes into one call using the operations array. Returns { success, file, content } on success. On failure returns { success: false, error } with the failed operation index — fall back to readFile then writeFiles if exact match fails.',
       inputSchema: z.object({
         file: z
           .string()
@@ -69,7 +69,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
 
     readFile: tool({
       description:
-        'Read the current contents of a file. Use to inspect a file before editing, or to verify changes after an edit. Useful for multi-step edits where you need to see the current state.',
+        'Read the current contents of a file. Returns { success, file, content, length }. Use before editFile to see exact whitespace/indentation for accurate search strings, or after edits to verify changes.',
       inputSchema: z.object({
         file: z
           .string()
