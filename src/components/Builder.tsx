@@ -135,6 +135,7 @@ export function Builder() {
     approveAndGenerate,
     resumeFromState,
     updateBlueprint,
+    retryAttempt,
     cancel: cancelBlueprint,
     reset: resetBlueprint,
   } = useBlueprintGeneration({
@@ -556,18 +557,23 @@ export function Builder() {
     let content: string;
 
     if (blueprint) {
-      const pageList = blueprint.pages
+      const generatedPages = blueprint.pages.filter((p) => htmlPages.includes(p.filename));
+      const failedPages = blueprint.pages.filter((p) => !htmlPages.includes(p.filename));
+      const pageList = generatedPages
         .map((p) => `- **${p.title}** (\`${p.filename}\`) — ${p.purpose}`)
         .join('\n');
       const design = blueprint.designSystem;
-      content = [
+      const parts = [
         `**${blueprint.siteName}** — ${blueprint.siteDescription}`,
         '',
-        `Generated ${htmlPages.length} pages:`,
+        `Generated ${generatedPages.length} pages:`,
         pageList,
-        '',
-        `Design: ${design.mood} · ${design.headingFont} / ${design.bodyFont} · ${design.primaryColor}`,
-      ].join('\n');
+      ];
+      if (failedPages.length > 0) {
+        parts.push('', `Failed to generate: ${failedPages.map((p) => p.filename).join(', ')}`);
+      }
+      parts.push('', `Design: ${design.mood} · ${design.headingFont} / ${design.bodyFont} · ${design.primaryColor}`);
+      content = parts.join('\n');
     } else {
       content = `Generated ${htmlPages.length}-page website: ${htmlPages.join(', ')}`;
     }
@@ -670,6 +676,7 @@ export function Builder() {
               onBlueprintCancel={cancelBlueprint}
               onBlueprintUpdate={handleBlueprintUpdate}
               blueprintError={blueprintError}
+              isRetryingPages={retryAttempt > 0}
             />
           </Panel>
 

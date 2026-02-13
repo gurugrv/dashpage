@@ -80,9 +80,12 @@ export function useBlueprintGeneration({
   const [error, setError] = useState<string | null>(null);
   const [headerHtml, setHeaderHtml] = useState<string | null>(null);
   const [footerHtml, setFooterHtml] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
+
+  const MAX_PAGE_RETRIES = 1;
 
   const cancel = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -99,6 +102,7 @@ export function useBlueprintGeneration({
     setError(null);
     setHeaderHtml(null);
     setFooterHtml(null);
+    setRetryAttempt(0);
     filesAccumulatorRef.current = {};
     sharedStylesRef.current = null;
   }, []);
@@ -192,12 +196,36 @@ export function useBlueprintGeneration({
     }
   }, [resolveStepModel]);
 
+  /** Remove <a> tags pointing to HTML files not present in the file set */
+  const removeDeadNavLinks = (files: ProjectFiles): ProjectFiles => {
+    const filenames = new Set(Object.keys(files));
+    const result: ProjectFiles = {};
+    for (const [name, html] of Object.entries(files)) {
+      if (!name.endsWith('.html')) {
+        result[name] = html;
+        continue;
+      }
+      result[name] = html.replace(
+        /<a\b([^>]*?)href=["']([^"']*?\.html)["']([^>]*?)>([\s\S]*?)<\/a>/gi,
+        (match, before: string, href: string, after: string, content: string) => {
+          if (filenames.has(href)) return match;
+          // Extract class attribute from the original <a> tag to preserve styling
+          const classMatch = (before + after).match(/class=["']([^"']*)["']/);
+          const cls = classMatch ? ` class="${classMatch[1]}"` : '';
+          return `<span${cls}>${content}</span>`;
+        },
+      );
+    }
+    return result;
+  };
+
   const generatePages = useCallback(async (
     conversationId: string,
     blueprintOverride?: Blueprint,
     sharedHtml?: { headerHtml: string; footerHtml: string },
     headTags?: string,
     skipPages?: string[],
+    retryCount = 0,
   ) => {
     const activeBlueprint = blueprintOverride ?? blueprint;
     const stepModel = resolveStepModel('pages');
@@ -313,22 +341,43 @@ export function useBlueprintGeneration({
               }
             } else if (event.type === 'pipeline-status' && event.status === 'complete') {
               // Merge shared styles.css into files if available
-              const files = { ...filesAccumulatorRef.current };
+              let files = { ...filesAccumulatorRef.current };
               if (sharedStylesRef.current) {
                 files['styles.css'] = sharedStylesRef.current.stylesCss;
               }
+              files = removeDeadNavLinks(files);
               // Push files first, then delay phase transition so the site
               // renders under the loading overlay before it disappears
               onFilesReady(files);
+              setRetryAttempt(0);
               setTimeout(() => setPhase('complete'), 600);
             } else if (event.type === 'pipeline-status' && event.status === 'error') {
+              const completedFilenames = Object.keys(filesAccumulatorRef.current);
+
+              // Auto-retry failed pages once
+              if (retryCount < MAX_PAGE_RETRIES && completedFilenames.length > 0) {
+                setRetryAttempt(retryCount + 1);
+                // Re-invoke generatePages with completed pages skipped
+                generatePages(
+                  conversationId,
+                  blueprintOverride,
+                  sharedHtml,
+                  headTags,
+                  completedFilenames,
+                  retryCount + 1,
+                );
+                return; // exit current SSE loop
+              }
+
               setError('Some pages failed to generate');
+              setRetryAttempt(0);
               // Still set complete if we got at least some pages
-              if (Object.keys(filesAccumulatorRef.current).length > 0) {
-                const files = { ...filesAccumulatorRef.current };
+              if (completedFilenames.length > 0) {
+                let files = { ...filesAccumulatorRef.current };
                 if (sharedStylesRef.current) {
                   files['styles.css'] = sharedStylesRef.current.stylesCss;
                 }
+                files = removeDeadNavLinks(files);
                 onFilesReady(files);
                 setTimeout(() => setPhase('complete'), 600);
               } else {
@@ -422,6 +471,7 @@ export function useBlueprintGeneration({
     error,
     headerHtml,
     footerHtml,
+    retryAttempt,
     generateBlueprint,
     generatePages,
     approveAndGenerate,

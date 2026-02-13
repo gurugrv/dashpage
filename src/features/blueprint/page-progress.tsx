@@ -7,6 +7,7 @@ import type { PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 interface PageProgressProps {
   pageStatuses: PageGenerationStatus[];
   componentsStatus?: 'generating' | 'complete';
+  isRetrying?: boolean;
   onCancel?: () => void;
 }
 
@@ -17,7 +18,7 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
   fetchUrl: Globe,
 };
 
-export function PageProgress({ pageStatuses, componentsStatus, onCancel }: PageProgressProps) {
+export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCancel }: PageProgressProps) {
   const completedPages = pageStatuses.filter((p) => p.status === 'complete').length;
   const totalPages = pageStatuses.length;
 
@@ -36,7 +37,9 @@ export function PageProgress({ pageStatuses, componentsStatus, onCancel }: PageP
           <span className="text-sm font-medium">
             {hasComponentsStep && !componentsComplete
               ? 'Preparing shared styles & components...'
-              : `Generating pages (${completedPages} of ${totalPages})`}
+              : isRetrying
+                ? `Retrying failed pages (${completedPages} of ${totalPages})`
+                : `Generating pages (${completedPages} of ${totalPages})`}
           </span>
           {onCancel && (
             <Button size="xs" variant="ghost" onClick={onCancel}>
