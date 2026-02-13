@@ -8,13 +8,51 @@ datasource db {
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
-  title     String    @default("New Conversation")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  messages  Message[]
+  id        String     @id @default(cuid())
+  title     String     @default("New Conversation")
+  provider  String?    @map("provider")
+  model     String?    @map("model")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  messages        Message[]
+  blueprint       Blueprint?
+  generationState GenerationState?
 
   @@map("conversations")
+}
+
+model Blueprint {
+  id             String       @id @default(cuid())
+  conversationId String       @unique @map("conversation_id")
+  data           Json
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("blueprints")
+}
+
+model GenerationState {
+  id             String       @id @default(cuid())
+  conversationId String       @unique @map("conversation_id")
+  mode           String       // "chat" | "blueprint"
+  phase          String       // Current phase in the generation pipeline
+
+  // Chat mode
+  autoSegment    Int?         @map("auto_segment")
+
+  // Blueprint mode
+  blueprintId    String?      @map("blueprint_id")
+  componentHtml  Json?        @map("component_html")
+  sharedStyles   Json?        @map("shared_styles")
+  completedPages Json?        @map("completed_pages")
+  pageStatuses   Json?        @map("page_statuses")
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("generation_states")
 }
 
 model Message {
