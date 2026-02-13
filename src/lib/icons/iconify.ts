@@ -156,7 +156,7 @@ function buildSearchIndex(): void {
 
   // Also build category-based terms if metadata is available
   // Categories are broad — we index them as lower-priority terms
-  for (const [setName, config] of Object.entries(ICON_SETS)) {
+  for (const setName of Object.keys(ICON_SETS)) {
     try {
       // metadata.json may include categories: { "Category": ["icon1", "icon2"] }
       // @iconify-json packages may or may not include this
