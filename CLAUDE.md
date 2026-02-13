@@ -78,6 +78,8 @@ User prompt -> Builder.handleSubmit() -> useChat.sendMessage()
 - `src/lib/parser/html-extractor.ts` - Streaming `<htmlOutput>` tag parser (fallback strategy)
 - `src/lib/parser/edit-operations/` - `edit-stream-extractor.ts` (XML parsing), `apply-edit-operations.ts` (search/replace with normalized fallback), `types.ts`
 - `src/lib/parser/output-parser.ts` - Zod schema/types for structured output contracts
+- `src/lib/search/` - Web search clients: `brave.ts` (primary), `tavily.ts` (fallback), `types.ts` (shared types)
+- `src/lib/chat/tools/search-tools.ts` - `webSearch` tool definition with Brave-primary, Tavily-fallback
 - `src/lib/keys/key-manager.ts` - AES-256-CBC encryption for DB-stored API keys
 - `src/hooks/useHtmlParser.ts` - Parse priority chain: edit ops -> JSON files -> html tags. Tracks `currentFiles` (live) vs `lastValidFiles` (completed snapshot)
 - `src/hooks/useAutoContinue.ts` - Client-side auto-continue tracking
