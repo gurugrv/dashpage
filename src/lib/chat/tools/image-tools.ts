@@ -6,7 +6,7 @@ export function createImageTools() {
   return {
     searchImages: tool({
       description:
-        'Search for high-quality stock photos from Pexels. Returns image URLs you can use directly in <img> tags. Call this BEFORE writing HTML that needs images — pick the best result for each placement. Use descriptive, specific queries for better results.',
+        'Search for stock photos from Pexels. Returns { success, images: [{ url, alt, photographer, width, height }] }. Use url in src, alt in alt attribute. Use DIFFERENT queries per image for variety. Call once per distinct image subject — batch all image searches before writing HTML.',
       inputSchema: z.object({
         query: z
           .string()

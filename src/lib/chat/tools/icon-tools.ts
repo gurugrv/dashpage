@@ -6,7 +6,7 @@ export function createIconTools() {
   return {
     searchIcons: tool({
       description:
-        'Search for SVG icons from Lucide, Heroicons, Tabler, and Phosphor icon libraries. Returns inline SVG markup you can use directly in HTML. Call this BEFORE writing HTML that needs icons — pick the best result for each placement. Icons use currentColor for stroke/fill so they inherit the parent text color.',
+        'Search for SVG icons from Lucide, Heroicons, Tabler, and Phosphor. Returns { success, icons: [{ name, set, svg, style }] }. Paste the svg string directly into HTML markup. Icons use currentColor so they inherit the parent element\'s text color automatically.',
       inputSchema: z.object({
         query: z
           .string()

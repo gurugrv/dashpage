@@ -6,7 +6,7 @@ export function createColorTools() {
   return {
     generateColorPalette: tool({
       description:
-        'Generate a harmonious color palette from a base color. Call BEFORE writing HTML to get your design system colors. Returns CSS custom property values (primary, secondary, accent, bg, surface, text, textMuted) plus WCAG contrast checks. Pick the harmony type that matches the mood.',
+        'Generate a harmonious color palette from a base color. Returns { success, primary, secondary, accent, bg, surface, text, textMuted, contrastChecks }. Use the returned hex values directly in your :root CSS custom properties. If any contrastCheck shows FAIL, adjust baseColor slightly and re-call.',
       inputSchema: z.object({
         baseColor: z
           .string()
