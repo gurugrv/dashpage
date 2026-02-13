@@ -157,7 +157,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. For images, use the searchImages tool to find real photos from Pexels. Call it BEFORE writing HTML that needs images, then use the returned URLs directly in <img> tags. Use descriptive 2-5 word queries. Use DIFFERENT queries per image. For icons, use the searchIcons tool.
+7. Available tools: searchImages (stock photos — returns { url, alt }), searchIcons (SVG icons — returns { svg }), generateColorPalette (color harmony), fetchUrl (external content). Call resource tools BEFORE writing HTML. File tools (writeFiles, editFile, readFile) and webSearch are NOT available — output the complete HTML directly. Use DIFFERENT image queries per image for variety.
 </requirements>
 
 Output ONLY the HTML.`;
