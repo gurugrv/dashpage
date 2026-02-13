@@ -5,6 +5,7 @@ import { createImageTools } from './image-tools';
 import { createIconTools } from './icon-tools';
 import { createColorTools } from './color-tools';
 import { createWebTools } from './web-tools';
+import { createSearchTools } from './search-tools';
 import { createValidationTools } from './validation-tools';
 
 export function createWebsiteTools(currentFiles: ProjectFiles): ToolSet {
@@ -17,6 +18,7 @@ export function createWebsiteTools(currentFiles: ProjectFiles): ToolSet {
     ...createIconTools(),
     ...createColorTools(),
     ...createWebTools(),
+    ...createSearchTools(),
     ...createValidationTools(workingFiles),
   };
 }

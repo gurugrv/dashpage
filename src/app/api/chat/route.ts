@@ -127,6 +127,7 @@ export async function POST(req: Request) {
                   searchIcons: 'Searching for icons...',
                   generateColorPalette: 'Generating color palette...',
                   fetchUrl: 'Fetching content...',
+                  webSearch: 'Searching the web...',
                   validateHtml: 'Validating HTML...',
                 };
 
