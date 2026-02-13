@@ -7,7 +7,7 @@ export function getBaseRulesSection() {
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
 4. All custom CSS goes in <style> tags, all scripts in <script> tags.
 5. Make designs responsive — mobile-first using Tailwind prefixes (sm:, md:, lg:).
-6. For images, use the searchImages tool to find real photos from Pexels. Call it BEFORE writing HTML that needs images, then use the returned URLs directly in <img> tags. Use inline SVG for icons.
+6. For images, use the searchImages tool to find real photos from Pexels. Call it BEFORE writing HTML that needs images, then use the returned URLs directly in <img> tags. For icons, use the searchIcons tool to find SVG icons. Call it BEFORE writing HTML that needs icons, then paste the returned SVG directly into your markup.
    - Use descriptive 2-5 word queries (e.g. "modern office workspace", "fresh pasta dish")
    - Use DIFFERENT queries for each image to ensure variety
    - Pick the best result from the returned images for each placement

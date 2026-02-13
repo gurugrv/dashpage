@@ -50,7 +50,7 @@ Content max-width: max-w-3xl for text (65-75ch readable length)
 
 <anti_patterns_critical>
 NEVER:
-- Use emojis as UI icons (use Lucide/Heroicons SVG instead)
+- Use emojis as UI icons (use the searchIcons tool instead)
 - Remove outline without replacement (focus:outline-none alone)
 - Use transition-all (specify properties: transition-colors)
 - Block paste on password fields
