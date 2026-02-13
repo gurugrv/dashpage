@@ -359,6 +359,16 @@ export function useBlueprintGeneration({
     }
   }, [generateComponents, generatePages]);
 
+  const updateBlueprint = useCallback((updated: Blueprint, conversationId: string) => {
+    setBlueprint(updated);
+    // Fire-and-forget persistence
+    fetch(`/api/blueprint/${conversationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blueprint: updated }),
+    }).catch(() => {});
+  }, []);
+
   return {
     phase,
     blueprint,
@@ -370,6 +380,7 @@ export function useBlueprintGeneration({
     generatePages,
     approveAndGenerate,
     resumeFromState,
+    updateBlueprint,
     cancel,
     reset,
   };
