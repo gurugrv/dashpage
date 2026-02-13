@@ -16,6 +16,7 @@ import type { ResumableGenerationState } from '@/features/builder/hooks/use-conv
 import { ResumeCard } from '@/features/prompt/resume-card';
 import { useModelSelection } from '@/features/builder/hooks/use-model-selection';
 import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-persistence';
+import { useBlueprintModelConfig } from '@/features/settings/use-blueprint-model-config';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
 import { useBlueprintGeneration } from '@/hooks/useBlueprintGeneration';
 import { detectMultiPageIntent } from '@/lib/blueprint/detect-multi-page';
@@ -110,6 +111,21 @@ export function Builder() {
   } = useModelSelection(availableProviders);
 
   const {
+    config: blueprintModelConfig,
+    setStepModel: setBlueprintStepModel,
+    clearStepModel: clearBlueprintStepModel,
+    resolveStepModel: resolveRawStepModel,
+  } = useBlueprintModelConfig(availableProviders);
+
+  const resolveBlueprintStepModel = useCallback(
+    (step: 'planning' | 'components' | 'pages') => {
+      if (!effectiveSelectedProvider || !effectiveSelectedModel) return null;
+      return resolveRawStepModel(step, effectiveSelectedProvider, effectiveSelectedModel);
+    },
+    [resolveRawStepModel, effectiveSelectedProvider, effectiveSelectedModel],
+  );
+
+  const {
     phase: blueprintPhase,
     blueprint,
     pageStatuses,
@@ -120,8 +136,7 @@ export function Builder() {
     cancel: cancelBlueprint,
     reset: resetBlueprint,
   } = useBlueprintGeneration({
-    provider: effectiveSelectedProvider,
-    model: effectiveSelectedModel,
+    resolveStepModel: resolveBlueprintStepModel,
     savedTimeZone: getSavedTimeZone(),
     browserTimeZone: getBrowserTimeZone(),
     onFilesReady: setFiles,
@@ -659,7 +674,15 @@ export function Builder() {
           </Panel>
         </PanelGroup>
 
-        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onKeysChanged={refetch} />
+        <SettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onKeysChanged={refetch}
+          availableProviders={availableProviders}
+          blueprintModelConfig={blueprintModelConfig}
+          onSetBlueprintStepModel={setBlueprintStepModel}
+          onClearBlueprintStepModel={clearBlueprintStepModel}
+        />
       </div>
     </>
   );
