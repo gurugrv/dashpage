@@ -29,15 +29,11 @@ export function ProviderKeyRow({
   onDelete,
 }: ProviderKeyRowProps) {
   return (
-    <div className="space-y-2 rounded-lg border p-3">
+    <div className="rounded-lg border p-2.5 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">{provider.name}</span>
         <StatusBadge status={provider.status} />
       </div>
-
-      {provider.maskedKey && (
-        <p className="font-mono text-xs text-muted-foreground">{provider.maskedKey}</p>
-      )}
 
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -59,19 +55,19 @@ export function ProviderKeyRow({
 
         <Button
           size="sm"
-          className="h-8 gap-1"
+          className="h-8 gap-1 px-2.5"
           disabled={!input.trim() || isSaving}
           onClick={onSave}
         >
           {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
-          Save
+          <span className="text-xs">Save</span>
         </Button>
 
         {provider.status === 'db' && (
           <Button
             size="sm"
             variant="destructive"
-            className="h-8 gap-1"
+            className="h-8 px-2.5"
             disabled={isDeleting}
             onClick={onDelete}
           >
@@ -86,7 +82,7 @@ export function ProviderKeyRow({
 function StatusBadge({ status }: { status: 'env' | 'db' | 'not_configured' }) {
   if (status === 'env') {
     return (
-      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
         env
       </span>
     );
@@ -94,15 +90,15 @@ function StatusBadge({ status }: { status: 'env' | 'db' | 'not_configured' }) {
 
   if (status === 'db') {
     return (
-      <span className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+      <span className="inline-flex items-center rounded-full bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
         saved
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-      not configured
+    <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+      not set
     </span>
   );
 }

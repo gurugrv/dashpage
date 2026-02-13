@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, Navigation, Palette, Pencil, Type, Users, Megaphone } from 'lucide-react';
+import { FileText, Navigation, Palette, Pencil, Sparkles, Type, Users, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import type { Blueprint, BlueprintDesignSystem, BlueprintContentStrategy } from '@/lib/blueprint/types';
@@ -76,6 +76,7 @@ export function BlueprintCard({
         {/* Color Palette */}
         <div className="flex items-center gap-2">
           <Palette className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Colors</span>
           <div className="flex items-center gap-1.5">
             {colors.map((c) =>
               isEditing ? (
@@ -90,9 +91,11 @@ export function BlueprintCard({
                   <PopoverContent className="w-48 p-3" align="start">
                     <label className="mb-1.5 block text-xs font-medium">{c.label}</label>
                     <div className="flex items-center gap-2">
-                      <div
-                        className="size-6 shrink-0 rounded border border-border/50"
-                        style={{ backgroundColor: c.value }}
+                      <input
+                        type="color"
+                        className="size-6 shrink-0 cursor-pointer rounded border border-border/50 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch]:border-none [&::-moz-color-swatch]:rounded [&::-moz-color-swatch]:border-none"
+                        value={c.value}
+                        onChange={(e) => updateDesign(c.field, e.target.value)}
                       />
                       <input
                         type="text"
@@ -113,6 +116,12 @@ export function BlueprintCard({
               ),
             )}
           </div>
+        </div>
+
+        {/* Mood */}
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Mood</span>
           {isEditing ? (
             <input
               type="text"
@@ -128,6 +137,7 @@ export function BlueprintCard({
         {/* Typography */}
         <div className="flex items-center gap-2">
           <Type className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Fonts</span>
           {isEditing ? (
             <div className="flex items-center gap-1 text-xs">
               <input
@@ -156,6 +166,7 @@ export function BlueprintCard({
         {/* Pages */}
         <div className="flex items-start gap-2">
           <FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+          <span className="mt-0.5 w-14 shrink-0 text-xs font-medium text-muted-foreground">Pages</span>
           <div className="flex flex-wrap gap-1">
             {pages.map((page) => (
               <span
@@ -172,6 +183,7 @@ export function BlueprintCard({
         {/* Navigation */}
         <div className="flex items-center gap-2">
           <Navigation className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Nav</span>
           <span className="text-xs text-muted-foreground">
             {sharedComponents.navLinks.map((l) => l.label).join(' / ')}
           </span>
@@ -180,6 +192,7 @@ export function BlueprintCard({
         {/* Content Strategy */}
         <div className="flex items-center gap-2">
           <Users className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Audience</span>
           {isEditing ? (
             <input
               type="text"
@@ -193,6 +206,7 @@ export function BlueprintCard({
         </div>
         <div className="flex items-center gap-2">
           <Megaphone className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Tone</span>
           {isEditing ? (
             <input
               type="text"
