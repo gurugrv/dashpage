@@ -127,17 +127,24 @@ export function useConversationActions({
         setFiles({});
       }
 
-      // Check for interrupted generation state
-      try {
-        const stateRes = await fetch(`/api/conversations/${id}/generation-state`);
-        if (stateRes.ok) {
-          const state = await stateRes.json() as ResumableGenerationState;
-          onRestoreGenerationState?.(state);
-        } else {
+      // Check for interrupted generation state, but skip if a completed artifact already exists
+      // (stale generation state can linger if the DELETE raced with navigation)
+      if (hasArtifact) {
+        // Completed artifact exists — clean up any stale generation state
+        fetch(`/api/conversations/${id}/generation-state`, { method: 'DELETE' }).catch(() => {});
+        onRestoreGenerationState?.(null);
+      } else {
+        try {
+          const stateRes = await fetch(`/api/conversations/${id}/generation-state`);
+          if (stateRes.ok) {
+            const state = await stateRes.json() as ResumableGenerationState;
+            onRestoreGenerationState?.(state);
+          } else {
+            onRestoreGenerationState?.(null);
+          }
+        } catch {
           onRestoreGenerationState?.(null);
         }
-      } catch {
-        onRestoreGenerationState?.(null);
       }
     } catch {
       setMessages([]);
