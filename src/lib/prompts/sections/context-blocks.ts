@@ -13,45 +13,14 @@ function truncateIfNeeded(content: string): string {
 export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
-  const fileList = Object.keys(currentFiles);
-  const hasMultipleFiles = fileList.length > 1;
+  return `\n<edit_guidance>
+Choose the right tool based on scope:
+- **editFile** — for targeted changes (colors, text, elements, CSS, bug fixes). Preferred when changes are localized.
+- **writeFiles** — for major redesigns, structural overhauls, or when more than ~40% of the page changes. Include ONLY rewritten files.
+- **Adding a page** — use editFile to add nav links to existing pages, then writeFiles for the new page only. Do NOT add pages unless the user explicitly asks.
 
-  return `\n<output_modes>
-You have TWO output modes. Choose based on the scope of changes:
-
-**EDIT MODE** — Use for targeted changes (color tweaks, text updates, adding/removing a single element, CSS adjustments, fixing a bug, small layout tweaks). More efficient, preferred for small-medium changes.
-
-Wrap your output in <editOperations> tags containing <edit> blocks:
-<editOperations>
-<edit>
-<search>[exact text from current HTML to find]</search>
-<replace>[replacement text]</replace>
-</edit>
-</editOperations>
-${hasMultipleFiles ? `
-To edit a specific file, use the file attribute:
-<editOperations file="about.html">
-<edit>
-<search>[exact text from the file]</search>
-<replace>[replacement text]</replace>
-</edit>
-</editOperations>
-Without the file attribute, edits target index.html by default.
-` : ''}
-Rules for edit mode:
-- <search> must contain an EXACT substring copied from the current file (preserve whitespace and indentation precisely)
-- Each <search> must match uniquely in the document — include enough surrounding context to be unambiguous
-- Multiple <edit> blocks are applied in order, top to bottom
-- You may use an empty <replace></replace> to delete content
-- Before <editOperations>, explain what you're changing in 2-3 sentences
-- After </editOperations>, add 1 short completion sentence naming what changed
-
-**REWRITE MODE** — Use for major redesigns, structural overhauls, adding large new sections, completely new layouts, or when more than ~40% of the page changes.${hasMultipleFiles ? ' Use <fileArtifact> with ALL files for multi-file rewrites, or <editOperations file="..."> for targeted edits.' : ' Wrap your output in <htmlOutput> tags.'}
-${!hasMultipleFiles ? `
-**ADDING A PAGE** — If the user asks to add a new page (e.g. "add an about page", "create a contact page"), use <fileArtifact> containing BOTH the existing index.html AND the new page. This transitions the project to multi-file. Do NOT add pages unless the user explicitly requests them.
-` : ''}
-Choose EDIT MODE by default when the change is localized. Choose REWRITE MODE when the change is fundamental or affects the majority of the page.
-</output_modes>`;
+You can call both tools in the same turn when needed (e.g. editFile for nav links + writeFiles for a new page).
+</edit_guidance>`;
 }
 
 export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
@@ -71,7 +40,7 @@ export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
       : truncateIfNeeded(currentFiles[filePath]);
     block += `\n<file path="${filePath}">\n${content}\n</file>\n`;
   }
-  block += '\nModify THESE files based on the user\'s request.\nDo NOT start from scratch unless explicitly asked.\nWhen editing, consider ALL files — maintain design consistency.\n</current_website>';
+  block += '\nModify THESE files based on the user\'s request.\nDo NOT start from scratch unless explicitly asked.\nWhen editing, consider ALL files — maintain design consistency.\nUnchanged files are preserved automatically — only include new or fully rewritten files in writeFiles.\n</current_website>';
   return block;
 }
 
@@ -82,9 +51,9 @@ export function buildFirstGenerationBlock(isFirstGeneration: boolean): string {
 This is a NEW website. Before generating code, briefly:
 1. State what you'll build and the overall vibe/mood
 2. Pick a specific color palette (name the colors) and font pairing
-3. Then generate the HTML with the design system defined FIRST in <style>
+3. Then use the writeFiles tool to generate the HTML with the design system defined FIRST in <style>
 
-If the user's request explicitly names multiple pages (e.g. "with home, about, and contact pages"), use <fileArtifact> with all requested pages. Each page must be a complete standalone HTML document. Otherwise, use <htmlOutput> for a single-file site.
+If the user's request explicitly names multiple pages, include all requested pages in a single writeFiles call. Each page must be a complete standalone HTML document. Otherwise, generate a single index.html.
 
 Make a strong first impression — the design should feel polished and intentional, not templated.
 </first_generation>`;

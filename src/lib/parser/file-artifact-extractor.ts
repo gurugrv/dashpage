@@ -1,5 +1,11 @@
 import type { ProjectFiles } from '@/types';
 
+/** Strip markdown code fences (```html ... ```) that LLMs sometimes wrap around file content. */
+function stripCodeFences(text: string): string {
+  // Match opening ```lang at the start and closing ``` at the end
+  return text.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '');
+}
+
 const TAG_OPEN = '<fileArtifact>';
 const TAG_CLOSE = '</fileArtifact>';
 const FILE_OPEN_REGEX = /<file\s+path="([^"]+)">/;
@@ -65,13 +71,13 @@ export class FileArtifactExtractor {
       if (closeIndex === -1) {
         // Incomplete file block during streaming - capture what we have
         if (path && path.trim()) {
-          files[path] = content.slice(contentStart);
+          files[path] = stripCodeFences(content.slice(contentStart));
         }
         break;
       }
 
       if (path && path.trim()) {
-        files[path] = content.slice(contentStart, closeIndex);
+        files[path] = stripCodeFences(content.slice(contentStart, closeIndex));
       }
 
       position = closeIndex + FILE_CLOSE.length;

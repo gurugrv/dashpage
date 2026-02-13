@@ -1,7 +1,7 @@
 import type { ProjectFiles } from '@/types';
 
 const ALLOWED_EXTENSIONS = new Set(['.html', '.css', '.js']);
-const MAX_FILE_COUNT = 12;
+const MAX_FILE_COUNT = 25;
 const MAX_FILE_BYTES = 500_000; // 500KB per file
 
 function getExtension(filename: string): string {

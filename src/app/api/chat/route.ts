@@ -1,9 +1,11 @@
-import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, streamText, type FinishReason, type UIMessageChunk } from 'ai';
+import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, streamText, type FinishReason, type UIMessageChunk } from 'ai';
 import type { UIMessage } from 'ai';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
-import { createStreamDebugLogger, logAiPrompt } from '@/lib/chat/stream-debug';
+import { createWebsiteTools } from '@/lib/chat/tools';
+import { createDebugSession } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
+import { prisma } from '@/lib/db/prisma';
 
 interface ChatRequestBody {
   messages: Array<Omit<UIMessage, 'id'>>;
@@ -13,10 +15,15 @@ interface ChatRequestBody {
   maxOutputTokens?: number;
   savedTimeZone?: string | null;
   browserTimeZone?: string;
+  conversationId?: string;
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
-const CONTINUE_PROMPT = 'Continue from where you left off. Output the COMPLETE website files using the same output format.';
+const CONTINUE_PROMPT = 'Continue from where you left off. Use the writeFiles tool to output the complete website files.';
+
+function isStreamPart(part: unknown): part is { type: string; [key: string]: unknown } {
+  return typeof part === 'object' && part !== null && 'type' in part;
+}
 
 export async function POST(req: Request) {
   let body: ChatRequestBody;
@@ -34,9 +41,12 @@ export async function POST(req: Request) {
     maxOutputTokens,
     savedTimeZone,
     browserTimeZone,
+    conversationId: clientConversationId,
   } = body;
 
   try {
+    const appUrl = new URL(req.url).origin;
+
     const { modelInstance, maxOutputTokens: resolvedMaxOutputTokens, systemPrompt } = await resolveChatExecution({
       provider,
       model,
@@ -44,10 +54,17 @@ export async function POST(req: Request) {
       savedTimeZone,
       browserTimeZone,
       currentFiles,
+      appUrl,
     });
 
+    const tools = createWebsiteTools(currentFiles ?? {});
     const detector = new BuildProgressDetector();
-    const debugLogger = createStreamDebugLogger('chat');
+    const debugSession = createDebugSession({
+      scope: 'chat',
+      model,
+      provider,
+      conversationId: clientConversationId,
+    });
 
     // Log the prompt being sent to the AI
     const messagesForLogging = messages.map((msg) => ({
@@ -57,12 +74,9 @@ export async function POST(req: Request) {
         .map((p) => p.text)
         .join('\n'),
     }));
-    logAiPrompt({
-      scope: 'chat',
+    debugSession.logPrompt({
       systemPrompt,
       messages: messagesForLogging,
-      model,
-      provider,
       maxOutputTokens: resolvedMaxOutputTokens,
     });
 
@@ -79,27 +93,62 @@ export async function POST(req: Request) {
               system: systemPrompt,
               messages: await convertToModelMessages(continuationMessages),
               maxOutputTokens: resolvedMaxOutputTokens,
+              tools,
+              stopWhen: stepCountIs(3),
               abortSignal: req.signal,
             });
             const sourceStream = result.toUIMessageStream({ sendStart: segment === 0, sendFinish: false });
 
             for await (const part of sourceStream) {
               writer.write(part);
-              if (
-                typeof part === 'object'
-                && part !== null
-                && 'type' in part
-                && (part as { type?: string }).type === 'text-delta'
-                && 'delta' in part
-                && typeof (part as { delta?: unknown }).delta === 'string'
-              ) {
-                const delta = (part as { delta: string }).delta;
-                debugLogger.logDelta(delta);
-                segmentText += delta;
-                const progress = detector.processDelta(delta);
+
+              if (!isStreamPart(part)) continue;
+
+              // Text delta: track for debug + progress
+              if (part.type === 'text-delta' && typeof part.delta === 'string') {
+                debugSession.logDelta(part.delta);
+                segmentText += part.delta;
+                const progress = detector.processDelta(part.delta);
                 if (progress) {
                   writer.write({ type: 'data-buildProgress', data: progress, transient: true });
                 }
+              }
+
+              // Tool lifecycle: debug logging + progress
+              if (part.type === 'tool-input-start') {
+                debugSession.logToolCall({
+                  toolName: part.toolName as string,
+                  toolCallId: part.toolCallId as string,
+                });
+                writer.write({
+                  type: 'data-buildProgress',
+                  data: { phase: 'generating' as const, label: 'Generating code...', file: 'index.html', percent: 15, timestamp: Date.now() },
+                  transient: true,
+                });
+              }
+              if (part.type === 'tool-input-available') {
+                debugSession.logToolCall({
+                  toolName: part.toolName as string,
+                  toolCallId: part.toolCallId as string,
+                  input: (part as { input?: unknown }).input,
+                });
+              }
+              if (part.type === 'tool-output-available') {
+                debugSession.logToolResult({
+                  toolCallId: part.toolCallId as string,
+                  output: (part as { output?: unknown }).output,
+                });
+                writer.write({
+                  type: 'data-buildProgress',
+                  data: { phase: 'generating' as const, label: 'Code generated', file: 'index.html', percent: 90, timestamp: Date.now() },
+                  transient: true,
+                });
+              }
+              if (part.type === 'tool-output-error') {
+                debugSession.logToolResult({
+                  toolCallId: part.toolCallId as string,
+                  error: (part as { errorText?: string }).errorText || 'Unknown tool error',
+                });
               }
             }
 
@@ -121,14 +170,21 @@ export async function POST(req: Request) {
           }
 
           writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });
-          debugLogger.finish('complete');
-          // Log the full AI response
-          debugLogger.logFullResponse(finalFinishReason);
+          debugSession.finish('complete');
+          debugSession.logFullResponse(finalFinishReason);
+
+          // Clean up generation state on successful completion
+          if (clientConversationId) {
+            await prisma.generationState.delete({
+              where: { conversationId: clientConversationId },
+            }).catch(() => {});
+          }
+
           writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
         } catch (err: unknown) {
           if (err instanceof Error && err.name === 'AbortError') {
-            debugLogger.finish('aborted');
-            debugLogger.logFullResponse('aborted');
+            debugSession.finish('aborted');
+            debugSession.logFullResponse('aborted');
             return;
           }
           throw err;

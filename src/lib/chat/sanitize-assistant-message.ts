@@ -1,77 +1,35 @@
-const STRUCTURED_TAGS = ['editOperations', 'htmlOutput', 'fileArtifact'] as const;
-
 export const ARTIFACT_COMPLETION_MESSAGE = 'Generation complete. Preview updated.';
 
-function stripStructuredBlock(input: string, tag: (typeof STRUCTURED_TAGS)[number]): string {
-  // editOperations may have attributes (e.g. file="styles.css")
-  const tagPattern = tag === 'editOperations' ? 'editOperations[^>]*' : tag;
-  const completeBlock = new RegExp(`<${tagPattern}>[\\s\\S]*?<\\/${tag}>`, 'gi');
-  const trailingBlock = new RegExp(`<${tagPattern}>[\\s\\S]*$`, 'i');
-  return input.replace(completeBlock, '').replace(trailingBlock, '');
-}
-
-const STRUCTURED_TAG_OPENERS = STRUCTURED_TAGS.map((tag) => `<${tag}`);
-const STRUCTURED_TAG_CLOSERS = STRUCTURED_TAGS.map((tag) => `</${tag}>`);
-
+/**
+ * Sanitize assistant message text for persistence/display.
+ * With tool calling, text parts are clean (no embedded XML artifact tags),
+ * so this simply trims the input.
+ */
 export function sanitizeAssistantMessage(content: string): string {
-  let cleaned = content;
-
-  for (const tag of STRUCTURED_TAGS) {
-    cleaned = stripStructuredBlock(cleaned, tag);
-  }
-
-  return cleaned.trim();
+  return content.trim();
 }
 
-export function hasStructuredArtifactOutput(content: string): boolean {
-  const lower = content.toLowerCase();
-  return STRUCTURED_TAG_OPENERS.some((opener) => lower.includes(opener.toLowerCase()));
-}
-
-function findLastStructuredCloseIndex(content: string): number {
-  const lower = content.toLowerCase();
-  let lastCloseEnd = -1;
-
-  for (const closer of STRUCTURED_TAG_CLOSERS) {
-    const index = lower.lastIndexOf(closer.toLowerCase());
-    if (index !== -1) {
-      const closeEnd = index + closer.length;
-      if (closeEnd > lastCloseEnd) {
-        lastCloseEnd = closeEnd;
-      }
-    }
-  }
-
-  return lastCloseEnd;
-}
-
-function hasPostArtifactSummary(content: string): boolean {
-  const lastCloseEnd = findLastStructuredCloseIndex(content);
-  if (lastCloseEnd === -1) return false;
-  return content.slice(lastCloseEnd).trim().length > 0;
-}
-
+/**
+ * Sanitize with fallback to a default completion message when text is empty
+ * but an artifact was generated.
+ */
 export function sanitizeAssistantMessageWithFallback(content: string, hasHtmlArtifact = false): string {
-  const sanitized = sanitizeAssistantMessage(content);
+  const sanitized = content.trim();
   if (sanitized) return sanitized;
-
-  if (hasHtmlArtifact || hasStructuredArtifactOutput(content)) {
-    return ARTIFACT_COMPLETION_MESSAGE;
-  }
-
+  if (hasHtmlArtifact) return ARTIFACT_COMPLETION_MESSAGE;
   return '';
 }
 
+/**
+ * Ensure there's a visible completion message when an artifact was produced.
+ */
 export function ensureArtifactCompletionMessage(
   visibleContent: string,
-  sourceContent: string,
+  _sourceContent: string,
   hasHtmlArtifact = false,
 ): string {
   const cleaned = visibleContent.trim();
-  const hasArtifact = hasHtmlArtifact || hasStructuredArtifactOutput(sourceContent);
-
-  if (!hasArtifact) return cleaned;
-  if (!cleaned) return ARTIFACT_COMPLETION_MESSAGE;
-  if (hasPostArtifactSummary(sourceContent)) return cleaned;
-  return cleaned;
+  if (cleaned) return cleaned;
+  if (hasHtmlArtifact) return ARTIFACT_COMPLETION_MESSAGE;
+  return '';
 }

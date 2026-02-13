@@ -1,6 +1,11 @@
 const TAG_OPEN = '<htmlOutput>';
 const TAG_CLOSE = '</htmlOutput>';
 
+/** Strip markdown code fences (```html ... ```) that LLMs sometimes wrap around content. */
+function stripCodeFences(text: string): string {
+  return text.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '');
+}
+
 export class HtmlStreamExtractor {
   private buffer = '';
   private insideHtml = false;
@@ -22,10 +27,10 @@ export class HtmlStreamExtractor {
     if (this.insideHtml) {
       const closeIdx = this.buffer.indexOf(TAG_CLOSE);
       if (closeIdx !== -1) {
-        this.htmlContent = this.buffer.slice(0, closeIdx);
+        this.htmlContent = stripCodeFences(this.buffer.slice(0, closeIdx));
         return { html: this.htmlContent, explanation: this.explanation, isComplete: true };
       }
-      this.htmlContent = this.buffer;
+      this.htmlContent = this.buffer.replace(/^\s*```\w*\n?/, '');
       return { html: this.htmlContent, explanation: this.explanation, isComplete: false };
     }
 

@@ -1,14 +1,14 @@
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessageChunk } from 'ai';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
-import { createStreamDebugLogger } from '@/lib/chat/stream-debug';
+import { createDebugSession } from '@/lib/chat/stream-debug';
 
 interface UIStreamSource {
   toUIMessageStream: () => AsyncIterable<UIMessageChunk>;
 }
 
-export function createProgressStreamResponse(result: UIStreamSource) {
+export function createProgressStreamResponse(result: UIStreamSource, context?: { model?: string; conversationId?: string }) {
   const detector = new BuildProgressDetector();
-  const debugLogger = createStreamDebugLogger('continue');
+  const debugLogger = createDebugSession({ scope: 'continue', model: context?.model, conversationId: context?.conversationId });
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
@@ -35,9 +35,12 @@ export function createProgressStreamResponse(result: UIStreamSource) {
 
         writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });
         debugLogger.finish('complete');
+        // Log the full AI response
+        debugLogger.logFullResponse('complete');
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           debugLogger.finish('aborted');
+          debugLogger.logFullResponse('aborted');
           return;
         }
         throw err;
