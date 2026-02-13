@@ -52,8 +52,8 @@ export function buildFirstGenerationBlock(isFirstGeneration: boolean): string {
   return `\n<first_generation>
 This is a NEW website. Before generating code, briefly:
 1. State what you'll build and the overall vibe/mood
-2. Pick a specific color palette (name the colors) and font pairing
-3. Then use the writeFiles tool to generate the HTML with the design system defined FIRST in <style>
+2. Call generateColorPalette with a base color and harmony type to get your design system colors, then pick a font pairing
+3. Then use the writeFiles tool to generate the HTML with the design system defined FIRST in <style>, using the palette values in your :root {} custom properties
 
 If the user's request explicitly names multiple pages, include all requested pages in a single writeFiles call. Each page must be a complete standalone HTML document. Otherwise, generate a single index.html.
 
