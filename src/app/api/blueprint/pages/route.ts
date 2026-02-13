@@ -1,10 +1,12 @@
-import { streamText } from 'ai';
+import { stepCountIs, streamText } from 'ai';
 import { prisma } from '@/lib/db/prisma';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createImageTools } from '@/lib/chat/tools/image-tools';
+import { createWebTools } from '@/lib/chat/tools/web-tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
@@ -142,6 +144,11 @@ export async function POST(req: Request) {
         completedPages,
       });
 
+      const blueprintTools = {
+        ...createImageTools(),
+        ...createWebTools(),
+      };
+
       let hasErrors = false;
       const completedPagesMap: Record<string, string> = {};
 
@@ -187,6 +194,8 @@ export async function POST(req: Request) {
                 system: systemPrompt,
                 prompt: pagePrompt,
                 maxOutputTokens: 16000,
+                tools: blueprintTools,
+                stopWhen: stepCountIs(3),
                 abortSignal,
               });
             } else {

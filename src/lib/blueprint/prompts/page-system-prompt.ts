@@ -157,7 +157,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. For images, use the image proxy: /api/images/proxy?q={keyword}&orientation={orientation}&w={width}&h={height}. Use descriptive 2-4 word keywords. Use DIFFERENT keywords per image. Inline SVGs for icons.
+7. For images, use the searchImages tool to find real photos from Pexels. Call it BEFORE writing HTML that needs images, then use the returned URLs directly in <img> tags. Use descriptive 2-5 word queries. Use DIFFERENT queries per image. Inline SVGs for icons.
 </requirements>
 
 Output ONLY the HTML.`;
