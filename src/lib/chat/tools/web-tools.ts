@@ -55,7 +55,7 @@ export function createWebTools() {
   return {
     fetchUrl: tool({
       description:
-        'Fetch content from a public URL. Use to retrieve API data, webpage content, or structured data to incorporate into the website. Returns text content (HTML, JSON, XML, plain text). Cannot access private/internal URLs.',
+        'Fetch content from a public URL. Returns { success, content, contentType, length, truncated }. Supports HTML, JSON, XML, plain text. Max 50KB (truncated if larger). 10s timeout. Cannot access localhost or private IPs.',
       inputSchema: z.object({
         url: z
           .string()

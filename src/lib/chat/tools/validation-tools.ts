@@ -25,7 +25,7 @@ export function createValidationTools(workingFiles: ProjectFiles) {
   return {
     validateHtml: tool({
       description:
-        'Validate an HTML file for syntax errors and common issues. Use after writing or editing files to catch problems. Returns errors with line numbers so you can fix them with editFile.',
+        'Validate an HTML file for syntax errors. Returns { success, valid, errorCount, warningCount, issues: [{ severity, message, line, column }] }. Max 10 issues returned. Fix errors with editFile using the line numbers as reference.',
       inputSchema: z.object({
         file: z
           .string()
