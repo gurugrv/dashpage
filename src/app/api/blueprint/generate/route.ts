@@ -1,10 +1,11 @@
 import { generateObject } from 'ai';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { Prisma } from '@/generated/prisma/client';
 import { blueprintSchema } from '@/lib/blueprint/types';
 import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-execution';
 import { ChatRequestError } from '@/lib/chat/errors';
-import { isDebugEnabled, logAiPrompt, logAiResponse } from '@/lib/chat/stream-debug';
+import { createDebugSession } from '@/lib/chat/stream-debug';
 
 interface BlueprintRequestBody {
   prompt: string;
@@ -37,40 +38,57 @@ export async function POST(req: Request) {
       browserTimeZone,
     });
 
-    if (isDebugEnabled()) {
-      logAiPrompt({
-        scope: 'blueprint-generate',
-        systemPrompt,
-        messages: [{ role: 'user', content: prompt }],
-        model,
-        provider,
-        maxOutputTokens: 8000,
-        conversationId,
-      });
-    }
+    const debugSession = createDebugSession({
+      scope: 'blueprint-generate',
+      model,
+      provider,
+      conversationId,
+    });
+    debugSession.logPrompt({
+      systemPrompt,
+      messages: [{ role: 'user', content: prompt }],
+      maxOutputTokens: 16384,
+    });
 
     const result = await generateObject({
       model: modelInstance,
       system: systemPrompt,
       schema: blueprintSchema,
       prompt,
-      maxOutputTokens: 8000,
+      maxOutputTokens: 16384,
     });
 
     const blueprint = result.object;
 
-    if (isDebugEnabled()) {
-      logAiResponse({
-        scope: 'blueprint-generate',
-        response: JSON.stringify(blueprint, null, 2),
-        status: 'complete',
-      });
-    }
+    debugSession.logResponse({
+      response: JSON.stringify(blueprint, null, 2),
+      status: 'complete',
+    });
 
     const dbBlueprint = await prisma.blueprint.upsert({
       where: { conversationId },
       create: { conversationId, data: blueprint },
       update: { data: blueprint },
+    });
+
+    // Create generation state for resume tracking
+    await prisma.generationState.upsert({
+      where: { conversationId },
+      create: {
+        conversationId,
+        mode: 'blueprint',
+        phase: 'awaiting-approval',
+        blueprintId: dbBlueprint.id,
+      },
+      update: {
+        mode: 'blueprint',
+        phase: 'awaiting-approval',
+        blueprintId: dbBlueprint.id,
+        componentHtml: Prisma.DbNull,
+        sharedStyles: Prisma.DbNull,
+        completedPages: Prisma.DbNull,
+        pageStatuses: Prisma.DbNull,
+      },
     });
 
     return NextResponse.json({ blueprint, id: dbBlueprint.id });

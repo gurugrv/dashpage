@@ -1,4 +1,5 @@
 import type { Blueprint } from '@/lib/blueprint/types';
+import { DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
 
 export function getComponentsSystemPrompt(blueprint: Blueprint): string {
   const { designSystem, sharedComponents, contentStrategy } = blueprint;
@@ -11,7 +12,9 @@ export function getComponentsSystemPrompt(blueprint: Blueprint): string {
     .map((p) => `  - ${p.filename}: "${p.title}"`)
     .join('\n');
 
-  return `You are a web developer generating shared header and footer HTML components for a multi-page website. Output ONLY the two HTML blocks described below — no explanation, no markdown fences.
+  return `You are a web developer generating shared header and footer HTML components for a multi-page website. These components must look professionally designed, not AI-generated. Output ONLY the two HTML blocks described below — no explanation, no markdown fences.
+
+${DESIGN_QUALITY_SECTION}
 
 <design_system>
 CSS Custom Properties (defined in shared styles.css):
@@ -90,5 +93,8 @@ Output exactly these two blocks with the delimiters shown:
 5. Make sure all navigation links use the exact href values from the navigation spec.
 6. Both components must be fully responsive and mobile-first.
 7. Output NOTHING before <!-- HEADER_START --> and NOTHING after <!-- FOOTER_END -->.
+8. Do NOT wrap the output in markdown code fences (\`\`\`). Output raw HTML comments and tags directly.
+9. Do NOT include <style> blocks or redefine CSS custom properties (:root variables). They are ALREADY defined in the shared styles.css — just reference them with var(--color-*), var(--font-*), etc. Keep the output compact.
+10. Do NOT include @import for Google Fonts — fonts are already loaded in styles.css.
 </rules>`;
 }

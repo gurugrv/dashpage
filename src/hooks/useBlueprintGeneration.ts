@@ -127,7 +127,7 @@ export function useBlueprintGeneration({
     }
   }, [provider, model, savedTimeZone, browserTimeZone]);
 
-  const generateComponents = useCallback(async (activeBlueprint: Blueprint): Promise<{ headerHtml: string; footerHtml: string } | null> => {
+  const generateComponents = useCallback(async (activeBlueprint: Blueprint, conversationId?: string): Promise<{ headerHtml: string; footerHtml: string } | null> => {
     if (!provider || !model) {
       setError('No provider or model selected');
       setPhase('error');
@@ -148,6 +148,7 @@ export function useBlueprintGeneration({
           blueprint: activeBlueprint,
           provider,
           model,
+          conversationId,
         }),
         signal: controller.signal,
       });
@@ -174,6 +175,7 @@ export function useBlueprintGeneration({
     blueprintOverride?: Blueprint,
     sharedHtml?: { headerHtml: string; footerHtml: string },
     headTags?: string,
+    skipPages?: string[],
   ) => {
     const activeBlueprint = blueprintOverride ?? blueprint;
     if (!activeBlueprint || !provider || !model) {
@@ -184,12 +186,16 @@ export function useBlueprintGeneration({
 
     setPhase('generating-pages');
     setError(null);
-    filesAccumulatorRef.current = {};
+
+    // Pre-populate accumulator with already-completed pages (for resume)
+    if (!skipPages || skipPages.length === 0) {
+      filesAccumulatorRef.current = {};
+    }
 
     // Initialize page statuses
     const initialStatuses: PageGenerationStatus[] = activeBlueprint.pages.map((p) => ({
       filename: p.filename,
-      status: 'pending' as const,
+      status: skipPages?.includes(p.filename) ? 'complete' as const : 'pending' as const,
     }));
     setPageStatuses(initialStatuses);
 
@@ -208,6 +214,7 @@ export function useBlueprintGeneration({
           headerHtml: sharedHtml?.headerHtml,
           footerHtml: sharedHtml?.footerHtml,
           headTags,
+          skipPages,
         }),
         signal: controller.signal,
       });
@@ -293,7 +300,7 @@ export function useBlueprintGeneration({
   const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
 
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
-    const components = await generateComponents(activeBlueprint);
+    const components = await generateComponents(activeBlueprint, conversationId);
     if (!components) return; // Error already set by generateComponents
 
     // Build shared styles synchronously from design system — no AI call needed
@@ -301,6 +308,51 @@ export function useBlueprintGeneration({
     sharedStylesRef.current = sharedStyles;
 
     await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags);
+  }, [generateComponents, generatePages]);
+
+  const resumeFromState = useCallback(async (
+    conversationId: string,
+    state: {
+      phase: string;
+      blueprintData: Blueprint;
+      componentHtml?: { headerHtml: string; footerHtml: string } | null;
+      completedPages?: Record<string, string> | null;
+    },
+  ) => {
+    const activeBlueprint = state.blueprintData;
+    setBlueprint(activeBlueprint);
+
+    const completedPageFiles = state.completedPages ?? {};
+    const completedFilenames = Object.keys(completedPageFiles);
+
+    // Pre-populate accumulator with already-completed pages
+    filesAccumulatorRef.current = { ...completedPageFiles };
+
+    if (!state.componentHtml) {
+      // Need to regenerate components first, then pages
+      const components = await generateComponents(activeBlueprint, conversationId);
+      if (!components) return;
+
+      const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
+      sharedStylesRef.current = sharedStyles;
+
+      await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags, completedFilenames);
+    } else {
+      // Components exist, just resume page generation
+      setHeaderHtml(state.componentHtml.headerHtml);
+      setFooterHtml(state.componentHtml.footerHtml);
+
+      const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
+      sharedStylesRef.current = sharedStyles;
+
+      await generatePages(
+        conversationId,
+        activeBlueprint,
+        state.componentHtml,
+        sharedStyles.headTags,
+        completedFilenames,
+      );
+    }
   }, [generateComponents, generatePages]);
 
   return {
@@ -313,6 +365,7 @@ export function useBlueprintGeneration({
     generateBlueprint,
     generatePages,
     approveAndGenerate,
+    resumeFromState,
     cancel,
     reset,
   };

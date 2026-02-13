@@ -4,8 +4,16 @@ import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
-import { createStreamDebugLogger, logAiPrompt } from '@/lib/chat/stream-debug';
+import { createDebugSession } from '@/lib/chat/stream-debug';
 import type { Blueprint } from '@/lib/blueprint/types';
+
+const MAX_PAGE_CONTINUATIONS = 2;
+const PAGE_CONTINUE_PROMPT = 'Continue generating the HTML from exactly where you left off. Do not repeat any previously generated content.';
+
+/** Strip markdown code fences (```html ... ```) that LLMs sometimes wrap around output. */
+function stripCodeFences(text: string): string {
+  return text.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '');
+}
 
 interface PagesRequestBody {
   conversationId: string;
@@ -15,6 +23,7 @@ interface PagesRequestBody {
   headerHtml?: string;
   footerHtml?: string;
   headTags?: string;
+  skipPages?: string[];
 }
 
 export async function POST(req: Request) {
@@ -28,7 +37,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { conversationId, provider, model, headerHtml, footerHtml, headTags } = body;
+  const { conversationId, provider, model, headerHtml, footerHtml, headTags, skipPages } = body;
   let blueprint = body.blueprint;
 
   if (!conversationId || !provider || !model) {
@@ -75,9 +84,22 @@ export async function POST(req: Request) {
     });
   }
 
-  const pages = blueprint.pages;
-  const totalPages = pages.length;
+  const allPages = blueprint.pages;
+  const totalPages = allPages.length;
+  const skipSet = new Set(skipPages ?? []);
+  const pages = allPages.filter(p => !skipSet.has(p.filename));
   const abortSignal = req.signal;
+
+  // Checkpoint: entering page generation phase with shared styles
+  if (headTags) {
+    await prisma.generationState.update({
+      where: { conversationId },
+      data: {
+        phase: 'generating-pages',
+        sharedStyles: { headTags },
+      },
+    }).catch(() => {});
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -87,14 +109,29 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       }
 
-      // Send initial pending status for all pages
+      let completedPages = totalPages - pages.length; // Start from already-completed count
+
+      // Send status for already-completed (skipped) pages
+      for (const page of allPages) {
+        if (skipSet.has(page.filename)) {
+          sendEvent({
+            type: 'page-status',
+            filename: page.filename,
+            status: 'complete',
+            totalPages,
+            completedPages,
+          });
+        }
+      }
+
+      // Send pending status for remaining pages
       for (const page of pages) {
         sendEvent({
           type: 'page-status',
           filename: page.filename,
           status: 'pending',
           totalPages,
-          completedPages: 0,
+          completedPages,
         });
       }
 
@@ -102,11 +139,11 @@ export async function POST(req: Request) {
         type: 'pipeline-status',
         status: 'generating',
         totalPages,
-        completedPages: 0,
+        completedPages,
       });
 
-      let completedPages = 0;
       let hasErrors = false;
+      const completedPagesMap: Record<string, string> = {};
 
       // Generate pages sequentially so progress updates are visible one at a time
       for (const page of pages) {
@@ -125,33 +162,64 @@ export async function POST(req: Request) {
         const modelInstance = providerConfig.createModel(apiKey!, model);
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
-        logAiPrompt({
-          scope: `blueprint-page:${page.filename}`,
-          systemPrompt,
-          messages: [{ role: 'user', content: pagePrompt }],
-          model,
-          provider,
-          maxOutputTokens: 16000,
-        });
-
         try {
-          const result = streamText({
-            model: modelInstance,
-            system: systemPrompt,
-            prompt: pagePrompt,
-            maxOutputTokens: 16000,
-            abortSignal,
-          });
+          let fullPageText = '';
 
-          const debugLogger = createStreamDebugLogger(`blueprint-page:${page.filename}`, { model });
-          for await (const delta of result.textStream) {
-            debugLogger.logDelta(delta);
+          for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
+            if (abortSignal.aborted) break;
+
+            const debugSession = createDebugSession({
+              scope: `blueprint-page:${page.filename}${segment > 0 ? `:cont${segment}` : ''}`,
+              model,
+              provider,
+              conversationId,
+            });
+
+            let result;
+            if (segment === 0) {
+              debugSession.logPrompt({
+                systemPrompt,
+                messages: [{ role: 'user', content: pagePrompt }],
+                maxOutputTokens: 16000,
+              });
+              result = streamText({
+                model: modelInstance,
+                system: systemPrompt,
+                prompt: pagePrompt,
+                maxOutputTokens: 16000,
+                abortSignal,
+              });
+            } else {
+              const continuationMessages = [
+                { role: 'user' as const, content: pagePrompt },
+                { role: 'assistant' as const, content: fullPageText },
+                { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
+              ];
+              debugSession.logPrompt({
+                systemPrompt,
+                messages: continuationMessages,
+                maxOutputTokens: 16000,
+              });
+              result = streamText({
+                model: modelInstance,
+                system: systemPrompt,
+                messages: continuationMessages,
+                maxOutputTokens: 16000,
+                abortSignal,
+              });
+            }
+
+            for await (const delta of result.textStream) {
+              debugSession.logDelta(delta);
+            }
+            debugSession.finish('complete');
+
+            fullPageText += debugSession.getFullResponse();
+            const finishReason = await result.finishReason;
+            debugSession.logFullResponse(finishReason);
+
+            if (finishReason !== 'length') break;
           }
-          debugLogger.finish('complete');
-
-          const fullText = debugLogger.getFullResponse();
-          const finishReason = await result.finishReason;
-          debugLogger.logFullResponse(finishReason);
 
           completedPages += 1;
 
@@ -159,10 +227,17 @@ export async function POST(req: Request) {
             type: 'page-status',
             filename: page.filename,
             status: 'complete',
-            html: fullText,
+            html: stripCodeFences(fullPageText),
             totalPages,
             completedPages,
           });
+
+          // Checkpoint completed page to DB
+          completedPagesMap[page.filename] = stripCodeFences(fullPageText);
+          await prisma.generationState.update({
+            where: { conversationId },
+            data: { completedPages: completedPagesMap },
+          }).catch(() => {});
         } catch (err: unknown) {
           if (err instanceof Error && err.name === 'AbortError') break;
           hasErrors = true;
@@ -183,6 +258,13 @@ export async function POST(req: Request) {
         totalPages,
         completedPages,
       });
+
+      // Clean up generation state on successful completion
+      if (!hasErrors) {
+        await prisma.generationState.delete({
+          where: { conversationId },
+        }).catch(() => {});
+      }
 
       controller.close();
     },
