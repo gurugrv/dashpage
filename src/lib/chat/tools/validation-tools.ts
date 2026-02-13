@@ -41,7 +41,7 @@ export function createValidationTools(workingFiles: ProjectFiles) {
         }
 
         try {
-          const report = htmlValidate.validateString(content, file);
+          const report = await htmlValidate.validateString(content, file);
           const messages = report.results.flatMap((r) => r.messages);
 
           // Filter to only errors and warnings (skip info)
