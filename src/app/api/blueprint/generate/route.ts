@@ -1,4 +1,4 @@
-import { streamObject } from 'ai';
+import { generateText, Output, stepCountIs } from 'ai';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Prisma } from '@/generated/prisma/client';
@@ -6,6 +6,8 @@ import { blueprintSchema } from '@/lib/blueprint/types';
 import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-execution';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createColorTools } from '@/lib/chat/tools/color-tools';
+import { createImageTools } from '@/lib/chat/tools/image-tools';
 
 interface BlueprintRequestBody {
   prompt: string;
@@ -50,22 +52,39 @@ export async function POST(req: Request) {
       maxOutputTokens: 16384,
     });
 
-    const result = streamObject({
+    const result = await generateText({
       model: modelInstance,
       system: systemPrompt,
-      schema: blueprintSchema,
+      output: Output.object({ schema: blueprintSchema }),
+      tools: { ...createColorTools(), ...createImageTools() },
+      stopWhen: stepCountIs(6),
+      prepareStep: async ({ stepNumber }) => {
+        // Step 0: force a tool call (prompt directs model to generateColorPalette)
+        if (stepNumber === 0) {
+          return { toolChoice: 'required' as const };
+        }
+        // Step 3+: disable tools so model must produce structured output
+        if (stepNumber >= 3) {
+          return { activeTools: [] as const };
+        }
+        // Steps 1-2: normal behavior (optional searchImages etc.)
+        return {};
+      },
       prompt,
       maxOutputTokens: 16384,
     });
 
-    // Stream JSON text to console as it arrives
-    for await (const delta of result.textStream) {
-      debugSession.logDelta(delta);
-    }
+    debugSession.logResponse({
+      response: result.text,
+      status: 'complete',
+    });
     debugSession.finish('complete');
 
-    const blueprint = await result.object;
-    debugSession.logFullResponse(await result.finishReason);
+    const blueprint = result.output;
+    if (!blueprint) {
+      throw new Error('Model did not produce a valid blueprint object');
+    }
+    debugSession.logFullResponse(result.finishReason);
 
     const dbBlueprint = await prisma.blueprint.upsert({
       where: { conversationId },
