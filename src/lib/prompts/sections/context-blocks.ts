@@ -14,14 +14,10 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
   return `\n<edit_guidance>
-Choose the right tool based on scope:
-- **readFile** — inspect a file before editing to see its current state. Useful for complex multi-step edits.
-- **editFile** — for targeted changes (colors, text, elements, CSS, bug fixes). Preferred when changes are localized.
-- **writeFiles** — for major redesigns, structural overhauls, or when more than ~40% of the page changes. Include ONLY rewritten files.
-- **Adding a page** — use editFile to add nav links to existing pages, then writeFiles for the new page only. Do NOT add pages unless the user explicitly asks.
-
-You can call multiple tools in the same turn when needed (e.g. searchImages + editFile, or editFile for nav links + writeFiles for a new page).
-After making edits, optionally call validateHtml to verify correctness.
+Modify the existing HTML based on the user's request.
+Do NOT start from scratch unless the user explicitly asks for a redesign.
+Do NOT add pages unless the user explicitly asks.
+When adding a page: use editFile to add nav links to existing pages, then writeFiles for the new page only.
 </edit_guidance>`;
 }
 
