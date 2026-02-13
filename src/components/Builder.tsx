@@ -12,6 +12,8 @@ import { PreviewPanel } from '@/components/PreviewPanel';
 import { PromptPanel } from '@/components/PromptPanel';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { useConversationActions } from '@/features/builder/hooks/use-conversation-actions';
+import type { ResumableGenerationState } from '@/features/builder/hooks/use-conversation-actions';
+import { ResumeCard } from '@/features/prompt/resume-card';
 import { useModelSelection } from '@/features/builder/hooks/use-model-selection';
 import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-persistence';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
@@ -21,14 +23,49 @@ import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
 import { useModels } from '@/hooks/useModels';
-import {
-  ensureArtifactCompletionMessage,
-  sanitizeAssistantMessageWithFallback,
-} from '@/lib/chat/sanitize-assistant-message';
-import { extractPostArtifactSummary, parseAssistantForChat } from '@/lib/parser/assistant-stream-parser';
+import { ARTIFACT_COMPLETION_MESSAGE } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 import type { BuildProgressData } from '@/types/build-progress';
+
+/** Split text parts of a message into preface (before first tool) and summary (after last tool). */
+function splitTextAroundTools(parts: UIMessage['parts']): { preface: string; summary: string } {
+  let preface = '';
+  let summary = '';
+  let lastToolIndex = -1;
+
+  // Find the index of the last tool part
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type.startsWith('tool-')) {
+      lastToolIndex = i;
+    }
+  }
+
+  if (lastToolIndex === -1) {
+    // No tool parts — all text is preface
+    for (const part of parts) {
+      if (typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type === 'text') {
+        preface += (part as { text: string }).text;
+      }
+    }
+    return { preface: preface.trim(), summary: '' };
+  }
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (typeof part !== 'object' || part === null || !('type' in part)) continue;
+    const typed = part as { type: string; text?: string };
+    if (typed.type !== 'text') continue;
+    if (i <= lastToolIndex) {
+      preface += typed.text ?? '';
+    } else {
+      summary += typed.text ?? '';
+    }
+  }
+
+  return { preface: preface.trim(), summary: summary.trim() };
+}
 
 const chatTransport = new DefaultChatTransport({ api: '/api/chat' });
 
@@ -43,6 +80,7 @@ export function Builder() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasPartialMessage, setHasPartialMessage] = useState(false);
   const [blueprintMode, setBlueprintMode] = useState(false);
+  const [resumableState, setResumableState] = useState<ResumableGenerationState | null>(null);
 
   // Sync active conversation with URL
   const setActiveConversationId = useCallback((id: string | null) => {
@@ -57,13 +95,14 @@ export function Builder() {
   }, [searchParams, router]);
 
   // Restore conversation from URL when conversations are loaded
-  const { currentFiles, lastValidFiles, isGenerating, editFailed, processMessages, setFiles, resetEditFailed } = useHtmlParser();
-  const { conversations, create, rename, remove } = useConversations();
+  const { currentFiles, lastValidFiles, isGenerating, processMessages, setFiles } = useHtmlParser();
+  const { conversations, create, rename, remove, updateModel } = useConversations();
   const { availableProviders, refetch } = useModels();
   const { progress: buildProgress, handleProgressData, resetProgress } = useBuildProgress();
 
   const {
     setSelectedModel,
+    setModelForConversation,
     effectiveSelectedProvider,
     effectiveSelectedModel,
     handleProviderChange,
@@ -77,6 +116,7 @@ export function Builder() {
     error: blueprintError,
     generateBlueprint,
     approveAndGenerate,
+    resumeFromState,
     cancel: cancelBlueprint,
     reset: resetBlueprint,
   } = useBlueprintGeneration({
@@ -120,52 +160,41 @@ export function Builder() {
 
       if (convId) {
         const htmlArtifact = isPersistableArtifact(files) ? files : null;
-        const textContent = message.parts
-          ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-          .map((part) => part.text)
-          .join('') ?? '';
-        const preface = parseAssistantForChat(textContent);
-        const postSummary = extractPostArtifactSummary(textContent);
+        const { preface, summary } = splitTextAroundTools(message.parts);
 
         if (message.role === 'assistant' && htmlArtifact) {
-          const completionSummary = ensureArtifactCompletionMessage(
-            postSummary || sanitizeAssistantMessageWithFallback(textContent, true),
-            textContent,
-            true,
-          );
-          const trimmedPreface = preface.trim();
-          const trimmedSummary = completionSummary.trim();
-
-          if (trimmedPreface) {
+          // Persist preface (explanation) without artifact
+          if (preface) {
             await fetch(`/api/conversations/${convId}/messages`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'assistant', content: trimmedPreface, htmlArtifact: null }),
+              body: JSON.stringify({ role: 'assistant', content: preface, htmlArtifact: null }),
             });
           }
 
-          if (trimmedSummary && trimmedSummary !== trimmedPreface) {
+          // Persist summary (or default) with artifact
+          const summaryText = summary || ARTIFACT_COMPLETION_MESSAGE;
+          if (summaryText !== preface) {
             await fetch(`/api/conversations/${convId}/messages`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'assistant', content: trimmedSummary, htmlArtifact }),
+              body: JSON.stringify({ role: 'assistant', content: summaryText, htmlArtifact }),
             });
           }
         } else {
-          const persistedContent = message.role === 'assistant'
-            ? sanitizeAssistantMessageWithFallback(textContent, Boolean(htmlArtifact))
-            : textContent;
-
-          await fetch(`/api/conversations/${convId}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: message.role, content: persistedContent, htmlArtifact }),
-          });
+          // No artifact — persist all text
+          const fullText = [preface, summary].filter(Boolean).join('\n\n').trim();
+          if (fullText) {
+            await fetch(`/api/conversations/${convId}/messages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: message.role, content: fullText, htmlArtifact }),
+            });
+          }
         }
       }
 
       streamingTextRef.current = '';
-
     },
   });
 
@@ -174,23 +203,12 @@ export function Builder() {
   const displayMessages: UIMessage[] = messages.flatMap((message, index) => {
     if (message.role !== 'assistant') return [message];
 
-    const rawText = message.parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-      .map((part) => part.text)
-      .join('') ?? '';
-    const preface = parseAssistantForChat(rawText);
+    const { preface, summary } = splitTextAroundTools(message.parts);
     const isLastMessage = index === messages.length - 1;
     const isCurrentlyStreaming = isLastMessage && isLoading;
-    const hasCompletedTurn = !isCurrentlyStreaming;
-    const postSummary = hasCompletedTurn ? extractPostArtifactSummary(rawText) : '';
-    const summary = hasCompletedTurn
-      ? ensureArtifactCompletionMessage(
-        postSummary || sanitizeAssistantMessageWithFallback(rawText),
-        rawText,
-      )
-      : '';
 
     const output: UIMessage[] = [];
+
     if (preface) {
       output.push({
         ...message,
@@ -198,23 +216,21 @@ export function Builder() {
       });
     }
 
-    if (summary && summary !== preface) {
-      output.push({
-        ...message,
-        id: `${message.id}-completion`,
-        parts: [{ type: 'text', text: summary }],
-      });
+    if (!isCurrentlyStreaming) {
+      const hasToolParts = message.parts.some(
+        (p) => typeof p === 'object' && p !== null && 'type' in p && (p as { type: string }).type.startsWith('tool-'),
+      );
+      const completionText = summary || (hasToolParts ? ARTIFACT_COMPLETION_MESSAGE : '');
+      if (completionText && completionText !== preface) {
+        output.push({
+          ...message,
+          id: `${message.id}-completion`,
+          parts: [{ type: 'text', text: completionText }],
+        });
+      }
     }
 
     if (output.length > 0) return output;
-
-    if (hasCompletedTurn && summary) {
-      return [{
-        ...message,
-        parts: [{ type: 'text', text: summary }],
-      }];
-    }
-
     return [];
   });
 
@@ -238,6 +254,8 @@ export function Builder() {
     resetProgress,
     setHasPartialMessage,
     resetBlueprint,
+    onRestoreModel: setModelForConversation,
+    onRestoreGenerationState: setResumableState,
   });
 
   // Restore conversation from URL when conversations are loaded
@@ -295,6 +313,9 @@ export function Builder() {
         });
 
         rename(conversation.id, title);
+        if (effectiveSelectedProvider && effectiveSelectedModel) {
+          updateModel(conversation.id, effectiveSelectedProvider, effectiveSelectedModel);
+        }
         resetProgress();
         partialSavedRef.current = false;
         streamingTextRef.current = '';
@@ -310,45 +331,19 @@ export function Builder() {
               maxOutputTokens: resolveMaxOutputTokens(),
               savedTimeZone: getSavedTimeZone(),
               browserTimeZone: getBrowserTimeZone(),
+              conversationId: conversation.id,
             },
           },
         );
       };
-      
+
       submitWithPrompt();
     }
-  }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, resetProgress, sendMessage, effectiveSelectedProvider, effectiveSelectedModel, resolveMaxOutputTokens]);
+  }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, updateModel, resetProgress, sendMessage, effectiveSelectedProvider, effectiveSelectedModel, resolveMaxOutputTokens]);
 
   useEffect(() => {
     processMessages(messages, isLoading);
   }, [messages, isLoading, processMessages]);
-
-  useEffect(() => {
-    if (!editFailed || isLoading) return;
-
-    resetEditFailed();
-    sendMessage(
-      { text: 'The previous edit could not be applied. Please provide the complete updated files.' },
-      {
-        body: {
-          currentFiles: currentFilesRef.current,
-          provider: effectiveSelectedProvider,
-          model: effectiveSelectedModel,
-          maxOutputTokens: resolveMaxOutputTokens(),
-          savedTimeZone: getSavedTimeZone(),
-          browserTimeZone: getBrowserTimeZone(),
-        },
-      },
-    );
-  }, [
-    editFailed,
-    isLoading,
-    resetEditFailed,
-    sendMessage,
-    effectiveSelectedProvider,
-    effectiveSelectedModel,
-    resolveMaxOutputTokens,
-  ]);
 
   const handleSubmit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
@@ -371,6 +366,9 @@ export function Builder() {
 
     if (messages.length === 0) {
       rename(conversationId, input.trim().slice(0, 50));
+      if (effectiveSelectedProvider && effectiveSelectedModel) {
+        updateModel(conversationId, effectiveSelectedProvider, effectiveSelectedModel);
+      }
     }
 
     // Blueprint mode: first message triggers blueprint generation instead of chat
@@ -406,6 +404,7 @@ export function Builder() {
           maxOutputTokens: resolveMaxOutputTokens(),
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
+          conversationId: activeConversationIdRef.current,
         },
       },
     );
@@ -420,6 +419,7 @@ export function Builder() {
     create,
     messages.length,
     rename,
+    updateModel,
     resetProgress,
     sendMessage,
     setMessages,
@@ -433,7 +433,7 @@ export function Builder() {
     const convId = activeConversationId;
     if (!convId || isLoading) return;
 
-    const continuePrompt = 'Continue from where you left off. Output the COMPLETE website files using the same output format.';
+    const continuePrompt = 'Continue from where you left off. Use the writeFiles tool to output the complete website files.';
 
     await fetch(`/api/conversations/${convId}/messages`, {
       method: 'POST',
@@ -455,6 +455,7 @@ export function Builder() {
           maxOutputTokens: resolveMaxOutputTokens(),
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
+          conversationId: activeConversationIdRef.current,
         },
       },
     );
@@ -481,6 +482,43 @@ export function Builder() {
       if (text) await generateBlueprint(text, activeConversationId);
     }
   }, [activeConversationId, messages, generateBlueprint]);
+
+  const handleResumeGeneration = useCallback(async () => {
+    if (!resumableState || !activeConversationId) return;
+
+    if (resumableState.mode === 'blueprint') {
+      // Fetch the blueprint data from DB
+      const blueprintRes = await fetch(`/api/blueprint/${activeConversationId}`);
+      if (!blueprintRes.ok) {
+        setResumableState(null);
+        return;
+      }
+      const { blueprint: blueprintData } = await blueprintRes.json();
+
+      await resumeFromState(activeConversationId, {
+        phase: resumableState.phase,
+        blueprintData,
+        componentHtml: resumableState.componentHtml,
+        completedPages: resumableState.completedPages,
+      });
+    } else {
+      // Chat mode — use existing continue mechanism
+      await handleContinueGeneration();
+    }
+
+    setResumableState(null);
+  }, [resumableState, activeConversationId, resumeFromState, handleContinueGeneration]);
+
+  const handleDiscardResume = useCallback(async () => {
+    if (!activeConversationId) return;
+
+    await fetch(`/api/conversations/${activeConversationId}/generation-state`, {
+      method: 'DELETE',
+    }).catch(() => {});
+
+    setResumableState(null);
+    setHasPartialMessage(false);
+  }, [activeConversationId]);
 
   // Persist artifact when blueprint pipeline completes
   useEffect(() => {
@@ -529,6 +567,11 @@ export function Builder() {
       }),
     });
 
+    // Clean up generation state
+    fetch(`/api/conversations/${convId}/generation-state`, {
+      method: 'DELETE',
+    }).catch(() => {});
+
     resetBlueprint();
   }, [blueprintPhase, blueprint, resetBlueprint, setMessages]);
 
@@ -564,6 +607,7 @@ export function Builder() {
                   model: effectiveSelectedModel,
                   savedTimeZone: getSavedTimeZone(),
                   browserTimeZone: getBrowserTimeZone(),
+                  conversationId: activeConversationIdRef.current,
                 },
               })}
               provider={effectiveSelectedProvider}
@@ -575,8 +619,19 @@ export function Builder() {
               onExampleSelect={setInput}
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenConversations={() => setDrawerOpen(true)}
-              hasPartialMessage={hasPartialMessage}
+              hasPartialMessage={hasPartialMessage && !resumableState}
               onContinueGeneration={handleContinueGeneration}
+              resumeCard={resumableState ? (
+                <ResumeCard
+                  mode={resumableState.mode}
+                  phase={resumableState.phase}
+                  completedPages={resumableState.completedPages ? Object.keys(resumableState.completedPages).length : 0}
+                  totalPages={resumableState.pageStatuses?.length ?? 0}
+                  isLoading={isLoading || isBlueprintBusy}
+                  onResume={handleResumeGeneration}
+                  onDiscard={handleDiscardResume}
+                />
+              ) : undefined}
               blueprintMode={blueprintMode}
               onBlueprintModeChange={setBlueprintMode}
               isBlueprintBusy={isBlueprintBusy}

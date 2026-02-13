@@ -30,6 +30,20 @@ export async function POST(
     },
   });
 
+  // Track interrupted state for resume detection
+  await prisma.generationState.upsert({
+    where: { conversationId: id },
+    create: {
+      conversationId: id,
+      mode: 'chat',
+      phase: 'interrupted',
+    },
+    update: {
+      mode: 'chat',
+      phase: 'interrupted',
+    },
+  }).catch(() => {}); // Non-critical
+
   await prisma.conversation.update({
     where: { id },
     data: { updatedAt: new Date() },

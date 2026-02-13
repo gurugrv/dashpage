@@ -48,6 +48,7 @@ interface PromptPanelProps {
   onBlueprintRegenerate?: () => void;
   onBlueprintCancel?: () => void;
   blueprintError?: string | null;
+  resumeCard?: React.ReactNode;
 }
 
 export function PromptPanel({
@@ -81,6 +82,7 @@ export function PromptPanel({
   onBlueprintRegenerate,
   onBlueprintCancel,
   blueprintError,
+  resumeCard,
 }: PromptPanelProps) {
   const effectiveIsLoading = isLoading || !!isBlueprintBusy;
 
@@ -133,6 +135,7 @@ export function PromptPanel({
             </div>
           )}
 
+          {resumeCard}
           <InterruptedBanner
             visible={!!hasPartialMessage}
             isLoading={isLoading}
