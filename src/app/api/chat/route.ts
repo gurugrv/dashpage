@@ -94,7 +94,7 @@ export async function POST(req: Request) {
               messages: await convertToModelMessages(continuationMessages),
               maxOutputTokens: resolvedMaxOutputTokens,
               tools,
-              stopWhen: stepCountIs(3),
+              stopWhen: stepCountIs(5),
               abortSignal: req.signal,
             });
             const sourceStream = result.toUIMessageStream({ sendStart: segment === 0, sendFinish: false });
@@ -116,13 +116,30 @@ export async function POST(req: Request) {
 
               // Tool lifecycle: debug logging + progress
               if (part.type === 'tool-input-start') {
+                const toolName = part.toolName as string;
                 debugSession.logToolCall({
-                  toolName: part.toolName as string,
+                  toolName,
                   toolCallId: part.toolCallId as string,
                 });
+
+                const progressLabels: Record<string, string> = {
+                  writeFiles: 'Generating code...',
+                  editFile: 'Applying edits...',
+                  readFile: 'Reading file...',
+                  searchImages: 'Searching for images...',
+                  fetchUrl: 'Fetching content...',
+                  validateHtml: 'Validating HTML...',
+                };
+
                 writer.write({
                   type: 'data-buildProgress',
-                  data: { phase: 'generating' as const, label: 'Generating code...', file: 'index.html', percent: 15, timestamp: Date.now() },
+                  data: {
+                    phase: 'generating' as const,
+                    label: progressLabels[toolName] ?? 'Processing...',
+                    file: 'index.html',
+                    percent: 15,
+                    timestamp: Date.now(),
+                  },
                   transient: true,
                 });
               }
