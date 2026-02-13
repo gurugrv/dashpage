@@ -47,6 +47,7 @@ interface PromptPanelProps {
   onBlueprintApprove?: () => void;
   onBlueprintRegenerate?: () => void;
   onBlueprintCancel?: () => void;
+  onBlueprintUpdate?: (blueprint: Blueprint) => void;
   blueprintError?: string | null;
   resumeCard?: React.ReactNode;
 }
@@ -81,6 +82,7 @@ export function PromptPanel({
   onBlueprintApprove,
   onBlueprintRegenerate,
   onBlueprintCancel,
+  onBlueprintUpdate,
   blueprintError,
   resumeCard,
 }: PromptPanelProps) {
@@ -118,6 +120,7 @@ export function PromptPanel({
               onApprove={onBlueprintApprove ?? (() => {})}
               onRegenerate={onBlueprintRegenerate ?? (() => {})}
               onCancel={onBlueprintCancel ?? (() => {})}
+              onUpdate={onBlueprintUpdate}
             />
           )}
 
