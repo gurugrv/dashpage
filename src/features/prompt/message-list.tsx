@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
+import { Loader2 } from 'lucide-react';
 import { BuildProgress } from '@/components/BuildProgress';
 import { ChatMessage } from '@/components/ChatMessage';
 import { ExamplePrompts } from '@/components/ExamplePrompts';
@@ -13,6 +14,7 @@ interface MessageListProps {
   showExamplePrompts: boolean;
   onExampleSelect: (prompt: string) => void;
   buildProgress?: BuildProgressState;
+  blueprintLoading?: boolean;
 }
 
 export function MessageList({
@@ -21,6 +23,7 @@ export function MessageList({
   showExamplePrompts,
   onExampleSelect,
   buildProgress,
+  blueprintLoading,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +47,16 @@ export function MessageList({
             />
           ))}
 
-          {isLoading && (
+          {blueprintLoading && (
+            <div className="flex gap-3 px-4 py-3">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+                <Loader2 className="size-3.5 animate-spin text-primary" />
+              </div>
+              <span className="text-sm text-muted-foreground">Planning site architecture...</span>
+            </div>
+          )}
+
+          {isLoading && !blueprintLoading && (
             buildProgress?.isActive ? (
               <BuildProgress progress={buildProgress} />
             ) : (

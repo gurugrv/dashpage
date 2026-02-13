@@ -106,6 +106,25 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
     setIsFullscreen(document.fullscreenElement !== null);
   }, []);
 
+  // Send build phase to iframe for section highlighting
+  useEffect(() => {
+    if (!iframeRef.current?.contentWindow || !isGenerating) return;
+    iframeRef.current.contentWindow.postMessage(
+      { type: 'build-phase', phase: buildProgress?.phase ?? null },
+      '*'
+    );
+  }, [isGenerating, buildProgress?.phase]);
+
+  // Clear section highlights when generation ends
+  useEffect(() => {
+    if (!isGenerating && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        { type: 'build-phase', phase: null },
+        '*'
+      );
+    }
+  }, [isGenerating]);
+
   // Listen for inter-page navigation messages from iframe
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -160,7 +179,7 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
             <iframe
               ref={iframeRef}
               srcDoc={srcDoc}
-              sandbox="allow-scripts allow-forms"
+              sandbox="allow-scripts allow-forms allow-same-origin"
               className="h-full w-full border-0"
               title="Website Preview"
             />

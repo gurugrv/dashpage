@@ -41,7 +41,7 @@ function WireframeBlock({
         <div
           className="absolute inset-0"
           style={{
-            background: 'linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.07) 50%, transparent 100%)',
+            background: 'linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--primary) 7%, transparent) 50%, transparent 100%)',
             animation: 'wireframeSweep 2s ease-in-out infinite',
           }}
         />
@@ -93,7 +93,7 @@ function ProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--muted))"
+          stroke="var(--border)"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -101,7 +101,7 @@ function ProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--primary))"
+          stroke="var(--primary)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}

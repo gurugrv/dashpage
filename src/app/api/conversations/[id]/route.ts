@@ -26,15 +26,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { title } = await req.json();
+  const body = await req.json();
 
-  if (!title || typeof title !== 'string') {
-    return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+  const data: Record<string, string> = {};
+  if (typeof body.title === 'string' && body.title) data.title = body.title;
+  if (typeof body.provider === 'string') data.provider = body.provider;
+  if (typeof body.model === 'string') data.model = body.model;
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
   }
 
   const conversation = await prisma.conversation.update({
     where: { id },
-    data: { title },
+    data,
   });
 
   return NextResponse.json(conversation);

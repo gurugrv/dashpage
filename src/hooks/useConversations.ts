@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 interface Conversation {
   id: string;
   title: string;
+  provider?: string | null;
+  model?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,5 +58,16 @@ export function useConversations() {
     setConversations(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  return { conversations, create, rename, remove, isLoading, refetch: fetchConversations };
+  const updateModel = useCallback(async (id: string, provider: string, model: string) => {
+    await fetch(`/api/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, model }),
+    });
+    setConversations(prev =>
+      prev.map(c => (c.id === id ? { ...c, provider, model } : c))
+    );
+  }, []);
+
+  return { conversations, create, rename, remove, updateModel, isLoading, refetch: fetchConversations };
 }

@@ -7,6 +7,8 @@ export async function GET() {
     select: {
       id: true,
       title: true,
+      provider: true,
+      model: true,
       createdAt: true,
       updatedAt: true,
       _count: { select: { messages: true } },
@@ -21,7 +23,11 @@ export async function POST(req: Request) {
   const title = body.title || 'New Conversation';
 
   const conversation = await prisma.conversation.create({
-    data: { title },
+    data: {
+      title,
+      ...(body.provider && { provider: body.provider }),
+      ...(body.model && { model: body.model }),
+    },
   });
 
   return NextResponse.json({ conversation }, { status: 201 });

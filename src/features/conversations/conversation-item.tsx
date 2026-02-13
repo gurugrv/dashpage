@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageSquare, Trash2 } from 'lucide-react';
+import { MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -63,17 +63,32 @@ export function ConversationItem({
         <span className="flex-1 break-words">{conversation.title}</span>
       )}
 
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive"
-        onClick={(event) => {
-          event.stopPropagation();
-          onDelete(conversation.id);
-        }}
-      >
-        <Trash2 className="size-3" />
-      </Button>
+      <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={(event) => {
+            event.stopPropagation();
+            onStartEdit(conversation);
+          }}
+          title="Rename"
+        >
+          <Pencil className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete(conversation.id);
+          }}
+          title="Delete"
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      </div>
     </div>
   );
 }

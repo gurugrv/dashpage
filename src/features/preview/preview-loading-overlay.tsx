@@ -39,7 +39,7 @@ function OverlayRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--muted))"
+          stroke="var(--border)"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -47,7 +47,7 @@ function OverlayRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--primary))"
+          stroke="var(--primary)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}

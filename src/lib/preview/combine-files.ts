@@ -43,27 +43,76 @@ document.addEventListener('click', function(e) {
 });
 </script>`;
 
+  // CSP: sandbox uses allow-same-origin for reliable external resource loading (fonts, CDNs).
+  // This meta CSP mitigates the security impact by restricting connect-src (fetch/XHR) to
+  // HTTPS only — blocking same-origin HTTP requests to the parent's API routes (e.g. /api/keys).
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="connect-src https: data: blob:;">`;
+
+  // FOUT prevention: hide body via <head> style, reveal once fonts loaded (injected into <head>)
+  // CSS-only fallback animation reveals body after 500ms even if JS reveal script fails
+  // (e.g. truncated HTML where </body> is missing and scripts get swallowed by open elements)
+  const fontReadyHeadStyle = `${cspMeta}\n<style>body{opacity:0}body.__fonts-ready{opacity:1;transition:opacity .1s ease-in}@keyframes __fout-fb{to{opacity:1}}body:not(.__fonts-ready){animation:__fout-fb .1s ease-in .5s both}</style>`;
+  // Reveal script (injected before </body>)
+  const fontReadyRevealScript = `<script>(function(){function show(){document.body.classList.add('__fonts-ready')}document.fonts.ready.then(show);setTimeout(show,500)})()</script>`;
+
+  // Section highlight script - listens for build-phase messages and pulses the relevant section
+  const sectionHighlightScript = `<style>
+@keyframes __build-glow{
+  0%,100%{outline-color:rgba(59,130,246,.7);box-shadow:0 0 0 3px rgba(59,130,246,.12),0 0 12px rgba(59,130,246,.18)}
+  50%{outline-color:rgba(59,130,246,.25);box-shadow:0 0 0 5px rgba(59,130,246,.2),0 0 24px rgba(59,130,246,.3)}
+}
+.__build-hl{outline:2.5px solid rgba(59,130,246,.7);outline-offset:4px;animation:__build-glow 1.5s ease-in-out infinite;border-radius:inherit;position:relative;z-index:1}
+</style>
+<script>
+(function(){
+  var map={
+    navigation:'nav,header',
+    footer:'footer',
+    content:'main,[role=main],section:last-of-type',
+    'body-started':'body>:first-child',
+    scripts:'body',
+    'edit-applying':'main,body>:first-child',
+    'edit-started':'main,body>:first-child'
+  };
+  window.addEventListener('message',function(e){
+    if(!e.data||e.data.type!=='build-phase')return;
+    document.querySelectorAll('.__build-hl').forEach(function(el){el.classList.remove('__build-hl')});
+    var sel=map[e.data.phase];
+    if(sel){try{document.querySelectorAll(sel).forEach(function(el){el.classList.add('__build-hl')})}catch(x){}}
+  });
+})();
+</script>`;
+
+  const helperScripts = fontReadyRevealScript + '\n' + sectionHighlightScript + '\n' + linkInterceptScript;
+
   if (cssFiles.length === 0 && jsFiles.length === 0) {
-    // Still need to inject link interception even without asset files
-    const bodyClose = html.lastIndexOf('</body>');
-    if (bodyClose !== -1) {
-      return `${html.slice(0, bodyClose)}${linkInterceptScript}\n${html.slice(bodyClose)}`;
+    let single = html;
+    // Inject FOUT-prevention style into <head>
+    const headClose = single.lastIndexOf('</head>');
+    if (headClose !== -1) {
+      single = `${single.slice(0, headClose)}${fontReadyHeadStyle}\n${single.slice(headClose)}`;
+    } else {
+      single = `${fontReadyHeadStyle}\n${single}`;
     }
-    return `${html}${linkInterceptScript}`;
+    const bodyClose = single.lastIndexOf('</body>');
+    if (bodyClose !== -1) {
+      return `${single.slice(0, bodyClose)}${helperScripts}\n${single.slice(bodyClose)}`;
+    }
+    return `${single}${helperScripts}`;
   }
 
   let result = html;
 
-  // Inline all CSS files
-  if (cssFiles.length > 0) {
-    const cssBlock = cssFiles
-      .map(f => `/* ${f} */\n${files[f]}`)
-      .join('\n\n');
+  // Inject FOUT-prevention style + inline CSS files into <head>
+  {
+    const cssBlock = cssFiles.length > 0
+      ? `<style>\n${cssFiles.map(f => `/* ${f} */\n${files[f]}`).join('\n\n')}\n</style>\n`
+      : '';
     const headClose = result.lastIndexOf('</head>');
     if (headClose !== -1) {
-      result = `${result.slice(0, headClose)}<style>\n${cssBlock}\n</style>\n${result.slice(headClose)}`;
+      result = `${result.slice(0, headClose)}${fontReadyHeadStyle}\n${cssBlock}${result.slice(headClose)}`;
     } else {
-      result = `<style>\n${cssBlock}\n</style>\n${result}`;
+      result = `${fontReadyHeadStyle}\n${cssBlock}${result}`;
     }
   }
 
@@ -80,12 +129,12 @@ document.addEventListener('click', function(e) {
     }
   }
 
-  // Inject link interception for multi-page navigation
+  // Inject helper scripts (section highlights + link interception)
   const bodyClose = result.lastIndexOf('</body>');
   if (bodyClose !== -1) {
-    result = `${result.slice(0, bodyClose)}${linkInterceptScript}\n${result.slice(bodyClose)}`;
+    result = `${result.slice(0, bodyClose)}${helperScripts}\n${result.slice(bodyClose)}`;
   } else {
-    result = `${result}${linkInterceptScript}`;
+    result = `${result}${helperScripts}`;
   }
 
   return result;

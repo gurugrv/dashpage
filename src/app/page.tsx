@@ -2,10 +2,10 @@
 
 import dynamic from 'next/dynamic'
 
-const Builder = dynamic(() => import('@/components/Builder').then(m => m.Builder), {
+const LandingPage = dynamic(() => import('@/components/LandingPage').then(m => m.LandingPage), {
   ssr: false,
 })
 
 export default function Home() {
-  return <Builder />
+  return <LandingPage />
 }

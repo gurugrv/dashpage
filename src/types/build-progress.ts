@@ -14,6 +14,7 @@ export type BuildPhase =
   | 'edit-started'
   | 'edit-applying'
   | 'edit-complete'
+  | 'generating'
   | 'complete'
 
 export interface BuildProgressData {
