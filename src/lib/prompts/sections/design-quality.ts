@@ -1,5 +1,6 @@
 // Shared design quality guidelines used by both single-page and blueprint generation.
 // Single source of truth — imported by base-rules.ts AND blueprint prompt files.
+// Font names in the prompt below must stay in sync with src/lib/fonts.ts FONT_CATEGORIES.
 
 export const DESIGN_QUALITY_SECTION = `<color_system>
 Use EXACTLY 3-5 colors total. Count them before finalizing.
@@ -29,16 +30,30 @@ Required structure:
 - ONE font for headings (can vary weights: 400-700)
 - ONE font for body text (typically 400 and 500)
 
-Recommended pairings (pick based on the project mood):
+Approved Google Fonts (ONLY use fonts from this list — never guess font names).
+Pick fonts that match the project mood. Use the pairings below as guidance, or create your own combinations from the approved list:
 
-Modern/Tech: Space Grotesk (headings) + DM Sans (body)
-Editorial/Blog: Playfair Display (headings) + Source Sans 3 (body)
-Bold/Impact: Montserrat (headings) + Open Sans (body)
-Elegant/Premium: Playfair Display (headings) + DM Sans (body)
-Clean/Minimal: DM Sans (headings) + DM Sans (body)
-Corporate: Work Sans (headings) + Source Sans 3 (body)
-Creative/Fun: Jost (headings) + DM Sans (body)
-Warm/Friendly: Nunito (headings) + Open Sans (body)
+Sans-serif (body/UI): Inter, DM Sans, Work Sans, Lato, Open Sans, Source Sans 3, Nunito Sans, Manrope, Barlow, Karla, IBM Plex Sans, Public Sans, Figtree, Albert Sans, Mulish, Sora, Hanken Grotesk
+Geometric sans (headings): Montserrat, Poppins, Raleway, Space Grotesk, Outfit, Syne, Libre Franklin, Archivo, Jost, Exo 2, Quicksand, Urbanist, Red Hat Display, Epilogue
+Serif (editorial): Playfair Display, Lora, Merriweather, EB Garamond, Cormorant, Spectral, DM Serif Display, Literata, Source Serif 4, Alegreya
+Slab serif: Roboto Slab, Arvo, Aleo, Bitter, Zilla Slab
+Display (hero only): Oswald, Anton, Bebas Neue, Abril Fatface, Bricolage Grotesque
+Monospace: Space Mono, JetBrains Mono, Fira Code, IBM Plex Mono, Azeret Mono
+
+Recommended pairings (pick based on mood — vary your choices, don't repeat the same pair):
+
+Modern/SaaS: Manrope + Inter | Space Grotesk + DM Sans
+Elegant/Luxury: Playfair Display + DM Sans | Cormorant + Manrope
+Editorial/Blog: DM Serif Display + DM Sans | Lora + Source Sans 3
+Corporate/Trust: Work Sans + Source Sans 3 | IBM Plex Sans + IBM Plex Serif
+Bold/Impact: Montserrat + Open Sans | Syne + Inter
+Warm/Friendly: Nunito Sans + Lato | Poppins + Merriweather
+Creative/Fun: Jost + DM Sans | Outfit + Karla | Raleway + Lora
+Clean/Minimal: Inter + Inter | Figtree + Figtree
+Tech/Startup: Albert Sans + Barlow | Archivo + Source Sans 3
+Dashboard/Admin: Hanken Grotesk + Archivo | Urbanist + Red Hat Display
+Wellness/Health: Mulish + Karla | Sora + Space Mono
+Publishing/Education: Alegreya + Alegreya Sans | Epilogue + Source Sans 3
 
 Typography rules:
 - Clear size hierarchy: text-sm -> text-base -> text-lg -> text-xl -> text-2xl -> text-4xl+
