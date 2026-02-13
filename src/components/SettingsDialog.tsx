@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Loader2, Settings, Key, Cpu } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Loader2, Settings, Key, Cpu, Check, ChevronDown, Search, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProviderKeyRow } from '@/features/settings/provider-key-row';
 import { useProviderKeys } from '@/features/settings/use-provider-keys';
@@ -25,6 +26,7 @@ import type {
   BlueprintStepModels,
   StepModelOverride,
 } from '@/features/settings/use-blueprint-model-config';
+import { cn } from '@/lib/utils';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -48,6 +50,125 @@ const BLUEPRINT_STEPS: Array<{ key: BlueprintStep; label: string; description: s
   { key: 'components', label: 'Components', description: 'Shared header & footer' },
   { key: 'pages', label: 'Pages', description: 'Individual page HTML' },
 ];
+
+// ---------------------------------------------------------------------------
+// SearchableSelect component
+// ---------------------------------------------------------------------------
+
+interface SearchableSelectProps {
+  value: string;
+  options: Array<{ id: string; name: string }>;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+function SearchableSelect({ value, options, onChange, placeholder = 'Select...', className }: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((o) => o.id === value);
+  
+  const filteredOptions = search
+    ? options.filter(
+        (o) =>
+          o.name.toLowerCase().includes(search.toLowerCase()) ||
+          o.id.toLowerCase().includes(search.toLowerCase())
+      )
+    : options;
+
+  const handleToggle = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      setSearch('');
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        handleToggle(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className={cn('relative flex-1', className)}>
+      <button
+        type="button"
+        onClick={() => handleToggle(!open)}
+        className={cn(
+          'flex h-8 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-xs text-left'
+        )}
+      >
+        <span className={cn('truncate', !selectedOption && 'text-muted-foreground')}>
+          {selectedOption?.name || placeholder}
+        </span>
+        <ChevronDown className="size-3.5 opacity-50 shrink-0" />
+      </button>
+      
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md max-h-60 overflow-hidden">
+          <div className="flex items-center border-b px-2 py-1.5">
+            <Search className="size-3.5 mr-2 text-muted-foreground shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..."
+              className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+              autoFocus
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSearch('');
+                }}
+                className="shrink-0"
+              >
+                <X className="size-3 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="py-4 text-center text-xs text-muted-foreground">
+                No model found
+              </div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    'relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-xs outline-none hover:bg-accent hover:text-accent-foreground',
+                    option.id === value && 'bg-accent text-accent-foreground'
+                  )}
+                >
+                  <span className="truncate flex-1 text-left">{option.name}</span>
+                  {option.id === value && (
+                    <Check className="absolute right-2 size-3.5 text-primary" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // BlueprintStepRow
@@ -128,23 +249,13 @@ function BlueprintStepRow({
           </SelectContent>
         </Select>
 
-        <Select
+        <SearchableSelect
           value={override.model}
-          onValueChange={(value) => {
-            onSet({ provider: override.provider, model: value });
-          }}
-        >
-          <SelectTrigger className="flex-1 text-xs h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((m) => (
-              <SelectItem key={m.id} value={m.id} className="text-xs">
-                {m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={models}
+          onChange={(modelId) => onSet({ provider: override.provider, model: modelId })}
+          placeholder="Search models..."
+          className="flex-1"
+        />
       </div>
     </div>
   );
