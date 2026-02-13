@@ -129,7 +129,7 @@ Visual:
 - Abstract decorative blobs, gradient circles, or floating shapes as filler
 - Emojis used as icons
 - Stock-looking patterns with no connection to the content
--> INSTEAD: Use purposeful visual elements — real Pexels photos via the image proxy, Lucide/Heroicons-style SVG icons, meaningful illustrations.
+-> INSTEAD: Use purposeful visual elements — real photos from the searchImages tool, Lucide/Heroicons-style SVG icons, meaningful illustrations.
 
 Structure:
 - Identical padding/margins on every section
