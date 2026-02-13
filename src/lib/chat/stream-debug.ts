@@ -162,10 +162,15 @@ export function createDebugSession(params: {
         const output = lines.map((line) => `${dimPrefix}${line}`).join('\n') + '\n';
         writeAtomic(output);
       }
+
+      // Flush long lines that lack newlines (e.g. compact JSON from streamObject)
+      if (lineBuffer.length >= 200) {
+        writeAtomic(`${dimPrefix}${lineBuffer}\n`);
+        lineBuffer = '';
+      }
     },
 
     logToolCall({ toolName, toolCallId, input }) {
-      if (!isDebugEnabled()) return;
       const inputPreview = input ? JSON.stringify(input).slice(0, 500) : '(no input)';
       const parts = [
         `${prefix}\x1b[33m⚡ TOOL CALL: ${toolName}${RESET}  ${DIM}id=${toolCallId}${RESET}`,
@@ -176,7 +181,6 @@ export function createDebugSession(params: {
     },
 
     logToolResult({ toolName, toolCallId, output, error }) {
-      if (!isDebugEnabled()) return;
       if (error) {
         writeAtomic(`${prefix}\x1b[31m✗ TOOL ERROR: ${toolName || toolCallId}${RESET}  ${error}\n\n`);
         return;

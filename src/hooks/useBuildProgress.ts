@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
-import type { BuildPhase, BuildProgressData } from '@/types/build-progress'
+import type { BuildPhase, BuildProgressData, ToolActivityEvent } from '@/types/build-progress'
 
 export interface BuildProgressState {
   isActive: boolean
@@ -9,6 +9,7 @@ export interface BuildProgressState {
   label: string
   percent: number
   file: string
+  toolActivities: ToolActivityEvent[]
 }
 
 const INITIAL_STATE: BuildProgressState = {
@@ -17,6 +18,7 @@ const INITIAL_STATE: BuildProgressState = {
   label: '',
   percent: 0,
   file: 'index.html',
+  toolActivities: [],
 }
 
 export function useBuildProgress() {
@@ -30,13 +32,16 @@ export function useBuildProgress() {
       clearTimerRef.current = null
     }
 
-    setProgress({
+    setProgress((prev) => ({
+      ...prev,
       isActive: true,
       phase: data.phase,
       label: data.label,
       percent: data.percent,
       file: data.file,
-    })
+      // Clear activities on complete
+      toolActivities: data.phase === 'complete' ? [] : prev.toolActivities,
+    }))
 
     // Auto-clear 1.5s after "complete"
     if (data.phase === 'complete') {
@@ -47,6 +52,19 @@ export function useBuildProgress() {
     }
   }, [])
 
+  const handleToolActivity = useCallback((event: ToolActivityEvent) => {
+    setProgress((prev) => {
+      const idx = prev.toolActivities.findIndex((a) => a.toolCallId === event.toolCallId)
+      const next = [...prev.toolActivities]
+      if (idx >= 0) {
+        next[idx] = event
+      } else {
+        next.push(event)
+      }
+      return { ...prev, toolActivities: next }
+    })
+  }, [])
+
   const resetProgress = useCallback(() => {
     if (clearTimerRef.current) {
       clearTimeout(clearTimerRef.current)
@@ -55,5 +73,5 @@ export function useBuildProgress() {
     setProgress(INITIAL_STATE)
   }, [])
 
-  return { progress, handleProgressData, resetProgress }
+  return { progress, handleProgressData, handleToolActivity, resetProgress }
 }

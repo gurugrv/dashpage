@@ -14,10 +14,19 @@ export type BlueprintPhase =
   | 'complete'
   | 'error';
 
+export interface PageToolActivity {
+  toolCallId: string;
+  toolName: string;
+  status: 'running' | 'done' | 'error';
+  label: string;
+  detail?: string;
+}
+
 export interface PageGenerationStatus {
   filename: string;
   status: 'pending' | 'generating' | 'complete' | 'error';
   error?: string;
+  toolActivities?: PageToolActivity[];
 }
 
 interface UseBlueprintGenerationOptions {
@@ -47,7 +56,17 @@ interface PipelineStatusEvent {
   completedPages: number;
 }
 
-type SSEEvent = PageStatusEvent | PipelineStatusEvent;
+interface ToolActivitySSEEvent {
+  type: 'tool-activity';
+  filename: string;
+  toolCallId: string;
+  toolName: string;
+  status: 'running' | 'done' | 'error';
+  label: string;
+  detail?: string;
+}
+
+type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent;
 
 export function useBlueprintGeneration({
   resolveStepModel,
@@ -252,11 +271,38 @@ export function useBlueprintGeneration({
           try {
             const event = JSON.parse(jsonStr) as SSEEvent;
 
-            if (event.type === 'page-status') {
+            if (event.type === 'tool-activity') {
+              setPageStatuses((prev) =>
+                prev.map((ps) => {
+                  if (ps.filename !== event.filename) return ps;
+                  const activities = [...(ps.toolActivities ?? [])];
+                  const idx = activities.findIndex((a) => a.toolCallId === event.toolCallId);
+                  const entry: PageToolActivity = {
+                    toolCallId: event.toolCallId,
+                    toolName: event.toolName,
+                    status: event.status,
+                    label: event.label,
+                    detail: event.detail,
+                  };
+                  if (idx >= 0) {
+                    activities[idx] = entry;
+                  } else {
+                    activities.push(entry);
+                  }
+                  return { ...ps, toolActivities: activities };
+                }),
+              );
+            } else if (event.type === 'page-status') {
               setPageStatuses((prev) =>
                 prev.map((ps) =>
                   ps.filename === event.filename
-                    ? { filename: ps.filename, status: event.status, error: event.error }
+                    ? {
+                        filename: ps.filename,
+                        status: event.status,
+                        error: event.error,
+                        // Clear tool activities when page completes or errors
+                        toolActivities: event.status === 'complete' || event.status === 'error' ? [] : ps.toolActivities,
+                      }
                     : ps,
                 ),
               );

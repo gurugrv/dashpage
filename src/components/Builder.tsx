@@ -28,7 +28,7 @@ import { useModels } from '@/hooks/useModels';
 import { ARTIFACT_COMPLETION_MESSAGE } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
-import type { BuildProgressData } from '@/types/build-progress';
+import type { BuildProgressData, ToolActivityEvent } from '@/types/build-progress';
 
 /** Split text parts of a message into preface (before first tool) and summary (after last tool). */
 function splitTextAroundTools(parts: UIMessage['parts']): { preface: string; summary: string } {
@@ -100,7 +100,7 @@ export function Builder() {
   const { currentFiles, lastValidFiles, isGenerating, processMessages, setFiles } = useHtmlParser();
   const { conversations, create, rename, remove, updateModel } = useConversations();
   const { availableProviders, refetch } = useModels();
-  const { progress: buildProgress, handleProgressData, resetProgress } = useBuildProgress();
+  const { progress: buildProgress, handleProgressData, handleToolActivity, resetProgress } = useBuildProgress();
 
   const {
     setSelectedModel,
@@ -164,6 +164,9 @@ export function Builder() {
     onData: (part) => {
       if (part.type === 'data-buildProgress') {
         handleProgressData(part.data as BuildProgressData);
+      }
+      if (part.type === 'data-toolActivity') {
+        handleToolActivity(part.data as ToolActivityEvent);
       }
     },
     onFinish: async ({ message }) => {
@@ -579,6 +582,7 @@ export function Builder() {
       },
     ]);
 
+    // Persist message then clean up generation state (awaited to prevent race on navigation)
     fetch(`/api/conversations/${convId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -587,12 +591,13 @@ export function Builder() {
         content,
         htmlArtifact: files,
       }),
-    });
-
-    // Clean up generation state
-    fetch(`/api/conversations/${convId}/generation-state`, {
-      method: 'DELETE',
-    }).catch(() => {});
+    })
+      .then(() =>
+        fetch(`/api/conversations/${convId}/generation-state`, {
+          method: 'DELETE',
+        }),
+      )
+      .catch((err) => console.error('Failed to persist blueprint completion:', err));
 
     resetBlueprint();
   }, [blueprintPhase, blueprint, resetBlueprint, setMessages]);

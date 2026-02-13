@@ -24,3 +24,12 @@ export interface BuildProgressData {
   percent: number
   timestamp: number
 }
+
+export interface ToolActivityEvent {
+  toolCallId: string
+  toolName: string
+  status: 'running' | 'done' | 'error'
+  label: string
+  detail?: string
+  timestamp: number
+}

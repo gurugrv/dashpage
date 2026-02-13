@@ -19,6 +19,49 @@ function stripCodeFences(text: string): string {
   return text.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '');
 }
 
+function summarizeToolInput(toolName: string, input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const inp = input as Record<string, unknown>;
+  switch (toolName) {
+    case 'searchImages':
+      return typeof inp.query === 'string' ? inp.query : undefined;
+    case 'searchIcons':
+      return typeof inp.query === 'string' ? inp.query : undefined;
+    case 'generateColorPalette':
+      return typeof inp.baseColor === 'string' ? `${inp.baseColor} (${inp.harmony ?? 'complementary'})` : undefined;
+    case 'fetchUrl':
+      return typeof inp.url === 'string' ? inp.url : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function summarizeToolOutput(toolName: string, output: unknown): string | undefined {
+  if (!output || typeof output !== 'object') return undefined;
+  const out = output as Record<string, unknown>;
+  if (out.success === false) {
+    return typeof out.error === 'string' ? out.error.slice(0, 80) : 'Failed';
+  }
+  switch (toolName) {
+    case 'searchImages': {
+      const images = out.images as unknown[] | undefined;
+      if (images) return images.length > 0 ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : 'No images found';
+      return undefined;
+    }
+    case 'searchIcons': {
+      const icons = out.icons as unknown[] | undefined;
+      if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
+      return undefined;
+    }
+    case 'generateColorPalette':
+      return 'Palette generated';
+    case 'fetchUrl':
+      return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
+    default:
+      return undefined;
+  }
+}
+
 interface PagesRequestBody {
   conversationId: string;
   provider: string;
@@ -153,6 +196,13 @@ export async function POST(req: Request) {
         ...createWebTools(),
       };
 
+      const TOOL_LABELS: Record<string, string> = {
+        searchImages: 'Searching images',
+        searchIcons: 'Searching icons',
+        generateColorPalette: 'Generating palette',
+        fetchUrl: 'Fetching URL',
+      };
+
       let hasErrors = false;
       const completedPagesMap: Record<string, string> = {};
 
@@ -199,7 +249,7 @@ export async function POST(req: Request) {
                 prompt: pagePrompt,
                 maxOutputTokens: 16000,
                 tools: blueprintTools,
-                stopWhen: stepCountIs(3),
+                stopWhen: stepCountIs(5),
                 abortSignal,
               });
             } else {
@@ -222,8 +272,58 @@ export async function POST(req: Request) {
               });
             }
 
-            for await (const delta of result.textStream) {
-              debugSession.logDelta(delta);
+            for await (const part of result.fullStream) {
+              if (part.type === 'text-delta') {
+                debugSession.logDelta(part.text);
+              } else if (part.type === 'tool-input-start') {
+                debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.id });
+                sendEvent({
+                  type: 'tool-activity',
+                  filename: page.filename,
+                  toolCallId: part.id,
+                  toolName: part.toolName,
+                  status: 'running',
+                  label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                });
+              } else if (part.type === 'tool-call') {
+                debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
+                const detail = summarizeToolInput(part.toolName, part.input);
+                if (detail) {
+                  sendEvent({
+                    type: 'tool-activity',
+                    filename: page.filename,
+                    toolCallId: part.toolCallId,
+                    toolName: part.toolName,
+                    status: 'running',
+                    label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                    detail,
+                  });
+                }
+              } else if (part.type === 'tool-result') {
+                debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, output: part.output });
+                sendEvent({
+                  type: 'tool-activity',
+                  filename: page.filename,
+                  toolCallId: part.toolCallId,
+                  toolName: part.toolName,
+                  status: 'done',
+                  label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                  detail: summarizeToolOutput(part.toolName, part.output),
+                });
+              } else if (part.type === 'tool-error') {
+                const rawErr = (part as { error?: unknown }).error;
+                const errMsg = rawErr instanceof Error ? rawErr.message.slice(0, 100) : typeof rawErr === 'string' ? rawErr.slice(0, 100) : 'Tool error';
+                debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, error: errMsg });
+                sendEvent({
+                  type: 'tool-activity',
+                  filename: page.filename,
+                  toolCallId: part.toolCallId,
+                  toolName: part.toolName,
+                  status: 'error',
+                  label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                  detail: errMsg,
+                });
+              }
             }
             debugSession.finish('complete');
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Check, Clock, Loader2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, Clock, Globe, Image, Loader2, Palette, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 
@@ -9,6 +9,13 @@ interface PageProgressProps {
   componentsStatus?: 'generating' | 'complete';
   onCancel?: () => void;
 }
+
+const TOOL_ICONS: Record<string, typeof Globe> = {
+  searchImages: Image,
+  searchIcons: Search,
+  generateColorPalette: Palette,
+  fetchUrl: Globe,
+};
 
 export function PageProgress({ pageStatuses, componentsStatus, onCancel }: PageProgressProps) {
   const completedPages = pageStatuses.filter((p) => p.status === 'complete').length;
@@ -70,34 +77,69 @@ export function PageProgress({ pageStatuses, componentsStatus, onCancel }: PageP
 
           {/* Per-page list */}
           {pageStatuses.map((page) => (
-            <div key={page.filename} className="flex items-center gap-2">
-              {page.status === 'pending' && (
-                <Clock className="size-3.5 text-muted-foreground/50" />
-              )}
-              {page.status === 'generating' && (
-                <Loader2 className="size-3.5 animate-spin text-primary" />
-              )}
-              {page.status === 'complete' && (
-                <Check className="size-3.5 text-green-600 dark:text-green-500" />
-              )}
-              {page.status === 'error' && (
-                <AlertCircle className="size-3.5 text-destructive" />
-              )}
-              <span
-                className={`text-xs ${
-                  page.status === 'complete'
-                    ? 'text-muted-foreground'
-                    : page.status === 'generating'
-                      ? 'text-foreground font-medium'
-                      : page.status === 'error'
-                        ? 'text-destructive'
-                        : 'text-muted-foreground/50'
-                }`}
-              >
-                {page.filename}
-              </span>
-              {page.status === 'error' && page.error && (
-                <span className="text-xs text-destructive/80">{page.error}</span>
+            <div key={page.filename}>
+              <div className="flex items-center gap-2">
+                {page.status === 'pending' && (
+                  <Clock className="size-3.5 text-muted-foreground/50" />
+                )}
+                {page.status === 'generating' && (
+                  <Loader2 className="size-3.5 animate-spin text-primary" />
+                )}
+                {page.status === 'complete' && (
+                  <Check className="size-3.5 text-green-600 dark:text-green-500" />
+                )}
+                {page.status === 'error' && (
+                  <AlertCircle className="size-3.5 text-destructive" />
+                )}
+                <span
+                  className={`text-xs ${
+                    page.status === 'complete'
+                      ? 'text-muted-foreground'
+                      : page.status === 'generating'
+                        ? 'text-foreground font-medium'
+                        : page.status === 'error'
+                          ? 'text-destructive'
+                          : 'text-muted-foreground/50'
+                  }`}
+                >
+                  {page.filename}
+                </span>
+                {page.status === 'error' && page.error && (
+                  <span className="text-xs text-destructive/80">{page.error}</span>
+                )}
+              </div>
+
+              {/* Tool activity for currently generating page */}
+              {page.status === 'generating' && page.toolActivities && page.toolActivities.length > 0 && (
+                <div className="ml-5.5 mt-0.5 flex flex-col gap-0.5">
+                  {page.toolActivities.map((activity) => {
+                    const Icon = TOOL_ICONS[activity.toolName] ?? Globe;
+                    return (
+                      <div key={activity.toolCallId} className="flex items-center gap-1.5 text-[11px] leading-tight">
+                        {activity.status === 'running' && (
+                          <Loader2 className="size-2.5 animate-spin text-muted-foreground" />
+                        )}
+                        {activity.status === 'done' && (
+                          <Check className="size-2.5 text-primary" />
+                        )}
+                        {activity.status === 'error' && (
+                          <AlertTriangle className="size-2.5 text-destructive" />
+                        )}
+                        <Icon className="size-2.5 text-muted-foreground" />
+                        <span className={
+                          activity.status === 'error'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }>
+                          {activity.label}
+                          {activity.detail && (
+                            <span className="ml-1 opacity-70">{activity.detail}</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           ))}

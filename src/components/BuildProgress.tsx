@@ -1,7 +1,9 @@
 'use client'
 
-import { Loader2, Check, Circle } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { Loader2, Check, Circle, Globe, Image, Palette, Code, Search, ShieldCheck, FileText, Pencil, AlertTriangle } from 'lucide-react'
 import type { BuildProgressState } from '@/hooks/useBuildProgress'
+import type { ToolActivityEvent } from '@/types/build-progress'
 
 interface BuildProgressProps {
   progress: BuildProgressState
@@ -22,11 +24,72 @@ const STEPS: Step[] = [
   { label: 'Finalizing', threshold: 100 },
 ]
 
+const TOOL_ICONS: Record<string, typeof Globe> = {
+  webSearch: Globe,
+  fetchUrl: Globe,
+  searchImages: Image,
+  searchIcons: Search,
+  generateColorPalette: Palette,
+  writeFiles: Code,
+  editFile: Pencil,
+  readFile: FileText,
+  validateHtml: ShieldCheck,
+}
+
 function getStepStatus(step: Step, stepIndex: number, percent: number): 'done' | 'active' | 'pending' {
   if (percent >= step.threshold) return 'done'
   const prevThreshold = stepIndex > 0 ? STEPS[stepIndex - 1].threshold : 0
   if (percent >= prevThreshold) return 'active'
   return 'pending'
+}
+
+function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [activities])
+
+  if (activities.length === 0) return null
+
+  return (
+    <div
+      ref={scrollRef}
+      className="mt-1 flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md bg-muted/50 px-2 py-1.5"
+    >
+      {activities.map((activity) => {
+        const Icon = TOOL_ICONS[activity.toolName] ?? Code
+        return (
+          <div key={activity.toolCallId} className="flex items-start gap-1.5 text-[11px] leading-tight">
+            {activity.status === 'running' && (
+              <Loader2 className="mt-px size-3 shrink-0 animate-spin text-muted-foreground" />
+            )}
+            {activity.status === 'done' && (
+              <Check className="mt-px size-3 shrink-0 text-primary" />
+            )}
+            {activity.status === 'error' && (
+              <AlertTriangle className="mt-px size-3 shrink-0 text-destructive" />
+            )}
+            <Icon className="mt-px size-3 shrink-0 text-muted-foreground" />
+            <span className={
+              activity.status === 'error'
+                ? 'text-destructive'
+                : activity.status === 'running'
+                  ? 'text-foreground'
+                  : 'text-muted-foreground'
+            }>
+              <span className="font-medium">{activity.label}</span>
+              {activity.detail && (
+                <span className="ml-1 opacity-70">{activity.detail}</span>
+              )}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export function BuildProgress({ progress }: BuildProgressProps) {
@@ -75,6 +138,9 @@ export function BuildProgress({ progress }: BuildProgressProps) {
             )
           })}
         </div>
+
+        {/* Tool activity log */}
+        <ToolActivityLog activities={progress.toolActivities} />
       </div>
     </div>
   )

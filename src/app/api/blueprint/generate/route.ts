@@ -1,4 +1,4 @@
-import { generateObject } from 'ai';
+import { streamObject } from 'ai';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Prisma } from '@/generated/prisma/client';
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       maxOutputTokens: 16384,
     });
 
-    const result = await generateObject({
+    const result = streamObject({
       model: modelInstance,
       system: systemPrompt,
       schema: blueprintSchema,
@@ -58,12 +58,14 @@ export async function POST(req: Request) {
       maxOutputTokens: 16384,
     });
 
-    const blueprint = result.object;
+    // Stream JSON text to console as it arrives
+    for await (const delta of result.textStream) {
+      debugSession.logDelta(delta);
+    }
+    debugSession.finish('complete');
 
-    debugSession.logResponse({
-      response: JSON.stringify(blueprint, null, 2),
-      status: 'complete',
-    });
+    const blueprint = await result.object;
+    debugSession.logFullResponse(await result.finishReason);
 
     const dbBlueprint = await prisma.blueprint.upsert({
       where: { conversationId },
