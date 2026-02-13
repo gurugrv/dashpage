@@ -124,6 +124,7 @@ export async function POST(req: Request) {
                   editFile: 'Applying edits...',
                   readFile: 'Reading file...',
                   searchImages: 'Searching for images...',
+                  searchIcons: 'Searching for icons...',
                   fetchUrl: 'Fetching content...',
                   validateHtml: 'Validating HTML...',
                 };

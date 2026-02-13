@@ -6,6 +6,7 @@ import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt'
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createImageTools } from '@/lib/chat/tools/image-tools';
+import { createIconTools } from '@/lib/chat/tools/icon-tools';
 import { createWebTools } from '@/lib/chat/tools/web-tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
@@ -146,6 +147,7 @@ export async function POST(req: Request) {
 
       const blueprintTools = {
         ...createImageTools(),
+        ...createIconTools(),
         ...createWebTools(),
       };
 
