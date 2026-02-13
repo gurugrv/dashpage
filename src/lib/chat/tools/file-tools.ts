@@ -1,13 +1,9 @@
 import { tool } from 'ai';
-import type { ToolSet } from 'ai';
 import { z } from 'zod';
 import { applyEditOperations } from '@/lib/parser/edit-operations/apply-edit-operations';
 import type { ProjectFiles } from '@/types';
 
-export function createWebsiteTools(currentFiles: ProjectFiles): ToolSet {
-  // Mutable working copy accumulates changes across multi-step tool calls
-  const workingFiles: ProjectFiles = { ...currentFiles };
-
+export function createFileTools(workingFiles: ProjectFiles) {
   return {
     writeFiles: tool({
       description:
@@ -68,6 +64,26 @@ export function createWebsiteTools(currentFiles: ProjectFiles): ToolSet {
           success: false as const,
           error: `Edit operation ${(result.failedIndex ?? 0) + 1} of ${operations.length} failed: search text not found in "${file}". Use writeFiles to provide the complete replacement file instead.`,
         };
+      },
+    }),
+
+    readFile: tool({
+      description:
+        'Read the current contents of a file. Use to inspect a file before editing, or to verify changes after an edit. Useful for multi-step edits where you need to see the current state.',
+      inputSchema: z.object({
+        file: z
+          .string()
+          .describe('The filename to read, e.g. "index.html" or "about.html"'),
+      }),
+      execute: async ({ file }) => {
+        const content = workingFiles[file];
+        if (content === undefined) {
+          return {
+            success: false as const,
+            error: `File "${file}" not found. Available files: ${Object.keys(workingFiles).join(', ') || 'none'}.`,
+          };
+        }
+        return { success: true as const, file, content, length: content.length };
       },
     }),
   };
