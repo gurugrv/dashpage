@@ -5,6 +5,7 @@ import { FileText, Navigation, Palette, Pencil, Sparkles, Type, Users, Megaphone
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import type { Blueprint, BlueprintDesignSystem, BlueprintContentStrategy } from '@/lib/blueprint/types';
+import { FontPicker } from '@/features/blueprint/font-picker';
 
 interface BlueprintCardProps {
   blueprint: Blueprint;
@@ -140,18 +141,18 @@ export function BlueprintCard({
           <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Fonts</span>
           {isEditing ? (
             <div className="flex items-center gap-1 text-xs">
-              <input
-                type="text"
-                className="w-32 border-b border-dashed border-input bg-transparent font-medium focus-visible:outline-none focus-visible:border-ring"
+              <FontPicker
                 value={designSource.headingFont}
-                onChange={(e) => updateDesign('headingFont', e.target.value)}
+                onValueChange={(v) => updateDesign('headingFont', v)}
+                placeholder="Heading font"
+                className="w-36"
               />
               <span className="text-muted-foreground">/</span>
-              <input
-                type="text"
-                className="w-32 border-b border-dashed border-input bg-transparent focus-visible:outline-none focus-visible:border-ring"
+              <FontPicker
                 value={designSource.bodyFont}
-                onChange={(e) => updateDesign('bodyFont', e.target.value)}
+                onValueChange={(v) => updateDesign('bodyFont', v)}
+                placeholder="Body font"
+                className="w-36"
               />
             </div>
           ) : (
