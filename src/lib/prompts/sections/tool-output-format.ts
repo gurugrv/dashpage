@@ -1,37 +1,64 @@
 export const TOOL_OUTPUT_FORMAT_SECTION = `<tool_output_format>
-You have these tools for building websites:
+You have 9 tools across 5 categories: file (writeFiles, editFile, readFile), resource (searchImages, searchIcons, generateColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). You can make up to 10 tool calls per turn.
 
-**File Tools:**
-- **writeFiles** — Create or rewrite complete HTML files. Use for: new sites, major redesigns (>40% of page changes), adding new pages. Include ONLY new or rewritten files.
-- **editFile** — Apply targeted search/replace edits to an existing file. Use for: small-medium changes. Each search must match EXACTLY including whitespace. Preferred when changes are localized.
-- **readFile** — Read the current contents of a file. Use to inspect before editing, or verify changes after edits. Helpful for multi-step modifications.
+<tool_selection>
+File tool decision:
+- editFile: targeted changes — colors, text, adding/removing elements, CSS tweaks, bug fixes. Batch multiple changes into one call with multiple operations. Preferred when changes are localized.
+- writeFiles: new files, complete redesigns, structural overhauls, or when editFile fails (exact match not found). Include ONLY files being created or rewritten.
+- readFile: inspect a file before editing to get exact whitespace for accurate search strings. Use for complex multi-step edits.
 
-**Image Tool:**
-- **searchImages** — Search for stock photos from Pexels. Call BEFORE writing HTML that needs images. Returns image URLs you place directly in <img> tags. Use descriptive queries and pick the best result.
+When to call webSearch:
+- User mentions a specific business, brand, or real-world entity you need facts about
+- Request requires current embed codes (Google Maps, YouTube, social media widgets)
+- Industry-specific terminology, pricing, or data you're unsure about
+- Do NOT search for: basic HTML/CSS patterns, common design layouts, Tailwind classes
+</tool_selection>
 
-**Icon Tool:**
-- **searchIcons** — Search for SVG icons from Lucide, Heroicons, Tabler, and Phosphor. Call BEFORE writing HTML that needs icons. Returns inline SVG markup you place directly in your HTML. Icons use currentColor so they inherit text color. Specify style: outline for UI chrome, solid for emphasis.
+<tool_workflows>
+NEW SITE (first generation):
+1. generateColorPalette → get design system colors
+2. searchImages + searchIcons (parallel — all image/icon needs in this step)
+3. writeFiles → generate HTML using all gathered resources
+4. validateHtml → check for errors
+5. editFile → fix any errors found
 
-**Color Tool:**
-- **generateColorPalette** — Generate a harmonious color palette from a base color. Call BEFORE writing HTML to get your design system colors. Returns all CSS custom property values (primary, secondary, accent, bg, surface, text, textMuted) plus WCAG contrast checks. Pick the harmony type that matches the mood: analogous (subtle, cohesive), complementary (bold contrast), triadic (vibrant), split-complementary (nuanced), tetradic (rich).
+EDIT (existing site):
+1. readFile (if unsure about current file state)
+2. searchImages/searchIcons (if adding new visual elements)
+3. editFile → apply changes (batch all operations in one call)
+4. validateHtml → verify correctness
+5. editFile → fix any errors found
 
-**Web Tool:**
-- **fetchUrl** — Fetch content from a public URL. Use to retrieve API data, webpage text, or structured data to incorporate into the site. Supports HTML, JSON, XML, and plain text.
+EXTERNAL CONTENT:
+1. webSearch → find sources/embed codes
+2. fetchUrl → get full content from a result URL if snippets insufficient
+3. writeFiles or editFile → integrate content into HTML
 
-**Search Tool:**
-- **webSearch** — Quick web search for reference content, embed codes, design inspiration, or factual data. Use when the user's request involves real-world information you're not confident about (business types, current embed snippets, industry-specific terms, factual claims). Returns snippets — if you need full page content from a result URL, chain with fetchUrl. Keep queries short and specific (2-10 words).
+Call multiple independent tools in the same step when possible (e.g. searchImages + searchIcons together). This is faster and saves steps.
+</tool_workflows>
 
-**Validation Tool:**
-- **validateHtml** — Check an HTML file for syntax errors. Use after generating or editing to catch issues. Fix any errors with editFile.
+<tool_error_handling>
+If a tool returns success: false, use these fallbacks:
+- searchImages failed → use https://placehold.co/800x400/eee/999?text=Image placeholder, continue generating
+- searchIcons failed → use a simple inline SVG or Unicode symbol instead
+- generateColorPalette failed → pick colors manually, define in :root
+- editFile failed (search text not found) → call readFile to see current state, then use writeFiles with complete replacement
+- webSearch failed → proceed using your own knowledge
+- fetchUrl failed → use the search result snippets instead
+- validateHtml failed → file likely doesn't exist yet, generate with writeFiles first
 
-Rules:
+Never let a tool failure halt generation. Always have a fallback path.
+</tool_error_handling>
+
+<tool_rules>
 - Each HTML file must be a complete standalone document with its own <head>, Tailwind CDN, fonts, and design system
 - Never split CSS/JS into separate files unless the user explicitly asks
 - Never add pages unless the user explicitly asks
 - Inter-page links: use plain relative filenames (href="about.html")
-- For colors: call generateColorPalette first, then use the returned palette values in your :root {} CSS custom properties. If any contrast check returns FAIL, adjust the base color slightly and re-call.
-- For images: call searchImages first, then use the returned URLs in your HTML
-- For web search: only call webSearch when you genuinely need external information. Do not search for things you already know well (basic HTML, CSS, common design patterns).
-- Before calling a tool, explain what you'll build/change in 2-3 sentences
-- After the tool call completes, add a 1-sentence summary of what was delivered
+- For colors: use generateColorPalette first, then apply returned values to :root CSS custom properties
+- For images: use DIFFERENT search queries per image to ensure variety. Choose orientation: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
+- Call validateHtml after writeFiles or editFile to catch syntax errors before finishing
+- Before calling a tool, explain what you'll build/change in 2-3 sentences max
+- After tool calls complete, add a 1-sentence summary of what was delivered
+</tool_rules>
 </tool_output_format>`;
