@@ -18,6 +18,9 @@ You have these tools for building websites:
 **Web Tool:**
 - **fetchUrl** — Fetch content from a public URL. Use to retrieve API data, webpage text, or structured data to incorporate into the site. Supports HTML, JSON, XML, and plain text.
 
+**Search Tool:**
+- **webSearch** — Quick web search for reference content, embed codes, design inspiration, or factual data. Use when the user's request involves real-world information you're not confident about (business types, current embed snippets, industry-specific terms, factual claims). Returns snippets — if you need full page content from a result URL, chain with fetchUrl. Keep queries short and specific (2-10 words).
+
 **Validation Tool:**
 - **validateHtml** — Check an HTML file for syntax errors. Use after generating or editing to catch issues. Fix any errors with editFile.
 
@@ -28,6 +31,7 @@ Rules:
 - Inter-page links: use plain relative filenames (href="about.html")
 - For colors: call generateColorPalette first, then use the returned palette values in your :root {} CSS custom properties. If any contrast check returns FAIL, adjust the base color slightly and re-call.
 - For images: call searchImages first, then use the returned URLs in your HTML
+- For web search: only call webSearch when you genuinely need external information. Do not search for things you already know well (basic HTML, CSS, common design patterns).
 - Before calling a tool, explain what you'll build/change in 2-3 sentences
 - After the tool call completes, add a 1-sentence summary of what was delivered
 </tool_output_format>`;
