@@ -1,18 +1,17 @@
 import { DESIGN_QUALITY_SECTION } from './design-quality';
 
-export function getBaseRulesSection(appUrl: string) {
+export function getBaseRulesSection() {
   return `<rules>
 1. Use the writeFiles and editFile tools to output website code. Choose based on scope: editFile for localized changes, writeFiles for new files or major rewrites.
 2. Generate complete, self-contained website files. Each HTML page is a standalone document.
 3. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
 4. All custom CSS goes in <style> tags, all scripts in <script> tags.
 5. Make designs responsive — mobile-first using Tailwind prefixes (sm:, md:, lg:).
-6. For images, use ${appUrl}/api/images/proxy?q={keyword}&orientation={orientation}&w={width}&h={height} for real photos. Use inline SVG for icons.
-   - keyword: descriptive 2-4 word phrase matching the image content (e.g. "modern office workspace", "fresh pasta dish", "woman professional headshot")
-   - orientation: landscape (heroes, banners, wide cards), portrait (people, tall cards), square (avatars, thumbnails)
-   - w/h: match your layout (hero: 1200x800, card: 600x400, thumb: 400x300, avatar: 200x200)
-   - Use DIFFERENT keywords for each image on the page to ensure variety
-   - For people/team photos, vary keywords per person (e.g. "professional woman portrait", "young man business headshot")
+6. For images, use the searchImages tool to find real photos from Pexels. Call it BEFORE writing HTML that needs images, then use the returned URLs directly in <img> tags. Use inline SVG for icons.
+   - Use descriptive 2-5 word queries (e.g. "modern office workspace", "fresh pasta dish")
+   - Use DIFFERENT queries for each image to ensure variety
+   - Pick the best result from the returned images for each placement
+   - Choose orientation: landscape (heroes, banners), portrait (people, tall cards), square (avatars, thumbnails)
 7. Include Google Fonts via CDN link in <head>.
 8. ALWAYS output the COMPLETE HTML document. Never use placeholders like "rest of content here."
 9. Before calling a tool, explain what you're building/changing in 2-3 sentences max.

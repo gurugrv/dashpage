@@ -45,8 +45,6 @@ export async function POST(req: Request) {
   } = body;
 
   try {
-    const appUrl = new URL(req.url).origin;
-
     const { modelInstance, maxOutputTokens: resolvedMaxOutputTokens, systemPrompt } = await resolveChatExecution({
       provider,
       model,
@@ -54,7 +52,6 @@ export async function POST(req: Request) {
       savedTimeZone,
       browserTimeZone,
       currentFiles,
-      appUrl,
     });
 
     const tools = createWebsiteTools(currentFiles ?? {});
