@@ -3,6 +3,7 @@ import type { ProjectFiles } from '@/types';
 import { createFileTools } from './file-tools';
 import { createImageTools } from './image-tools';
 import { createIconTools } from './icon-tools';
+import { createColorTools } from './color-tools';
 import { createWebTools } from './web-tools';
 import { createValidationTools } from './validation-tools';
 
@@ -14,6 +15,7 @@ export function createWebsiteTools(currentFiles: ProjectFiles): ToolSet {
     ...createFileTools(workingFiles),
     ...createImageTools(),
     ...createIconTools(),
+    ...createColorTools(),
     ...createWebTools(),
     ...createValidationTools(workingFiles),
   };
