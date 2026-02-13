@@ -125,6 +125,7 @@ export async function POST(req: Request) {
                   readFile: 'Reading file...',
                   searchImages: 'Searching for images...',
                   searchIcons: 'Searching for icons...',
+                  generateColorPalette: 'Generating color palette...',
                   fetchUrl: 'Fetching content...',
                   validateHtml: 'Validating HTML...',
                 };
