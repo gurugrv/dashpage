@@ -19,6 +19,7 @@ import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-
 import { useBlueprintModelConfig } from '@/features/settings/use-blueprint-model-config';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
 import { useBlueprintGeneration } from '@/hooks/useBlueprintGeneration';
+import type { Blueprint } from '@/lib/blueprint/types';
 import { detectMultiPageIntent } from '@/lib/blueprint/detect-multi-page';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
@@ -133,6 +134,7 @@ export function Builder() {
     generateBlueprint,
     approveAndGenerate,
     resumeFromState,
+    updateBlueprint,
     cancel: cancelBlueprint,
     reset: resetBlueprint,
   } = useBlueprintGeneration({
@@ -498,6 +500,11 @@ export function Builder() {
     }
   }, [activeConversationId, messages, generateBlueprint]);
 
+  const handleBlueprintUpdate = useCallback((updated: Blueprint) => {
+    if (!activeConversationId) return;
+    updateBlueprint(updated, activeConversationId);
+  }, [activeConversationId, updateBlueprint]);
+
   const handleResumeGeneration = useCallback(async () => {
     if (!resumableState || !activeConversationId) return;
 
@@ -656,6 +663,7 @@ export function Builder() {
               onBlueprintApprove={handleBlueprintApprove}
               onBlueprintRegenerate={handleBlueprintRegenerate}
               onBlueprintCancel={cancelBlueprint}
+              onBlueprintUpdate={handleBlueprintUpdate}
               blueprintError={blueprintError}
             />
           </Panel>
