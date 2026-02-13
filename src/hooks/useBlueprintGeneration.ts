@@ -21,8 +21,10 @@ export interface PageGenerationStatus {
 }
 
 interface UseBlueprintGenerationOptions {
-  provider: string | null;
-  model: string | null;
+  resolveStepModel: (step: 'planning' | 'components' | 'pages') => {
+    provider: string;
+    model: string;
+  } | null;
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   onFilesReady: (files: ProjectFiles) => void;
@@ -48,8 +50,7 @@ interface PipelineStatusEvent {
 type SSEEvent = PageStatusEvent | PipelineStatusEvent;
 
 export function useBlueprintGeneration({
-  provider,
-  model,
+  resolveStepModel,
   savedTimeZone,
   browserTimeZone,
   onFilesReady,
@@ -84,7 +85,8 @@ export function useBlueprintGeneration({
   }, []);
 
   const generateBlueprint = useCallback(async (prompt: string, conversationId: string) => {
-    if (!provider || !model) {
+    const stepModel = resolveStepModel('planning');
+    if (!stepModel) {
       setError('No provider or model selected');
       setPhase('error');
       return;
@@ -104,8 +106,8 @@ export function useBlueprintGeneration({
         body: JSON.stringify({
           prompt,
           conversationId,
-          provider,
-          model,
+          provider: stepModel.provider,
+          model: stepModel.model,
           savedTimeZone,
           browserTimeZone,
         }),
@@ -125,10 +127,11 @@ export function useBlueprintGeneration({
       setError(err instanceof Error ? err.message : 'Blueprint generation failed');
       setPhase('error');
     }
-  }, [provider, model, savedTimeZone, browserTimeZone]);
+  }, [resolveStepModel, savedTimeZone, browserTimeZone]);
 
   const generateComponents = useCallback(async (activeBlueprint: Blueprint, conversationId?: string): Promise<{ headerHtml: string; footerHtml: string } | null> => {
-    if (!provider || !model) {
+    const stepModel = resolveStepModel('components');
+    if (!stepModel) {
       setError('No provider or model selected');
       setPhase('error');
       return null;
@@ -146,8 +149,8 @@ export function useBlueprintGeneration({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           blueprint: activeBlueprint,
-          provider,
-          model,
+          provider: stepModel.provider,
+          model: stepModel.model,
           conversationId,
         }),
         signal: controller.signal,
@@ -168,7 +171,7 @@ export function useBlueprintGeneration({
       setPhase('error');
       return null;
     }
-  }, [provider, model]);
+  }, [resolveStepModel]);
 
   const generatePages = useCallback(async (
     conversationId: string,
@@ -178,7 +181,8 @@ export function useBlueprintGeneration({
     skipPages?: string[],
   ) => {
     const activeBlueprint = blueprintOverride ?? blueprint;
-    if (!activeBlueprint || !provider || !model) {
+    const stepModel = resolveStepModel('pages');
+    if (!activeBlueprint || !stepModel) {
       setError('Missing blueprint, provider, or model');
       setPhase('error');
       return;
@@ -208,8 +212,8 @@ export function useBlueprintGeneration({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
-          provider,
-          model,
+          provider: stepModel.provider,
+          model: stepModel.model,
           blueprint: activeBlueprint,
           headerHtml: sharedHtml?.headerHtml,
           footerHtml: sharedHtml?.footerHtml,
@@ -295,7 +299,7 @@ export function useBlueprintGeneration({
       setError(err instanceof Error ? err.message : 'Page generation failed');
       setPhase('error');
     }
-  }, [blueprint, provider, model, onFilesReady]);
+  }, [blueprint, resolveStepModel, onFilesReady]);
 
   const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
 
