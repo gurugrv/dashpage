@@ -1,4 +1,4 @@
-import { generateText, NoObjectGeneratedError, Output, stepCountIs } from 'ai';
+import { generateText, NoObjectGeneratedError, Output } from 'ai';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Prisma } from '@/generated/prisma/client';
@@ -6,7 +6,6 @@ import { blueprintSchema, type Blueprint } from '@/lib/blueprint/types';
 import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-execution';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
-import { createColorTools } from '@/lib/chat/tools/color-tools';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
 
 interface BlueprintRequestBody {
@@ -56,80 +55,51 @@ export async function POST(req: Request) {
     let rawText: string | undefined;
     let finishReason: string | undefined;
 
-    // Gemini doesn't support forced function calling (ANY mode) with JSON response
-    // mime type. Split into two calls: first get color palette, then generate blueprint.
-    const isGoogleProvider = provider === 'Google';
-
     try {
-      if (isGoogleProvider) {
-        // Step 1: Get color palette via tool call
-        const paletteResult = await generateText({
-          model: modelInstance,
-          system: systemPrompt,
-          tools: { ...createColorTools() },
-          toolChoice: 'required',
-          stopWhen: stepCountIs(2),
-          prompt,
-          maxOutputTokens: 1024,
-        });
-
-        // Extract palette from tool results
-        const paletteToolResult = paletteResult.steps
-          .flatMap(s => s.toolResults)
-          .find(r => r.toolName === 'selectColorPalette');
-
-        // Step 2: Generate blueprint with structured output (no tools)
-        let blueprintPrompt = prompt;
-        if (paletteToolResult) {
-          const input = paletteToolResult.input as { mood: string[]; industry?: string; scheme: string };
-          blueprintPrompt = `${prompt}\n\nColor palettes selected for mood [${input.mood.join(', ')}]${input.industry ? `, industry: ${input.industry}` : ''}, scheme: ${input.scheme}:\n${JSON.stringify(paletteToolResult.output)}`;
-        }
+      {
+        // Non-Gemini: single API call, no tool step
+        // All palettes injected into prompt — model picks the best fit
+        const { CURATED_PALETTES } = await import('@/lib/colors/palettes');
+        const isDark = /\b(dark\s*(mode|theme)?|night|midnight)\b/i.test(prompt);
+        const scheme = isDark ? 'dark' : 'light';
+        const palettes = CURATED_PALETTES
+          .filter(p => p.scheme === scheme)
+          .map(p => ({ name: p.name, roles: p.roles }));
+        const paletteContext = `\n\nAvailable color palettes (choose the best fit for this project and use its hex values in designSystem):\n${JSON.stringify(palettes)}`;
 
         const result = await generateText({
           model: modelInstance,
           system: systemPrompt,
           output: Output.object({ schema: blueprintSchema }),
-          prompt: blueprintPrompt,
+          prompt: prompt + paletteContext,
           maxOutputTokens: 16384,
         });
 
         rawText = result.text;
         finishReason = result.finishReason;
 
-        if (!result.output) {
+        // result.output getter throws NoOutputGeneratedError when parsing failed internally
+        let parsed: Blueprint | undefined;
+        try {
+          parsed = result.output;
+        } catch {
+          // fall through to repair
+        }
+
+        if (parsed) {
+          blueprint = parsed;
+        } else if (rawText) {
+          console.warn('Blueprint output missing, attempting repair from raw text...');
+          const repaired = repairAndParseJson(rawText, blueprintSchema);
+          if (repaired) {
+            console.info('Blueprint JSON repair succeeded');
+            blueprint = repaired;
+          } else {
+            throw new Error('Model did not produce a valid blueprint object');
+          }
+        } else {
           throw new Error('Model did not produce a valid blueprint object');
         }
-        blueprint = result.output;
-      } else {
-        // Non-Gemini: use combined tools + structured output in one call
-        const result = await generateText({
-          model: modelInstance,
-          system: systemPrompt,
-          output: Output.object({ schema: blueprintSchema }),
-          tools: { ...createColorTools() },
-          stopWhen: stepCountIs(6),
-          prepareStep: async ({ stepNumber }) => {
-            // Step 0: force selectColorPalette call
-            if (stepNumber === 0) {
-              return { toolChoice: 'required' as const };
-            }
-            // Step 1+: disable tools so model must produce structured output
-            if (stepNumber >= 1) {
-              return { activeTools: [] as const };
-            }
-            return {};
-          },
-          prompt,
-          maxOutputTokens: 16384,
-        });
-
-        rawText = result.text;
-        finishReason = result.finishReason;
-
-        if (!result.output) {
-          throw new Error('Model did not produce a valid blueprint object');
-        }
-        blueprint = result.output;
       }
     } catch (parseErr) {
       // When model doesn't support structuredOutputs, it may produce slightly malformed JSON.

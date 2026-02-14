@@ -1,4 +1,4 @@
-import { generateText, NoObjectGeneratedError, Output } from 'ai';
+import { generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output } from 'ai';
 import { NextResponse } from 'next/server';
 import { designBriefSchema, type DesignBrief } from '@/lib/design-brief/types';
 import { getDesignBriefSystemPrompt } from '@/lib/design-brief/prompts';
@@ -81,10 +81,29 @@ export async function POST(req: Request) {
 
       rawText = result.text;
 
-      if (!result.output) {
+      // result.output getter throws NoOutputGeneratedError when parsing failed internally
+      let parsed: DesignBrief | undefined;
+      try {
+        parsed = result.output;
+      } catch {
+        // fall through to repair
+      }
+
+      if (parsed) {
+        brief = parsed;
+      } else if (rawText) {
+        // Model returned text but it couldn't be parsed — attempt repair
+        console.warn('Design brief output missing, attempting repair from raw text...');
+        const repaired = repairAndParseJson(rawText, designBriefSchema);
+        if (repaired) {
+          console.info('Design brief JSON repair succeeded');
+          brief = repaired;
+        } else {
+          throw new Error('Model did not produce a valid design brief');
+        }
+      } else {
         throw new Error('Model did not produce a valid design brief');
       }
-      brief = result.output;
     } catch (parseErr) {
       if (NoObjectGeneratedError.isInstance(parseErr) && parseErr.text) {
         console.warn('Design brief JSON parse failed, attempting repair...');
@@ -96,6 +115,9 @@ export async function POST(req: Request) {
         } else {
           throw parseErr;
         }
+      } else if (NoOutputGeneratedError.isInstance(parseErr)) {
+        // generateText threw before we could capture rawText
+        throw new Error('Model did not produce any output for design brief');
       } else {
         throw parseErr;
       }
