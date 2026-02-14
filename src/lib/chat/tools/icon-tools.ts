@@ -11,7 +11,7 @@ export function createIconTools() {
         query: z
           .string()
           .describe('Descriptive search query, 1-3 words (e.g. "shopping cart", "arrow right", "user profile", "mail")'),
-        count: z
+        count: z.coerce
           .number()
           .int()
           .min(1)

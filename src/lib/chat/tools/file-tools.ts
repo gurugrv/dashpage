@@ -26,7 +26,7 @@ const domOperationSchema = z.object({
 const replaceOperationSchema = z.object({
   search: z.string().describe('Exact substring to find in the file. Must match precisely including whitespace and indentation.'),
   replace: z.string().describe('Replacement text. Use empty string to delete the matched content.'),
-  expectedReplacements: z.number().int().min(1).optional()
+  expectedReplacements: z.coerce.number().int().min(1).optional()
     .describe('Number of occurrences to replace. Default 1 (first match only). Set higher to replace multiple occurrences.'),
 });
 
@@ -40,17 +40,29 @@ export function createFileTools(workingFiles: ProjectFiles) {
   return {
     writeFiles: tool({
       description:
-        'Create or rewrite complete HTML files. Use for new sites, major redesigns, structural overhauls, or adding new pages. Include ONLY files being created or fully rewritten — unchanged files are preserved automatically. Returns { success, files } with the written file map.',
+        'Create or rewrite complete HTML files. Use for new sites, major redesigns, structural overhauls, or adding new pages. Include ONLY files being created or fully rewritten — unchanged files are preserved automatically. Returns { success, fileNames } with the list of written filenames.',
       inputSchema: z.object({
         files: z
           .record(z.string(), z.string())
           .describe(
-            'Map of filename to complete file content. Each HTML file must be a standalone document with its own <head>, Tailwind CDN, fonts, and design system.',
+            'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document with its own <head>, Tailwind CDN, fonts, and design system.',
           ),
       }),
       execute: async ({ files }) => {
-        Object.assign(workingFiles, files);
-        return { success: true as const, files };
+        // Normalize keys: convert underscores to dots for extension (e.g. "index_html" -> "index.html")
+        const normalized: Record<string, string> = {};
+        for (const [key, value] of Object.entries(files)) {
+          let fixedKey = key;
+          if (!key.includes('.')) {
+            // Try underscore convention first: "index_html" -> "index.html"
+            const underscored = key.replace(/_([a-z]+)$/, '.$1');
+            // If regex matched, use it; otherwise default to .html
+            fixedKey = underscored !== key ? underscored : `${key}.html`;
+          }
+          normalized[fixedKey] = value;
+        }
+        Object.assign(workingFiles, normalized);
+        return { success: true as const, fileNames: Object.keys(normalized), notice: 'Files written. Proceed without re-reading.' };
       },
     }),
 
