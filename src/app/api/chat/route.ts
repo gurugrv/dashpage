@@ -163,7 +163,7 @@ export async function POST(req: Request) {
       designBriefContext,
     });
 
-    const tools = createWebsiteTools(currentFiles ?? {});
+    const { tools, workingFiles: _workingFiles } = createWebsiteTools(currentFiles ?? {});
     const detector = new BuildProgressDetector();
     const debugSession = createDebugSession({
       scope: 'chat',
