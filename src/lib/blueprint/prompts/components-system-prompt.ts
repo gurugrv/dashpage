@@ -1,4 +1,6 @@
 import type { Blueprint } from '@/lib/blueprint/types';
+import { DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
+import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 export function getComponentsSystemPrompt(blueprint: Blueprint): string {
   const { designSystem, sharedComponents, contentStrategy } = blueprint;
@@ -33,6 +35,10 @@ CSS Custom Properties (defined in shared styles.css):
 Mood: ${designSystem.mood}
 </design_system>
 
+${DESIGN_QUALITY_SECTION}
+
+${UI_UX_GUIDELINES_SECTION}
+
 <site_info>
 Site name: ${blueprint.siteName}
 Description: ${blueprint.siteDescription}
@@ -50,14 +56,11 @@ ${allPages}
 </navigation>
 
 <output_format>
-Output exactly these two blocks with the delimiters shown:
+Call writeFiles with exactly two files:
+- "header.html" — containing ONLY the <header>...</header> element (with inline <script> for mobile toggle)
+- "footer.html" — containing ONLY the <footer>...</footer> element
 
-<!-- HEADER_START -->
-<header>...</header>
-<!-- HEADER_END -->
-<!-- FOOTER_START -->
-<footer>...</footer>
-<!-- FOOTER_END -->
+Do NOT output raw HTML as text. You MUST use the writeFiles tool.
 </output_format>
 
 <header_requirements>
@@ -83,16 +86,14 @@ Output exactly these two blocks with the delimiters shown:
 </footer_requirements>
 
 <available_tools>
-You have access to this tool — call it BEFORE writing HTML:
+You have access to these tools:
 
-1. searchIcons({ query, count, style })
-   - Search for SVG icons from Lucide, Heroicons, Tabler, and Phosphor icon sets.
-   - Returns: { icons: [{ name, set, svg, style }] }. Paste the svg string directly into HTML.
-   - Icons use currentColor so they inherit the parent text color automatically.
-   - style: "outline" for nav/UI chrome, "solid" for emphasis/active states.
-   - WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons BEFORE writing HTML.
+1. searchIcons({ query, count, style }) — Search for SVG icons. Returns { icons: [{ name, set, svg, style }] }. Icons use currentColor. style: "outline" for nav/UI, "solid" for emphasis.
+2. searchImages({ query, count, orientation }) — Search for stock photos. Returns { images: [{ url, alt, photographer }] }.
+3. writeFiles({ files }) — Write the header.html and footer.html files. REQUIRED — this is how you deliver output.
+4. validateHtml({ file }) — Validate HTML syntax. Call after writeFiles.
 
-Unavailable tools (do NOT attempt to call): writeFiles, editFile, readFile, webSearch, fetchUrl, searchImages, selectColorPalette.
+WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons FIRST. Then call writeFiles with both files. Then validateHtml on each.
 </available_tools>
 
 <rules>
@@ -102,8 +103,8 @@ Unavailable tools (do NOT attempt to call): writeFiles, editFile, readFile, webS
 4. Use real SVG icons from the searchIcons tool for the hamburger icon, close icon, and any social icons.
 5. Make sure all navigation links use the exact href values from the navigation spec.
 6. Both components must be fully responsive and mobile-first.
-7. Output NOTHING before <!-- HEADER_START --> and NOTHING after <!-- FOOTER_END -->.
-8. Do NOT wrap the output in markdown code fences (\`\`\`). Output raw HTML comments and tags directly.
+7. You MUST call writeFiles to deliver output — do NOT output raw HTML as text.
+8. Call validateHtml on both header.html and footer.html after writing them.
 9. Do NOT include <style> blocks or redefine CSS custom properties (:root variables). They are ALREADY defined in the shared styles.css — just reference them with var(--color-*), var(--font-*), etc. Keep the output compact.
 10. Do NOT include @import for Google Fonts — fonts are already loaded in styles.css.
 </rules>`;
