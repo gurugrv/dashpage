@@ -2,7 +2,7 @@ import { convertToModelMessages, createUIMessageStream, createUIMessageStreamRes
 import type { UIMessage } from 'ai';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
-import { createWebsiteTools } from '@/lib/chat/tools';
+import { createWebsiteTools, createSinglePageTools } from '@/lib/chat/tools';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 import type { ToolActivityEvent } from '@/types/build-progress';
@@ -41,7 +41,8 @@ interface ChatRequestBody {
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
-const CONTINUE_PROMPT = 'Continue from where you left off. Use the writeFiles tool to output the complete website files.';
+const CONTINUE_PROMPT_MULTIPAGE = 'Continue from where you left off. Use the writeFiles tool to output the complete website files.';
+const CONTINUE_PROMPT_SINGLEPAGE = 'Continue from where you left off. Output the complete HTML starting from <!DOCTYPE html>.';
 
 function isStreamPart(part: unknown): part is { type: string; [key: string]: unknown } {
   return typeof part === 'object' && part !== null && 'type' in part;
@@ -50,12 +51,13 @@ function isStreamPart(part: unknown): part is { type: string; [key: string]: unk
 const TOOL_LABELS: Record<string, string> = {
   writeFiles: 'Writing files',
   editFile: 'Editing file',
+  editDOM: 'Applying edits',
+  editFiles: 'Editing files',
   readFile: 'Reading file',
   searchImages: 'Adding images',
   searchIcons: 'Adding icons',
   fetchUrl: 'Loading content',
   webSearch: 'Researching content',
-  validateHtml: 'Validating HTML',
 };
 
 function summarizeToolInput(toolName: string, input: unknown): string | undefined {
@@ -77,10 +79,9 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       }
       return undefined;
     case 'editFile':
+    case 'editDOM':
       return typeof inp.file === 'string' ? inp.file : undefined;
     case 'readFile':
-      return typeof inp.file === 'string' ? inp.file : undefined;
-    case 'validateHtml':
       return typeof inp.file === 'string' ? inp.file : undefined;
     default:
       return undefined;
@@ -121,12 +122,6 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       return 'Edits applied';
     case 'readFile':
       return typeof out.length === 'number' ? `${out.length} chars` : 'File read';
-    case 'validateHtml': {
-      const errorCount = out.errorCount as number | undefined;
-      const warningCount = out.warningCount as number | undefined;
-      if (out.valid) return 'Valid';
-      return `${errorCount ?? 0} error${errorCount !== 1 ? 's' : ''}, ${warningCount ?? 0} warning${warningCount !== 1 ? 's' : ''}`;
-    }
     default:
       return undefined;
   }
@@ -163,7 +158,14 @@ export async function POST(req: Request) {
       designBriefContext,
     });
 
-    const { tools, workingFiles: _workingFiles } = createWebsiteTools(currentFiles ?? {});
+    const fileCount = Object.keys(currentFiles ?? {}).length;
+    // Single-page mode: only when editing an existing single-page site (exactly 1 file).
+    // First generation (0 files) and multi-page (>1 files) use full tool set.
+    const isSinglePageEdit = fileCount === 1;
+    const { tools, workingFiles: _workingFiles } = isSinglePageEdit
+      ? createSinglePageTools(currentFiles ?? {})
+      : createWebsiteTools(currentFiles ?? {});
+    const continuePrompt = isSinglePageEdit ? CONTINUE_PROMPT_SINGLEPAGE : CONTINUE_PROMPT_MULTIPAGE;
     const detector = new BuildProgressDetector();
     const debugSession = createDebugSession({
       scope: 'chat',
@@ -207,7 +209,6 @@ export async function POST(req: Request) {
           editFile: 32,
           editDOM: 32,
           editFiles: 32,
-          validateHtml: 82,
         };
         const TOOL_END_PERCENT: Record<string, number> = {
           searchImages: 28,
@@ -215,11 +216,10 @@ export async function POST(req: Request) {
           webSearch: 28,
           fetchUrl: 28,
           readFile: 30,
-          writeFiles: 80,
-          editFile: 78,
-          editDOM: 78,
-          editFiles: 78,
-          validateHtml: 92,
+          writeFiles: 92,
+          editFile: 90,
+          editDOM: 90,
+          editFiles: 90,
         };
         let maxPercent = 0;
 
@@ -284,7 +284,6 @@ export async function POST(req: Request) {
                   searchIcons: 'Adding icons...',
                   fetchUrl: 'Loading content...',
                   webSearch: 'Researching content...',
-                  validateHtml: 'Validating HTML...',
                 };
 
                 writer.write({
@@ -346,7 +345,6 @@ export async function POST(req: Request) {
                 }
 
                 const TOOL_END_LABELS: Record<string, string> = {
-                  validateHtml: 'Validation complete',
                   writeFiles: 'Code generated',
                   searchImages: 'Images found',
                   searchIcons: 'Icons found',
@@ -410,10 +408,13 @@ export async function POST(req: Request) {
             // 1. Output was truncated (finish reason 'length'), OR
             // 2. Model gathered assets (tool activity) but never produced files —
             //    common with models that stop early with finish reason 'other'
+            // For single-page mode: text HTML output counts as file output
             const hadToolActivity = toolCallNames.size > 0;
+            const hasTextHtml = isSinglePageEdit && /<!doctype\s/i.test(segmentText);
+            const effectiveFileOutput = hasFileOutput || hasTextHtml;
             const needsContinuation =
               finalFinishReason === 'length' ||
-              (finalFinishReason !== 'stop' && hadToolActivity && !hasFileOutput);
+              (finalFinishReason !== 'stop' && hadToolActivity && !effectiveFileOutput);
 
             if (!needsContinuation) {
               break;
@@ -426,7 +427,7 @@ export async function POST(req: Request) {
             continuationMessages = [
               ...continuationMessages,
               { role: 'assistant', parts: [{ type: 'text', text: segmentText }] },
-              { role: 'user', parts: [{ type: 'text', text: CONTINUE_PROMPT }] },
+              { role: 'user', parts: [{ type: 'text', text: continuePrompt }] },
             ] as Array<Omit<UIMessage, 'id'>>;
           }
 

@@ -28,7 +28,6 @@
     "clsx": "^2.1.1",
     "dotenv": "^17.2.4",
     "fastest-levenshtein": "^1.0.16",
-    "html-validate": "^10.7.0",
     "jsonrepair": "^3.13.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.563.0",

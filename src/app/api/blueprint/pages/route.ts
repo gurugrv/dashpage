@@ -4,6 +4,7 @@ import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
+import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import type { Blueprint } from '@/lib/blueprint/types';
@@ -28,8 +29,6 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
     case 'editDOM':
     case 'editFile':
     case 'readFile':
-    case 'validateHtml':
-      return typeof inp.file === 'string' ? inp.file : undefined;
     default:
       return undefined;
   }
@@ -63,8 +62,6 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
     case 'editDOM':
     case 'editFile':
       return out.success === true ? 'Edits applied' : out.success === 'partial' ? 'Partial edits applied' : undefined;
-    case 'validateHtml':
-      return out.valid ? 'Valid HTML' : `${out.errorCount ?? 0} error(s) found`;
     case 'readFile':
       return 'File read';
     default:
@@ -141,6 +138,7 @@ export async function POST(req: Request) {
     });
   }
 
+  const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model);
   const allPages = blueprint.pages;
   const totalPages = allPages.length;
   const skipSet = new Set(skipPages ?? []);
@@ -209,7 +207,6 @@ export async function POST(req: Request) {
         editFile: 'Fixing issues',
         editFiles: 'Fixing issues',
         readFile: 'Reading file',
-        validateHtml: 'Validating HTML',
       };
 
       let hasErrors = false;
@@ -236,6 +233,8 @@ export async function POST(req: Request) {
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
         try {
+          let accumulatedResponse = '';
+
           for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
             if (abortSignal.aborted) break;
 
@@ -251,13 +250,13 @@ export async function POST(req: Request) {
               debugSession.logPrompt({
                 systemPrompt,
                 messages: [{ role: 'user', content: pagePrompt }],
-                maxOutputTokens: 16000,
+                maxOutputTokens,
               });
               result = streamText({
                 model: modelInstance,
                 system: systemPrompt,
                 prompt: pagePrompt,
-                maxOutputTokens: 16000,
+                maxOutputTokens,
                 tools: pageTools,
                 stopWhen: stepCountIs(8),
                 abortSignal,
@@ -265,19 +264,19 @@ export async function POST(req: Request) {
             } else {
               const continuationMessages = [
                 { role: 'user' as const, content: pagePrompt },
-                { role: 'assistant' as const, content: debugSession.getFullResponse() },
+                { role: 'assistant' as const, content: accumulatedResponse },
                 { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
               ];
               debugSession.logPrompt({
                 systemPrompt,
                 messages: continuationMessages,
-                maxOutputTokens: 16000,
+                maxOutputTokens,
               });
               result = streamText({
                 model: modelInstance,
                 system: systemPrompt,
                 messages: continuationMessages,
-                maxOutputTokens: 16000,
+                maxOutputTokens,
                 tools: pageTools,
                 stopWhen: stepCountIs(8),
                 abortSignal,
@@ -338,6 +337,7 @@ export async function POST(req: Request) {
               }
             }
             debugSession.finish('complete');
+            accumulatedResponse += debugSession.getFullResponse();
 
             const finishReason = await result.finishReason;
             debugSession.logFullResponse(finishReason);

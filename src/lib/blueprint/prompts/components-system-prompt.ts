@@ -91,9 +91,7 @@ You have access to these tools:
 1. searchIcons({ query, count, style }) — Search for SVG icons. Returns { icons: [{ name, set, svg, style }] }. Icons use currentColor. style: "outline" for nav/UI, "solid" for emphasis.
 2. searchImages({ query, count, orientation }) — Search for stock photos. Returns { images: [{ url, alt, photographer }] }.
 3. writeFiles({ files }) — Write the header.html and footer.html files. REQUIRED — this is how you deliver output.
-4. validateHtml({ file }) — Validate HTML syntax. Call after writeFiles.
-
-WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons FIRST. Then call writeFiles with both files. Then validateHtml on each.
+WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons FIRST. Then call writeFiles with both files.
 </available_tools>
 
 <rules>
@@ -104,8 +102,7 @@ WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer 
 5. Make sure all navigation links use the exact href values from the navigation spec.
 6. Both components must be fully responsive and mobile-first.
 7. You MUST call writeFiles to deliver output — do NOT output raw HTML as text.
-8. Call validateHtml on both header.html and footer.html after writing them.
-9. Do NOT include <style> blocks or redefine CSS custom properties (:root variables). They are ALREADY defined in the shared styles.css — just reference them with var(--color-*), var(--font-*), etc. Keep the output compact.
+8. Do NOT include <style> blocks or redefine CSS custom properties (:root variables). They are ALREADY defined in the shared styles.css — just reference them with var(--color-*), var(--font-*), etc. Keep the output compact.
 10. Do NOT include @import for Google Fonts — fonts are already loaded in styles.css.
 </rules>`;
 }

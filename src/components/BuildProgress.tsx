@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Check, Circle, Globe, Image, Palette, Code, Search, ShieldCheck, FileText, Pencil, AlertTriangle } from 'lucide-react'
+import { Loader2, Check, Circle, Globe, Image, Code, Search, FileText, Pencil, AlertTriangle } from 'lucide-react'
 import type { BuildProgressState } from '@/hooks/useBuildProgress'
 import type { ToolActivityEvent } from '@/types/build-progress'
 
@@ -15,12 +15,11 @@ interface Step {
   threshold: number
 }
 
-// Steps with percent thresholds matching char-count-based progress
+// Steps with percent thresholds matching tool-aware progress milestones
 const STEPS: Step[] = [
-  { label: 'Understanding', threshold: 5 },
-  { label: 'Design system', threshold: 20 },
-  { label: 'Page structure', threshold: 40 },
-  { label: 'Content', threshold: 80 },
+  { label: 'Planning', threshold: 8 },
+  { label: 'Design & assets', threshold: 30 },
+  { label: 'Generating', threshold: 80 },
   { label: 'Finalizing', threshold: 100 },
 ]
 
@@ -29,11 +28,9 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
   fetchUrl: Globe,
   searchImages: Image,
   searchIcons: Search,
-  selectColorPalette: Palette,
   writeFiles: Code,
   editFile: Pencil,
   readFile: FileText,
-  validateHtml: ShieldCheck,
 }
 
 function getStepStatus(step: Step, stepIndex: number, percent: number): 'done' | 'active' | 'pending' {
@@ -54,12 +51,24 @@ function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
 
   if (activities.length === 0) return null
 
+  // Deduplicate by toolName: show one entry per tool, prefer 'running' > 'error' > 'done'
+  const statusPriority = { running: 0, error: 1, done: 2 }
+  const deduped = Array.from(
+    activities.reduce((map, a) => {
+      const existing = map.get(a.toolName)
+      if (!existing || statusPriority[a.status] < statusPriority[existing.status]) {
+        map.set(a.toolName, a)
+      }
+      return map
+    }, new Map<string, ToolActivityEvent>()).values()
+  )
+
   return (
     <div
       ref={scrollRef}
       className="mt-1 flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md bg-muted/50 px-2 py-1.5"
     >
-      {activities.map((activity, idx) => {
+      {deduped.map((activity, idx) => {
         const Icon = TOOL_ICONS[activity.toolName] ?? Code
         return (
           <div
@@ -87,7 +96,8 @@ function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
                   ? 'text-foreground'
                   : 'text-muted-foreground'
             }>
-              <span className="font-medium">{activity.label}</span>
+              <span className="tabular-nums opacity-50">{new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              <span className="ml-1.5 font-medium">{activity.label}</span>
               {activity.detail && (
                 <span className="ml-1 opacity-70">{activity.detail}</span>
               )}
