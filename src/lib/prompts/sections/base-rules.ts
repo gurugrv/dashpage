@@ -1,6 +1,6 @@
-import { DESIGN_QUALITY_SECTION } from './design-quality';
+import { DESIGN_QUALITY_SECTION, EDIT_DESIGN_REMINDER } from './design-quality';
 
-export function getBaseRulesSection() {
+export function getBaseRulesSection(isFirstGeneration: boolean) {
   return `<rules>
 1. Generate complete, self-contained website files. Each HTML page is a standalone document.
 2. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
@@ -54,5 +54,5 @@ tailwind.config = {
 Use these semantic tokens in your markup — NEVER hardcode colors like text-white, bg-black, bg-purple-600 directly. Use your design system: text-primary, bg-[var(--color-bg)], etc.
 </design_system>
 
-${DESIGN_QUALITY_SECTION}`;
+${isFirstGeneration ? DESIGN_QUALITY_SECTION : EDIT_DESIGN_REMINDER}`;
 }
