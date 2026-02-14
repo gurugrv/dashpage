@@ -6,7 +6,7 @@ import { getComponentsSystemPrompt } from '@/lib/blueprint/prompts/components-sy
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { prisma } from '@/lib/db/prisma';
-import { createIconTools } from '@/lib/chat/tools/icon-tools';
+import { createWebsiteTools } from '@/lib/chat/tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 interface ComponentsRequestBody {
@@ -16,33 +16,6 @@ interface ComponentsRequestBody {
   conversationId?: string;
 }
 
-function extractBlock(text: string, startMarker: string, endMarker: string): string | null {
-  // Try exact match first
-  const startIdx = text.indexOf(startMarker);
-  const endIdx = text.indexOf(endMarker);
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    return text.slice(startIdx + startMarker.length, endIdx).trim();
-  }
-
-  // Flexible regex: allow whitespace variations and case-insensitive comment markers
-  const tagName = startMarker.replace('<!-- ', '').replace(' -->', '');
-  const endTagName = endMarker.replace('<!-- ', '').replace(' -->', '');
-  const regex = new RegExp(
-    `<!--\\s*${tagName}\\s*-->([\\s\\S]*?)<!--\\s*${endTagName}\\s*-->`,
-    'i',
-  );
-  const match = text.match(regex);
-  if (match) return match[1].trim();
-
-  return null;
-}
-
-/** Last-resort: extract <header>...</header> or <footer>...</footer> directly */
-function extractTagBlock(text: string, tag: 'header' | 'footer'): string | null {
-  const regex = new RegExp(`(<${tag}[\\s\\S]*?</${tag}>)`, 'i');
-  const match = text.match(regex);
-  return match ? match[1].trim() : null;
-}
 
 export async function POST(req: Request) {
   let body: ComponentsRequestBody;
@@ -80,54 +53,32 @@ export async function POST(req: Request) {
       maxOutputTokens: 16000,
     });
 
+    const { tools, workingFiles } = createWebsiteTools({});
+
     const result = await generateText({
       model: modelInstance,
       system: systemPrompt,
       prompt: userPrompt,
       maxOutputTokens: 16000,
-      tools: { ...createIconTools() },
-      stopWhen: stepCountIs(3),
+      tools,
+      stopWhen: stepCountIs(8),
     });
 
-    const responseText = result.text;
+    const responseText = result.steps.map((s) => s.text).filter(Boolean).join('\n');
 
     debugSession.logResponse({
       response: responseText,
       status: 'complete',
     });
 
-    const headerHtml = extractBlock(responseText, '<!-- HEADER_START -->', '<!-- HEADER_END -->');
-    const footerHtml = extractBlock(responseText, '<!-- FOOTER_START -->', '<!-- FOOTER_END -->');
+    // Extract from workingFiles — model should have called writeFiles with header.html and footer.html
+    const resolvedHeader = workingFiles['header.html'];
+    const resolvedFooter = workingFiles['footer.html'];
 
-    if (!headerHtml || !footerHtml) {
-      // Strip markdown fences and retry — models often wrap output in ```html blocks
-      const stripped = responseText.replace(/```(?:html)?\s*/gi, '').replace(/```\s*/g, '');
-      let resolvedHeader = headerHtml || extractBlock(stripped, '<!-- HEADER_START -->', '<!-- HEADER_END -->');
-      let resolvedFooter = footerHtml || extractBlock(stripped, '<!-- FOOTER_START -->', '<!-- FOOTER_END -->');
-
-      // Last resort: extract raw <header> and <footer> tags directly
-      if (!resolvedHeader || !resolvedFooter) {
-        const source = stripped || responseText;
-        resolvedHeader = resolvedHeader || extractTagBlock(source, 'header');
-        resolvedFooter = resolvedFooter || extractTagBlock(source, 'footer');
-      }
-
-      if (resolvedHeader && resolvedFooter) {
-        if (conversationId) {
-          await prisma.generationState.update({
-            where: { conversationId },
-            data: {
-              phase: 'components-complete',
-              componentHtml: { headerHtml: resolvedHeader, footerHtml: resolvedFooter },
-            },
-          }).catch(() => {});
-        }
-        return NextResponse.json({ headerHtml: resolvedHeader, footerHtml: resolvedFooter });
-      }
-
-      console.error('Failed to parse header/footer. Raw AI response:\n', responseText.slice(0, 2000));
+    if (!resolvedHeader || !resolvedFooter) {
+      console.error('Model did not produce header.html and/or footer.html via writeFiles. Available files:', Object.keys(workingFiles), 'Raw response:', responseText.slice(0, 2000));
       return NextResponse.json(
-        { error: 'Failed to parse header/footer from AI response' },
+        { error: 'Failed to generate header/footer — model did not call writeFiles' },
         { status: 500 },
       );
     }
@@ -137,11 +88,11 @@ export async function POST(req: Request) {
         where: { conversationId },
         data: {
           phase: 'components-complete',
-          componentHtml: { headerHtml, footerHtml },
+          componentHtml: { headerHtml: resolvedHeader, footerHtml: resolvedFooter },
         },
       }).catch(() => {});
     }
-    return NextResponse.json({ headerHtml, footerHtml });
+    return NextResponse.json({ headerHtml: resolvedHeader, footerHtml: resolvedFooter });
   } catch (err: unknown) {
     if (err instanceof ChatRequestError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
