@@ -164,3 +164,14 @@ NEVER use Lorem ipsum or generic placeholder text. Generate realistic, contextua
 - Navigation: Contextually appropriate menu items
 - CTAs: Action-specific ("Start Your Free Trial", "View the Menu", "Book a Call") not generic "Learn More"
 </content_rules>`;
+
+export const EDIT_DESIGN_REMINDER = `<design_reminders>
+Maintain visual consistency with the existing design system:
+- Keep all :root CSS custom properties. Use design tokens, never hardcode colors.
+- Interactive elements need hover states + transitions (duration-200/300).
+- Maintain spacing rhythm (py-16 md:py-24 between sections).
+- Focus-visible states on all interactive elements.
+- Consistent border-radius via --radius token.
+- NEVER introduce purple/blue gradients, emoji icons, or lorem ipsum.
+- NEVER remove existing design system variables or font imports.
+</design_reminders>`;
