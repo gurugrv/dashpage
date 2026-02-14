@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, Navigation, Palette, Pencil, Sparkles, Type, Users, Megaphone } from 'lucide-react';
+import { FileText, Palette, Pencil, Sparkles, Type, Users, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import type { Blueprint, BlueprintDesignSystem, BlueprintContentStrategy } from '@/lib/blueprint/types';
@@ -172,22 +172,12 @@ export function BlueprintCard({
             {pages.map((page) => (
               <span
                 key={page.filename}
-                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs"
               >
                 {page.filename.replace('.html', '')}
-                <span className="text-muted-foreground">({page.sections.length})</span>
               </span>
             ))}
           </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex items-center gap-2">
-          <Navigation className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Nav</span>
-          <span className="text-xs text-muted-foreground">
-            {sharedComponents.navLinks.map((l) => l.label).join(' / ')}
-          </span>
         </div>
 
         {/* Content Strategy */}

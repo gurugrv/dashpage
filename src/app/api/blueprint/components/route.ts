@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import { NextResponse } from 'next/server';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
@@ -6,6 +6,7 @@ import { getComponentsSystemPrompt } from '@/lib/blueprint/prompts/components-sy
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { prisma } from '@/lib/db/prisma';
+import { createIconTools } from '@/lib/chat/tools/icon-tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 interface ComponentsRequestBody {
@@ -84,6 +85,8 @@ export async function POST(req: Request) {
       system: systemPrompt,
       prompt: userPrompt,
       maxOutputTokens: 16000,
+      tools: { ...createIconTools() },
+      stopWhen: stepCountIs(3),
     });
 
     const responseText = result.text;

@@ -4,7 +4,7 @@ export const blueprintPageSectionSchema = z.object({
   id: z.string().describe('Unique section identifier (e.g., "hero", "features", "pricing")'),
   name: z.string().describe('Human-readable section name'),
   description: z.string().describe('What this section should contain and accomplish'),
-  contentNotes: z.string().optional().describe('Specific content guidance or copy direction'),
+  contentNotes: z.string().describe('Specific content guidance or copy direction'),
 });
 
 export const blueprintPageSchema = z.object({

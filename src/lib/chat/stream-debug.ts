@@ -58,6 +58,7 @@ export interface DebugSession {
     finishReason?: string;
   }): void;
   logDelta(delta: string): void;
+  logToolStarting(params: { toolName: string; toolCallId: string }): void;
   logToolCall(params: { toolName: string; toolCallId: string; input?: unknown }): void;
   logToolResult(params: { toolName?: string; toolCallId: string; output?: unknown; error?: string }): void;
   finish(status?: 'complete' | 'aborted'): void;
@@ -168,6 +169,12 @@ export function createDebugSession(params: {
         writeAtomic(`${dimPrefix}${lineBuffer}\n`);
         lineBuffer = '';
       }
+    },
+
+    logToolStarting({ toolName, toolCallId }) {
+      writeAtomic(
+        `${prefix}\x1b[33m⚡ TOOL STARTING: ${toolName}${RESET}  ${DIM}id=${toolCallId}${RESET}\n`,
+      );
     },
 
     logToolCall({ toolName, toolCallId, input }) {

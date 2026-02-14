@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProviderKeyRow } from '@/features/settings/provider-key-row';
 import { useProviderKeys } from '@/features/settings/use-provider-keys';
@@ -237,7 +236,7 @@ function BlueprintStepRow({
             onSet({ provider: value, model: provider?.models[0]?.id ?? '' });
           }}
         >
-          <SelectTrigger className="w-[130px] text-xs h-8">
+          <SelectTrigger className="w-32.5 text-xs h-8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

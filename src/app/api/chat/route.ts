@@ -208,7 +208,7 @@ export async function POST(req: Request) {
                 const toolName = part.toolName as string;
                 const toolCallId = part.toolCallId as string;
                 toolCallNames.set(toolCallId, toolName);
-                debugSession.logToolCall({ toolName, toolCallId });
+                debugSession.logToolStarting({ toolName, toolCallId });
 
                 const progressLabels: Record<string, string> = {
                   writeFiles: 'Generating code...',

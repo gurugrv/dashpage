@@ -279,7 +279,7 @@ export async function POST(req: Request) {
               if (part.type === 'text-delta') {
                 debugSession.logDelta(part.text);
               } else if (part.type === 'tool-input-start') {
-                debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.id });
+                debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
                 sendEvent({
                   type: 'tool-activity',
                   filename: page.filename,

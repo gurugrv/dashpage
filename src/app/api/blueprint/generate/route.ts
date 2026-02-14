@@ -56,35 +56,81 @@ export async function POST(req: Request) {
     let rawText: string | undefined;
     let finishReason: string | undefined;
 
+    // Gemini doesn't support forced function calling (ANY mode) with JSON response
+    // mime type. Split into two calls: first get color palette, then generate blueprint.
+    const isGoogleProvider = provider === 'Google';
+
     try {
-      const result = await generateText({
-        model: modelInstance,
-        system: systemPrompt,
-        output: Output.object({ schema: blueprintSchema }),
-        tools: { ...createColorTools() },
-        stopWhen: stepCountIs(6),
-        prepareStep: async ({ stepNumber }) => {
-          // Step 0: force generateColorPalette call
-          if (stepNumber === 0) {
-            return { toolChoice: 'required' as const };
-          }
-          // Step 1+: disable tools so model must produce structured output
-          if (stepNumber >= 1) {
-            return { activeTools: [] as const };
-          }
-          return {};
-        },
-        prompt,
-        maxOutputTokens: 16384,
-      });
+      if (isGoogleProvider) {
+        // Step 1: Get color palette via tool call
+        const paletteResult = await generateText({
+          model: modelInstance,
+          system: systemPrompt,
+          tools: { ...createColorTools() },
+          toolChoice: 'required',
+          stopWhen: stepCountIs(2),
+          prompt,
+          maxOutputTokens: 1024,
+        });
 
-      rawText = result.text;
-      finishReason = result.finishReason;
+        // Extract palette from tool results
+        const paletteToolResult = paletteResult.steps
+          .flatMap(s => s.toolResults)
+          .find(r => r.toolName === 'generateColorPalette');
 
-      if (!result.output) {
-        throw new Error('Model did not produce a valid blueprint object');
+        // Step 2: Generate blueprint with structured output (no tools)
+        let blueprintPrompt = prompt;
+        if (paletteToolResult) {
+          const input = paletteToolResult.input as { baseColor: string; harmony: string; scheme: string };
+          blueprintPrompt = `${prompt}\n\nColor palette was generated with base color ${input.baseColor}, ${input.harmony} harmony, ${input.scheme} scheme:\n${JSON.stringify(paletteToolResult.output)}`;
+        }
+
+        const result = await generateText({
+          model: modelInstance,
+          system: systemPrompt,
+          output: Output.object({ schema: blueprintSchema }),
+          prompt: blueprintPrompt,
+          maxOutputTokens: 16384,
+        });
+
+        rawText = result.text;
+        finishReason = result.finishReason;
+
+        if (!result.output) {
+          throw new Error('Model did not produce a valid blueprint object');
+        }
+        blueprint = result.output;
+      } else {
+        // Non-Gemini: use combined tools + structured output in one call
+        const result = await generateText({
+          model: modelInstance,
+          system: systemPrompt,
+          output: Output.object({ schema: blueprintSchema }),
+          tools: { ...createColorTools() },
+          stopWhen: stepCountIs(6),
+          prepareStep: async ({ stepNumber }) => {
+            // Step 0: force generateColorPalette call
+            if (stepNumber === 0) {
+              return { toolChoice: 'required' as const };
+            }
+            // Step 1+: disable tools so model must produce structured output
+            if (stepNumber >= 1) {
+              return { activeTools: [] as const };
+            }
+            return {};
+          },
+          prompt,
+          maxOutputTokens: 16384,
+        });
+
+        rawText = result.text;
+        finishReason = result.finishReason;
+
+        if (!result.output) {
+          throw new Error('Model did not produce a valid blueprint object');
+        }
+        blueprint = result.output;
       }
-      blueprint = result.output;
     } catch (parseErr) {
       // When model doesn't support structuredOutputs, it may produce slightly malformed JSON.
       // Attempt to repair and validate the raw text before giving up.

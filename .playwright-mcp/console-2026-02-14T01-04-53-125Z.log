@@ -1,0 +1,35 @@
+[    1253ms] [WARNING] 🚀 container.buildInfo.environment is deprecated.Please use `container.environment.stage` instead @ https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:21
+[    3307ms] [WARNING] loadable: `loadableReady()` requires state, please use `getScriptTags` or `getScriptElements` server-side @ https://color.adobe.com/bundle.4050e2d5d3168e403884.js:1
+[    3389ms] [ERROR] Loading the image 'https://cm.everesttech.net/cm/dd?d_uuid=64521575501538476623182041112288102030' violates the following Content Security Policy directive: "img-src 'self' *.ftcdn.net mir-s3-cdn.s2stagehance.com *.adobeccstatic.com *.behance.net blob: data: *.typekit.net *.adobe.com *.newrelic.com *.nr-data.net c.evidon.com l.betrad.com *.onetrust.com *.onetrust.io *.cookielaw.org *.branch.io https://app.link/_r". The action has been blocked. @ https://color.adobe.com/trends:0
+[    3407ms] [ERROR] Framing 'https://ecosystem.demdex.net/' violates the following Content Security Policy directive: "frame-src 'self' *.services.adobe.com *.adobelogin.com *.adobe.com adobe.com *.adobeku.com *.onetrust.com *.onetrust.io *.cookielaw.org accounts.google.com *.branch.io https://app.link/_r". The request has been blocked.
+ @ https://color.adobe.com/newRelic.js:1
+[    4522ms] [ERROR] Loading the image 'https://cm.everesttech.net/cm/dd?d_uuid=59336608633068210662880847514508146730' violates the following Content Security Policy directive: "img-src 'self' *.ftcdn.net mir-s3-cdn.s2stagehance.com *.adobeccstatic.com *.behance.net blob: data: *.typekit.net *.adobe.com *.newrelic.com *.nr-data.net c.evidon.com l.betrad.com *.onetrust.com *.onetrust.io *.cookielaw.org *.branch.io https://app.link/_r". The action has been blocked. @ https://color.adobe.com/trends:0
+[    4547ms] [ERROR] Framing 'https://adobemobiledev.demdex.net/' violates the following Content Security Policy directive: "frame-src 'self' *.services.adobe.com *.adobelogin.com *.adobe.com adobe.com *.adobeku.com *.onetrust.com *.onetrust.io *.cookielaw.org accounts.google.com *.branch.io https://app.link/_r". The request has been blocked.
+ @ https://color.adobe.com/newRelic.js:1
+[   17586ms] [ERROR] Connecting to 'https://adobedc.demdex.net/ee/v1/interact?configId=9a0fc4db-f543-485b-b33e-eb8b86b58deb&requestId=4ef45847-dd92-4e83-b74e-54bc37ed7d01' violates the following Content Security Policy directive: "connect-src 'self' *.cloudfront.net/curaredData.json *.cloudfront.net/curatedSearchTerms.json *.adobe.com *.adobelogin.com dpm.demdex.net *.adobe.io *.services.adobe.com *.nr-data.net *.adobeku.com *.adobeccstatic.com *.typekit.net t7peykbaei.execute-api.us-east-1.amazonaws.com *.onetrust.com *.onetrust.io *.cookielaw.org https://10sbjcgrqa.execute-api.us-east-1.amazonaws.com https://cognito-idp.us-east-1.amazonaws.com https://cognito-identity.us-east-1.amazonaws.com https://4n6dg5ccsfct3lzfssu34boemq.appsync-api.us-east-1.amazonaws.com accounts.google.com *.branch.io https://app.link/_r". The action has been blocked. @ https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14
+[   17586ms] [ERROR] Fetch API cannot load https://adobedc.demdex.net/ee/v1/interact?configId=9a0fc4db-f543-485b-b33e-eb8b86b58deb&requestId=4ef45847-dd92-4e83-b74e-54bc37ed7d01. Refused to connect because it violates the document's Content Security Policy. @ https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14
+[   17686ms] Uncaught (in promise) TypeError: [alloy] [DataCollector] An error occurred while executing the sendEvent command.
+Caused by: Network request failed.
+Caused by: Failed to fetch
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14:18952)
+    at e (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:12:8666)
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:12:9074)
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14:25343)
+    at nrWrapper (https://color.adobe.com/newRelic.js:1:29070)
+[   23424ms] [WARNING] 🚀 container.buildInfo.environment is deprecated.Please use `container.environment.stage` instead @ https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:21
+[   23429ms] [ERROR] Connecting to 'https://adobedc.demdex.net/ee/v1/interact?configId=9a0fc4db-f543-485b-b33e-eb8b86b58deb&requestId=79d0f0eb-a1d4-4f18-94b8-6a4623eba63b' violates the following Content Security Policy directive: "connect-src 'self' *.cloudfront.net/curaredData.json *.cloudfront.net/curatedSearchTerms.json *.adobe.com *.adobelogin.com dpm.demdex.net *.adobe.io *.services.adobe.com *.nr-data.net *.adobeku.com *.adobeccstatic.com *.typekit.net t7peykbaei.execute-api.us-east-1.amazonaws.com *.onetrust.com *.onetrust.io *.cookielaw.org https://10sbjcgrqa.execute-api.us-east-1.amazonaws.com https://cognito-idp.us-east-1.amazonaws.com https://cognito-identity.us-east-1.amazonaws.com https://4n6dg5ccsfct3lzfssu34boemq.appsync-api.us-east-1.amazonaws.com accounts.google.com *.branch.io https://app.link/_r". The action has been blocked. @ https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14
+[   23429ms] [ERROR] Fetch API cannot load https://adobedc.demdex.net/ee/v1/interact?configId=9a0fc4db-f543-485b-b33e-eb8b86b58deb&requestId=79d0f0eb-a1d4-4f18-94b8-6a4623eba63b. Refused to connect because it violates the document's Content Security Policy. @ https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14
+[   23435ms] Uncaught (in promise) Error: Identity cookie not found.
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:12:28377)
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:11:23031)
+    at call (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:11:23005)
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14:24399)
+    at nrWrapper (https://color.adobe.com/newRelic.js:1:29070)
+[   23435ms] Uncaught (in promise) TypeError: [alloy] [DataCollector] An error occurred while executing the sendEvent command.
+Caused by: Network request failed.
+Caused by: Failed to fetch
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14:18952)
+    at e (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:12:8666)
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:12:9074)
+    at <anonymous> (https://assets.adobedtm.com/launch-EN919758db9a654a17bac7d184b99c4820.min.js:14:25343)
+    at nrWrapper (https://color.adobe.com/newRelic.js:1:29070)

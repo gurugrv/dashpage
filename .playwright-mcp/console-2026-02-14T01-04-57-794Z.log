@@ -1,0 +1,17 @@
+[   20278ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   20337ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   20573ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   20588ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21103ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21109ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ https://url.prod.merch.vpsvc.com/v3/id/vistaprint/en-US/%2Fhub%2Fcolor-trends?requestor=bookends-browser:0
+[   21114ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21124ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21140ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21150ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21156ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   21161ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ https://url.prod.merch.vpsvc.com/v3/id/vistaprint/en-US/%2Fhub?requestor=bookends-browser:0
+[   21623ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   22671ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   22678ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   22682ms] [WARNING] authClientId is undefined, this may lead to unexpected behavior. @ https://bookends.cdn.vpsvc.com/html/statics/dep-share/v10_bundle-with-react-419d8a6b.js:1
+[   26183ms] [ERROR] Attestation check for Attribution Reporting on https://www.facebook.com failed. @ https://www.vistaprint.com/hub/color-trends?srsltid=AfmBOopiSsYhjO_ZyH6L2r4WSkxplHRWWLX_pABwg3qoBaofTxVYoSQu:0
