@@ -39,7 +39,9 @@ function extractFilesFromToolParts(
     if (part.state !== 'output-available' || !part.output) continue;
 
     const output = part.output as Record<string, unknown>;
-    if (!output.success) continue;
+
+    // Skip complete failures (no content to extract)
+    if (output.success === false) continue;
 
     if (!files) files = { ...baseFiles };
 
@@ -47,9 +49,17 @@ function extractFilesFromToolParts(
     if ('files' in output && typeof output.files === 'object' && output.files !== null) {
       Object.assign(files, output.files as Record<string, string>);
     }
-    // editFile output: { success: true, file: string, content: string }
+    // editFile/editDOM output: { success: true|"partial", file: string, content: string }
     else if ('file' in output && 'content' in output) {
       files[output.file as string] = output.content as string;
+    }
+    // editFiles output: { success: true|"partial", results: [{ file, success, content }] }
+    else if ('results' in output && Array.isArray(output.results)) {
+      for (const result of output.results as Array<Record<string, unknown>>) {
+        if (result.success !== false && result.content && result.file) {
+          files[result.file as string] = result.content as string;
+        }
+      }
     }
   }
 
