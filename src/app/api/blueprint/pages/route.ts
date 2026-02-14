@@ -5,32 +5,31 @@ import { PROVIDERS } from '@/lib/providers/registry';
 import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
-import { createImageTools } from '@/lib/chat/tools/image-tools';
-import { createIconTools } from '@/lib/chat/tools/icon-tools';
-import { createWebTools } from '@/lib/chat/tools/web-tools';
-import { createSearchTools } from '@/lib/chat/tools/search-tools';
+import { createWebsiteTools } from '@/lib/chat/tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
-const PAGE_CONTINUE_PROMPT = 'Continue generating the HTML from exactly where you left off. Do not repeat any previously generated content.';
-
-/** Strip markdown code fences (```html ... ```) that LLMs sometimes wrap around output. */
-function stripCodeFences(text: string): string {
-  return text.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '');
-}
+const PAGE_CONTINUE_PROMPT = 'The page was not completed. Call writeFiles with the complete HTML page.';
 
 function summarizeToolInput(toolName: string, input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined;
   const inp = input as Record<string, unknown>;
   switch (toolName) {
     case 'searchImages':
-      return typeof inp.query === 'string' ? inp.query : undefined;
     case 'searchIcons':
-      return typeof inp.query === 'string' ? inp.query : undefined;
     case 'webSearch':
       return typeof inp.query === 'string' ? inp.query : undefined;
     case 'fetchUrl':
       return typeof inp.url === 'string' ? inp.url : undefined;
+    case 'writeFiles': {
+      const files = inp.files as Record<string, unknown> | undefined;
+      return files ? Object.keys(files).join(', ') : undefined;
+    }
+    case 'editDOM':
+    case 'editFile':
+    case 'readFile':
+    case 'validateHtml':
+      return typeof inp.file === 'string' ? inp.file : undefined;
     default:
       return undefined;
   }
@@ -45,21 +44,29 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
   switch (toolName) {
     case 'searchImages': {
       const images = out.images as unknown[] | undefined;
-      if (images) return images.length > 0 ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : 'No images found';
-      return undefined;
+      return images ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : undefined;
     }
     case 'searchIcons': {
       const icons = out.icons as unknown[] | undefined;
-      if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
-      return undefined;
+      return icons ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : undefined;
     }
     case 'webSearch': {
       const results = out.results as unknown[] | undefined;
-      if (results) return results.length > 0 ? `${results.length} result${results.length !== 1 ? 's' : ''} found` : 'No results found';
-      return undefined;
+      return results ? `${results.length} result${results.length !== 1 ? 's' : ''} found` : undefined;
     }
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
+    case 'writeFiles': {
+      const fileNames = out.fileNames as string[] | undefined;
+      return fileNames ? `Wrote ${fileNames.join(', ')}` : 'Files written';
+    }
+    case 'editDOM':
+    case 'editFile':
+      return out.success === true ? 'Edits applied' : out.success === 'partial' ? 'Partial edits applied' : undefined;
+    case 'validateHtml':
+      return out.valid ? 'Valid HTML' : `${out.errorCount ?? 0} error(s) found`;
+    case 'readFile':
+      return 'File read';
     default:
       return undefined;
   }
@@ -192,18 +199,17 @@ export async function POST(req: Request) {
         completedPages,
       });
 
-      const blueprintTools = {
-        ...createImageTools(),
-        ...createIconTools(),
-        ...createWebTools(),
-        ...createSearchTools(),
-      };
-
       const TOOL_LABELS: Record<string, string> = {
-        searchImages: 'Searching images',
-        searchIcons: 'Searching icons',
-        fetchUrl: 'Fetching URL',
-        webSearch: 'Searching the web',
+        searchImages: 'Adding images',
+        searchIcons: 'Adding icons',
+        fetchUrl: 'Loading content',
+        webSearch: 'Researching content',
+        writeFiles: 'Writing page',
+        editDOM: 'Fixing issues',
+        editFile: 'Fixing issues',
+        editFiles: 'Fixing issues',
+        readFile: 'Reading file',
+        validateHtml: 'Validating HTML',
       };
 
       let hasErrors = false;
@@ -212,6 +218,9 @@ export async function POST(req: Request) {
       // Generate pages sequentially so progress updates are visible one at a time
       for (const page of pages) {
         if (abortSignal.aborted) break;
+
+        // Fresh tool set per page — workingFiles accumulator starts empty
+        const { tools: pageTools, workingFiles } = createWebsiteTools({});
 
         sendEvent({
           type: 'page-status',
@@ -227,8 +236,6 @@ export async function POST(req: Request) {
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
         try {
-          let fullPageText = '';
-
           for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
             if (abortSignal.aborted) break;
 
@@ -251,14 +258,14 @@ export async function POST(req: Request) {
                 system: systemPrompt,
                 prompt: pagePrompt,
                 maxOutputTokens: 16000,
-                tools: blueprintTools,
-                stopWhen: stepCountIs(5),
+                tools: pageTools,
+                stopWhen: stepCountIs(8),
                 abortSignal,
               });
             } else {
               const continuationMessages = [
                 { role: 'user' as const, content: pagePrompt },
-                { role: 'assistant' as const, content: fullPageText },
+                { role: 'assistant' as const, content: debugSession.getFullResponse() },
                 { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
               ];
               debugSession.logPrompt({
@@ -271,6 +278,8 @@ export async function POST(req: Request) {
                 system: systemPrompt,
                 messages: continuationMessages,
                 maxOutputTokens: 16000,
+                tools: pageTools,
+                stopWhen: stepCountIs(8),
                 abortSignal,
               });
             }
@@ -330,30 +339,47 @@ export async function POST(req: Request) {
             }
             debugSession.finish('complete');
 
-            fullPageText += debugSession.getFullResponse();
             const finishReason = await result.finishReason;
             debugSession.logFullResponse(finishReason);
 
+            // writeFiles succeeded — page is complete, no continuation needed
+            if (workingFiles[page.filename]) break;
+
+            // Not truncated, just didn't produce output
             if (finishReason !== 'length') break;
           }
 
-          completedPages += 1;
+          // Extract HTML from workingFiles
+          const pageHtml = workingFiles[page.filename]
+            // Fallback: check for any file that looks like the page
+            ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
 
-          sendEvent({
-            type: 'page-status',
-            filename: page.filename,
-            status: 'complete',
-            html: stripCodeFences(fullPageText),
-            totalPages,
-            completedPages,
-          });
-
-          // Checkpoint completed page to DB
-          completedPagesMap[page.filename] = stripCodeFences(fullPageText);
-          await prisma.generationState.update({
-            where: { conversationId },
-            data: { completedPages: completedPagesMap },
-          }).catch(() => {});
+          if (pageHtml) {
+            completedPages += 1;
+            sendEvent({
+              type: 'page-status',
+              filename: page.filename,
+              status: 'complete',
+              html: pageHtml,
+              totalPages,
+              completedPages,
+            });
+            completedPagesMap[page.filename] = pageHtml;
+            await prisma.generationState.update({
+              where: { conversationId },
+              data: { completedPages: completedPagesMap },
+            }).catch(() => {});
+          } else {
+            hasErrors = true;
+            sendEvent({
+              type: 'page-status',
+              filename: page.filename,
+              status: 'error',
+              error: 'Model did not produce file output via writeFiles',
+              totalPages,
+              completedPages,
+            });
+          }
         } catch (err: unknown) {
           if (err instanceof Error && err.name === 'AbortError') break;
           hasErrors = true;
