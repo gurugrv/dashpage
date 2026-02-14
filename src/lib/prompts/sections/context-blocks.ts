@@ -1,7 +1,6 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
 import type { DesignBrief } from '@/lib/design-brief/types';
-import { CURATED_PALETTES } from '@/lib/colors/palettes';
 
 const CONTEXT_TRUNCATE_THRESHOLD = 2000;
 const CONTEXT_HEAD_CHARS = 1500;
@@ -47,36 +46,46 @@ export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
   return block;
 }
 
+const STYLE_DIRECTIONS = [
+  'vintage film warmth', 'Scandinavian minimalism', 'Mediterranean sun',
+  'Japanese wabi-sabi', 'Art Deco opulence', 'desert twilight',
+  'coastal morning', 'urban industrial', 'botanical garden',
+  'moody editorial', 'tropical sunset', 'alpine freshness',
+  'Bauhaus geometry', 'terracotta and clay', 'midnight jazz club',
+  'morning coffee shop', 'autumn forest walk', 'ocean at dawn',
+  'French patisserie', 'Brooklyn loft', 'Moroccan riad',
+  'Northern lights', 'cherry blossom season', 'volcanic earth',
+  'golden hour photography', 'rainy day cafe', 'Southwest desert',
+  'Pacific Northwest moss', 'Tuscan vineyard', 'neon Tokyo night',
+  'Danish hygge', 'Parisian bistro', 'coral reef depths',
+  'sunset over lavender fields', 'misty Scottish highlands',
+  'Cuban street colors', 'Vermont autumn', 'Kyoto temple garden',
+  'Saharan dusk', 'Amalfi Coast tiles', 'Norwegian fjord',
+];
+
+function getRandomStyleDirection(): string {
+  return STYLE_DIRECTIONS[Math.floor(Math.random() * STYLE_DIRECTIONS.length)];
+}
+
 export function buildFirstGenerationBlock(isFirstGeneration: boolean): string {
   if (!isFirstGeneration) return '';
 
-  const lightPalettes = CURATED_PALETTES
-    .filter((p) => p.scheme === 'light')
-    .map((p) => ({ name: p.name, roles: p.roles }));
-  const darkPalettes = CURATED_PALETTES
-    .filter((p) => p.scheme === 'dark')
-    .map((p) => ({ name: p.name, roles: p.roles }));
+  const styleDirection = getRandomStyleDirection();
 
   return `\n<first_generation>
 This is a NEW website. Before generating code, briefly:
 1. State what you'll build and the overall vibe/mood
-2. Pick the best-fit color palette from the palettes below, then pick a font pairing
-3. Then use the writeFiles tool to generate the HTML with the design system defined FIRST in <style>, using the palette values in your :root {} custom properties
+2. Generate a unique color palette following the color_system rules, then pick a font pairing
+3. Then use the writeFiles tool to generate the HTML with the design system defined FIRST in <style>, using your generated palette values in :root {} custom properties
 
 If the user's request explicitly names multiple pages, include all requested pages in a single writeFiles call. Each page must be a complete standalone HTML document. Otherwise, generate a single index.html.
 
 Make a strong first impression — the design should feel polished and intentional, not templated.
 </first_generation>
 
-<available_palettes>
-Light palettes (use for light mode / default):
-${JSON.stringify(lightPalettes)}
-
-Dark palettes (use when user requests dark mode/theme):
-${JSON.stringify(darkPalettes)}
-
-Choose the palette that best fits the project's mood and industry. Use its hex values directly in your CSS custom properties.
-</available_palettes>`;
+<color_inspiration>
+Color mood for this project: "${styleDirection}" — use this as a starting mood, then adapt to fit the user's actual request. Do NOT use this literally if it conflicts with the subject matter.
+</color_inspiration>`;
 }
 
 export function buildDesignBriefBlock(brief?: DesignBrief, sharedStyles?: string, headTags?: string): string {

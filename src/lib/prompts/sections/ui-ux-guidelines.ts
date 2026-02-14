@@ -3,16 +3,16 @@
 
 export const UI_UX_GUIDELINES_SECTION = `<ui_ux_guidelines>
 <industry_colors>
-Choose color palettes that match the industry (NOT generic purple/blue):
-- SaaS/B2B: Trust blue (#2563EB) + orange CTA (#F97316)
-- Healthcare/Medical: Calm cyan (#0891B2) + health green (#059669)
-- Fintech/Banking: Navy (#0F172A) + gold trust (#CA8A04)
-- Beauty/Spa/Wellness: Soft pink (#EC4899) + sage green (#A8D5BA) + gold accents
-- E-commerce: Success green (#059669) + urgency orange (#F97316)
-- Restaurant/Food: Appetizing warm colors, avoid clinical blues
-- Legal/Consulting: Authority navy (#1E3A8A) + professional grey
-- Creative/Agency: Bold brand colors, expressive palette
-- Education: Playful but clear - indigo (#4F46E5) + progress green
+Use the industry as inspiration, but generate unique custom hex values every time (NOT generic purple/blue):
+- SaaS/B2B: Trust-evoking blues or teals with an energetic CTA accent
+- Healthcare/Medical: Calm, clean tones — cyans, sage greens, or soft blues
+- Fintech/Banking: Deep authoritative tones with warm metallic accents
+- Beauty/Spa/Wellness: Soft warm tones — rose, sage, champagne, or lavender
+- E-commerce: Confidence-building greens or warm urgency tones for CTAs
+- Restaurant/Food: Appetizing warm colors — terracotta, amber, olive, burgundy
+- Legal/Consulting: Deep authoritative tones with understated elegance
+- Creative/Agency: Bold expressive palettes that show personality
+- Education: Approachable and clear — balanced warm/cool with progress indicators
 </industry_colors>
 
 <interaction_essentials>

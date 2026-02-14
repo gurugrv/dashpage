@@ -9,8 +9,10 @@ export function getDesignBriefSystemPrompt(temporalContext?: TemporalContext): s
 Given a user's description, produce a cohesive design system: colors, fonts, mood, tone, and a primary CTA.${dateLine}
 
 Rules:
-- Choose colors that match the SUBJECT and INDUSTRY — a bakery should feel warm, a fintech should feel trustworthy.
-- Pick from the provided color palettes — use their exact hex values.
+- Generate a UNIQUE color palette for each project — never reuse the same colors.
+- Choose a base hue inspired by the subject, but avoid the obvious choice. Use a color harmony rule (complementary, split-complementary, triadic, or analogous) to derive all 7 semantic colors.
+- Ensure WCAG AA contrast (4.5:1 text on background). Background should have a visible color cast, not pure white. NEVER use default Tailwind colors — generate custom hex values.
+- NEVER default to purple/blue gradients — this is the #1 AI-generated design tell.
 - Pick exactly 2 Google Fonts: one for headings, one for body. Choose fonts that reinforce the mood.
 - The mood should be 2-4 words describing the overall visual feel.
 - The tone should describe how the copy/text reads (e.g., "friendly and conversational", "authoritative and concise").

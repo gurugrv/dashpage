@@ -3,24 +3,36 @@
 // Font names in the prompt below must stay in sync with src/lib/fonts.ts FONT_CATEGORIES.
 
 export const DESIGN_QUALITY_SECTION = `<color_system>
-Use selectColorPalette to get curated, proven color palettes. Each palette returns semantic roles: primary, secondary, accent, background, surface, text, textMuted.
+Generate a UNIQUE color palette for each project. Never reuse the same colors across projects.
 
-Workflow:
-1. Pick mood tags (warm, cool, earthy, pastel, bold, muted, elegant, playful, minimal, vibrant, dark, luxury)
-2. Pick an industry tag (restaurant, saas, healthcare, fintech, ecommerce, creative, legal, education, beauty, nature, corporate, portfolio)
-3. Call selectColorPalette → choose the best palette from the results
-4. Apply the palette roles directly to your :root CSS custom properties
+Method:
+1. Choose a BASE HUE (0-360) inspired by the subject — but avoid the obvious choice.
+   A bakery doesn't have to be orange. A law firm doesn't have to be navy. Surprise yourself.
+2. Select a HARMONY RULE (complementary, split-complementary, triadic, or analogous)
+3. Derive 7 semantic colors:
+   - primary: Dominant brand color — saturated, mid-lightness, carries the identity
+   - secondary: Harmonically related to primary — slightly muted or shifted
+   - accent: High-contrast pop for CTAs/highlights — must stand out from primary
+   - background: Very light tint of the base hue (NOT pure white, NOT #f5f5f5)
+   - surface: Near-white with subtle warm/cool cast matching the palette mood
+   - text: Very dark shade tinted toward the base hue (NOT pure #000000)
+   - textMuted: Mid-gray tinted toward the base hue for secondary text
 
-Color rules:
-- Maintain WCAG AA contrast (4.5:1 for text, 3:1 for large text) — the curated palettes are pre-checked but verify when mixing colors
-- Pick mood/industry tags that match the SUBJECT — a bakery should use warm/earthy, not cool/minimal
+Constraints:
+- WCAG AA: text on background >= 4.5:1, large text >= 3:1
+- primary and accent must differ in hue OR saturation (not just lightness)
+- background should have a visible color cast — subtle cream, blue-gray, warm ivory, etc.
+- NEVER use default Tailwind colors (indigo-600, gray-100, etc.) — generate custom hex values
+- NEVER default to purple/blue gradients — this is the #1 AI-generated design tell
+
+Apply colors to :root CSS custom properties:
+--color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
 
 Gradient rules:
 - DEFAULT: Use solid colors. Avoid gradients unless they serve a purpose.
 - If using gradients: ONLY analogous colors (blue->teal, purple->pink, orange->red)
 - NEVER mix opposing temperatures (pink->green, orange->blue)
 - Maximum 2 color stops. No rainbow gradients.
-- NEVER default to purple/blue gradients — this is the #1 sign of AI-generated design
 </color_system>
 
 <typography>
@@ -121,7 +133,8 @@ Colors:
 - Purple/blue gradients on white backgrounds (the #1 AI tell)
 - Using default Tailwind palette without customization (indigo-600, gray-100, etc.)
 - Neon colors on dark backgrounds without purpose
--> INSTEAD: Choose a cohesive, subject-appropriate palette with your design system tokens
+- Reusing the same hex values across different projects
+-> INSTEAD: Generate a unique palette using the color_system method above. Every project deserves its own colors.
 
 Typography:
 - Defaulting to Inter, Roboto, or system fonts every time

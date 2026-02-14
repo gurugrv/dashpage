@@ -57,21 +57,11 @@ export async function POST(req: Request) {
 
     try {
       {
-        // Non-Gemini: single API call, no tool step
-        // All palettes injected into prompt — model picks the best fit
-        const { CURATED_PALETTES } = await import('@/lib/colors/palettes');
-        const isDark = /\b(dark\s*(mode|theme)?|night|midnight)\b/i.test(prompt);
-        const scheme = isDark ? 'dark' : 'light';
-        const palettes = CURATED_PALETTES
-          .filter(p => p.scheme === scheme)
-          .map(p => ({ name: p.name, roles: p.roles }));
-        const paletteContext = `\n\nAvailable color palettes (choose the best fit for this project and use its hex values in designSystem):\n${JSON.stringify(palettes)}`;
-
         const result = await generateText({
           model: modelInstance,
           system: systemPrompt,
           output: Output.object({ schema: blueprintSchema }),
-          prompt: prompt + paletteContext,
+          prompt,
           maxOutputTokens: 16384,
         });
 
