@@ -19,6 +19,31 @@ function isToolPart(part: unknown): part is ToolPart {
 }
 
 /**
+ * Strip AI preamble text that appears before the actual HTML document.
+ * Some models include conversational text like "I'll generate the HTML now..."
+ * inside the file content, which renders as visible text above the site headers.
+ */
+function stripHtmlPreamble(content: string): string {
+  // Find the start of actual HTML (<!DOCTYPE or <html)
+  const doctypeIdx = content.search(/<!doctype\s/i);
+  const htmlIdx = content.search(/<html[\s>]/i);
+
+  let startIdx = -1;
+  if (doctypeIdx !== -1 && htmlIdx !== -1) {
+    startIdx = Math.min(doctypeIdx, htmlIdx);
+  } else if (doctypeIdx !== -1) {
+    startIdx = doctypeIdx;
+  } else if (htmlIdx !== -1) {
+    startIdx = htmlIdx;
+  }
+
+  if (startIdx > 0) {
+    return content.slice(startIdx);
+  }
+  return content;
+}
+
+/**
  * Extract files from tool output parts in a message.
  * Returns merged files from all completed tool outputs, or null if no tool outputs found.
  *
@@ -47,24 +72,33 @@ function extractFilesFromToolParts(
     if (!files) files = { ...baseFiles };
 
     // writeFiles: read file content from tool input (lean output only has fileNames)
-    // Normalize keys: AI may send "index_html" instead of "index.html" — convert underscore-extension to dot
+    // Normalize keys: AI may send "index_html" or bare "index" instead of "index.html"
     const input = part.input as Record<string, unknown> | undefined;
     if (input && 'files' in input && typeof input.files === 'object' && input.files !== null) {
       const rawFiles = input.files as Record<string, string>;
       for (const [key, value] of Object.entries(rawFiles)) {
-        const normalizedKey = key.includes('.') ? key : key.replace(/_([a-z]+)$/, '.$1');
-        files[normalizedKey] = value;
+        let normalizedKey = key;
+        if (!key.includes('.')) {
+          const underscored = key.replace(/_([a-z]+)$/, '.$1');
+          normalizedKey = underscored !== key ? underscored : `${key}.html`;
+        }
+        // Strip AI preamble from HTML files
+        files[normalizedKey] = normalizedKey.endsWith('.html') ? stripHtmlPreamble(value) : value;
       }
     }
     // editFile/editDOM output: { success: true|"partial", file: string, content: string }
     else if ('file' in output && 'content' in output) {
-      files[output.file as string] = output.content as string;
+      const fileName = output.file as string;
+      const content = output.content as string;
+      files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
     }
     // editFiles output: { success: true|"partial", results: [{ file, success, content }] }
     else if ('results' in output && Array.isArray(output.results)) {
       for (const result of output.results as Array<Record<string, unknown>>) {
         if (result.success !== false && result.content && result.file) {
-          files[result.file as string] = result.content as string;
+          const fileName = result.file as string;
+          const content = result.content as string;
+          files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
         }
       }
     }
