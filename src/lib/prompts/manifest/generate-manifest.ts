@@ -1,7 +1,7 @@
 import type { ProjectFiles } from '@/types';
 
 /** Max file size (chars) to include in full instead of generating a manifest. */
-const SMALL_FILE_THRESHOLD = 600;
+const SMALL_FILE_THRESHOLD = 1000;
 
 /**
  * Extract CSS custom properties from :root {} blocks.
