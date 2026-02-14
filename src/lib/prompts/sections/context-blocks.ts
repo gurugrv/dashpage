@@ -1,49 +1,58 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
 import type { DesignBrief } from '@/lib/design-brief/types';
-
-const CONTEXT_TRUNCATE_THRESHOLD = 2000;
-const CONTEXT_HEAD_CHARS = 1500;
-const CONTEXT_TAIL_CHARS = 300;
-
-function truncateIfNeeded(content: string): string {
-  if (content.length <= CONTEXT_TRUNCATE_THRESHOLD) return content;
-  return `${content.slice(0, CONTEXT_HEAD_CHARS)}\n[... truncated ...]\n${content.slice(-CONTEXT_TAIL_CHARS)}`;
-}
+import { generateManifest } from '@/lib/prompts/manifest/generate-manifest';
 
 export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
-  return `\n<edit_guidance>
+  const isMultiPage = Object.keys(currentFiles).length > 1;
+
+  if (isMultiPage) {
+    return `\n<edit_guidance>
 Modify the existing HTML based on the user's request.
 Do NOT start from scratch unless the user explicitly asks for a redesign.
 Do NOT add pages unless the user explicitly asks.
 When adding a page: use editDOM or editFile to add nav links to existing pages, then writeFiles for the new page only.
-For small changes (text, images, colors, classes): prefer editDOM with CSS selectors.
-For structural changes (new sections, rearranging layout): use editFile with search/replace.
+For small changes (text, images, colors, classes): prefer editDOM — use CSS selectors from the manifest above.
+For structural changes (new sections, rearranging layout): call readFile FIRST to get exact content, then editFile with search/replace.
 For cross-page changes (nav, header, branding): use editFiles to batch all file edits in one call.
+IMPORTANT: Before using editFile, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFile needs precise text matches.
+</edit_guidance>`;
+  }
+
+  return `\n<edit_guidance>
+Modify the existing HTML based on the user's request.
+Do NOT start from scratch unless the user explicitly asks for a redesign.
+For small changes (text, images, colors, classes): use editDOM — use CSS selectors from the manifest above.
+For structural changes or when you need exact content: call readFile FIRST, then use editFile.
+For major changes or redesigns: use writeFiles with complete HTML.
+IMPORTANT: Before using editFile, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFile needs precise text matches.
 </edit_guidance>`;
 }
 
 export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
-  const fileList = Object.keys(currentFiles);
+  const manifest = generateManifest(currentFiles);
+  const fileCount = Object.keys(currentFiles).length;
+  const isMultiPage = fileCount > 1;
 
-  if (fileList.length === 1) {
-    return `\n<current_website>\nThe user has an existing website. Here is the current HTML:\n\`\`\`html\n${currentFiles['index.html']}\n\`\`\`\nModify THIS HTML based on the user's request.\nDo NOT start from scratch unless explicitly asked.\nWhen editing, consider the ENTIRE page context — maintain design consistency across all sections.\n</current_website>`;
-  }
+  const preamble = isMultiPage
+    ? `The user has an existing multi-file website (${fileCount} files). Below is a structural manifest of each file.`
+    : 'The user has an existing website. Below is a structural manifest of the page.';
 
-  // Multi-file: show each file
-  let block = '\n<current_website>\nThe user has an existing multi-file website. Here are the current files:\n';
-  for (const filePath of fileList) {
-    const content = filePath === 'index.html'
-      ? currentFiles[filePath]
-      : truncateIfNeeded(currentFiles[filePath]);
-    block += `\n<file path="${filePath}">\n${content}\n</file>\n`;
-  }
-  block += '\nModify THESE files based on the user\'s request.\nDo NOT start from scratch unless explicitly asked.\nWhen editing, consider ALL files — maintain design consistency.\nUnchanged files are preserved automatically — only include new or fully rewritten files in writeFiles.\n</current_website>';
-  return block;
+  const instructions = isMultiPage
+    ? 'Use readFile to inspect exact content before making editFile changes.\nMaintain design consistency across ALL files.\nUnchanged files are preserved automatically — only include new or fully rewritten files in writeFiles.'
+    : 'Use readFile to inspect exact content before making editFile changes.\nWhen editing, consider the ENTIRE page context — maintain design consistency across all sections.';
+
+  return `\n<current_website>
+${preamble}
+
+${manifest}
+
+${instructions}
+</current_website>`;
 }
 
 const STYLE_DIRECTIONS = [
