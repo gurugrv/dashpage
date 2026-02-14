@@ -76,13 +76,13 @@ export async function POST(req: Request) {
         // Extract palette from tool results
         const paletteToolResult = paletteResult.steps
           .flatMap(s => s.toolResults)
-          .find(r => r.toolName === 'generateColorPalette');
+          .find(r => r.toolName === 'selectColorPalette');
 
         // Step 2: Generate blueprint with structured output (no tools)
         let blueprintPrompt = prompt;
         if (paletteToolResult) {
-          const input = paletteToolResult.input as { baseColor: string; harmony: string; scheme: string };
-          blueprintPrompt = `${prompt}\n\nColor palette was generated with base color ${input.baseColor}, ${input.harmony} harmony, ${input.scheme} scheme:\n${JSON.stringify(paletteToolResult.output)}`;
+          const input = paletteToolResult.input as { mood: string[]; industry?: string; scheme: string };
+          blueprintPrompt = `${prompt}\n\nColor palettes selected for mood [${input.mood.join(', ')}]${input.industry ? `, industry: ${input.industry}` : ''}, scheme: ${input.scheme}:\n${JSON.stringify(paletteToolResult.output)}`;
         }
 
         const result = await generateText({
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
           tools: { ...createColorTools() },
           stopWhen: stepCountIs(6),
           prepareStep: async ({ stepNumber }) => {
-            // Step 0: force generateColorPalette call
+            // Step 0: force selectColorPalette call
             if (stepNumber === 0) {
               return { toolChoice: 'required' as const };
             }

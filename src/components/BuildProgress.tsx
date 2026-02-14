@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Check, Circle, Globe, Image, Palette, Code, Search, ShieldCheck, FileText, Pencil, AlertTriangle } from 'lucide-react'
 import type { BuildProgressState } from '@/hooks/useBuildProgress'
 import type { ToolActivityEvent } from '@/types/build-progress'
@@ -29,7 +29,7 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
   fetchUrl: Globe,
   searchImages: Image,
   searchIcons: Search,
-  generateColorPalette: Palette,
+  selectColorPalette: Palette,
   writeFiles: Code,
   editFile: Pencil,
   readFile: FileText,
@@ -59,10 +59,17 @@ function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
       ref={scrollRef}
       className="mt-1 flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md bg-muted/50 px-2 py-1.5"
     >
-      {activities.map((activity) => {
+      {activities.map((activity, idx) => {
         const Icon = TOOL_ICONS[activity.toolName] ?? Code
         return (
-          <div key={activity.toolCallId} className="flex items-start gap-1.5 text-[11px] leading-tight">
+          <div
+            key={activity.toolCallId}
+            className="flex items-start gap-1.5 text-[11px] leading-tight"
+            style={{
+              animation: 'fadeSlideIn 0.25s ease-out both',
+              animationDelay: `${idx * 30}ms`,
+            }}
+          >
             {activity.status === 'running' && (
               <Loader2 className="mt-px size-3 shrink-0 animate-spin text-muted-foreground" />
             )}
@@ -92,6 +99,22 @@ function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
   )
 }
 
+function ElapsedTimer() {
+  const [seconds, setSeconds] = useState(0)
+  const startRef = useRef(Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSeconds(Math.floor((Date.now() - startRef.current) / 1000))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{seconds}s</span>
+  )
+}
+
 export function BuildProgress({ progress }: BuildProgressProps) {
   if (!progress.isActive) return null
 
@@ -101,15 +124,26 @@ export function BuildProgress({ progress }: BuildProgressProps) {
         <Loader2 className="size-3.5 animate-spin text-primary" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {/* Current phase label */}
-        <span className="text-sm text-foreground">{progress.label}</span>
+        {/* Current phase label + elapsed timer */}
+        <span className="flex items-center text-sm text-foreground">
+          {progress.label}
+          <ElapsedTimer />
+        </span>
 
-        {/* Progress bar */}
+        {/* Progress bar with shimmer */}
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+            className="relative h-full overflow-hidden rounded-full bg-primary transition-all duration-500 ease-out"
             style={{ width: `${progress.percent}%` }}
-          />
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)',
+                animation: 'shimmerBar 1.8s ease-in-out infinite',
+              }}
+            />
+          </div>
         </div>
 
         {/* Step checklist */}
@@ -119,7 +153,10 @@ export function BuildProgress({ progress }: BuildProgressProps) {
             return (
               <div key={step.label} className="flex items-center gap-1">
                 {status === 'done' && (
-                  <Check className="size-3 text-primary" />
+                  <Check
+                    className="size-3 text-primary transition-transform duration-200"
+                    style={{ animation: 'fadeSlideIn 0.2s ease-out' }}
+                  />
                 )}
                 {status === 'active' && (
                   <Loader2 className="size-3 animate-spin text-primary" />

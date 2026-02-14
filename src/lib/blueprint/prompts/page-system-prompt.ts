@@ -168,7 +168,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: searchImages, searchIcons, webSearch, fetchUrl. File tools (writeFiles, editFile, readFile) and generateColorPalette are NOT available.
+7. Available tools: searchImages, searchIcons, webSearch, fetchUrl. File tools (writeFiles, editFile, readFile) and selectColorPalette are NOT available.
 </requirements>
 
 Output ONLY the HTML.`;

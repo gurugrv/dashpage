@@ -14,12 +14,14 @@ interface PageProgressProps {
 const TOOL_ICONS: Record<string, typeof Globe> = {
   searchImages: Image,
   searchIcons: Search,
-  generateColorPalette: Palette,
+  selectColorPalette: Palette,
   fetchUrl: Globe,
 };
 
 export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCancel }: PageProgressProps) {
   const completedPages = pageStatuses.filter((p) => p.status === 'complete').length;
+  const generatingPage = pageStatuses.find((p) => p.status === 'generating');
+  const currentPage = completedPages + (generatingPage ? 1 : 0);
   const totalPages = pageStatuses.length;
 
   // Include components step in progress calculation
@@ -38,8 +40,8 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
             {hasComponentsStep && !componentsComplete
               ? 'Preparing shared styles & components...'
               : isRetrying
-                ? `Retrying failed pages (${completedPages} of ${totalPages})`
-                : `Generating pages (${completedPages} of ${totalPages})`}
+                ? `Retrying failed pages (${currentPage} of ${totalPages})`
+                : `Generating pages (${currentPage} of ${totalPages})`}
           </span>
           {onCancel && (
             <Button size="xs" variant="ghost" onClick={onCancel}>
@@ -48,23 +50,34 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
           )}
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar with shimmer */}
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+            className="relative h-full overflow-hidden rounded-full bg-primary transition-all duration-500 ease-out"
             style={{ width: `${percent}%` }}
-          />
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)',
+                animation: 'shimmerBar 1.8s ease-in-out infinite',
+              }}
+            />
+          </div>
         </div>
 
         {/* Steps list */}
         <div className="space-y-1.5">
           {/* Shared components step */}
           {hasComponentsStep && (
-            <div className="flex items-center gap-2">
+            <div
+              className="flex items-center gap-2"
+              style={{ animation: 'fadeSlideIn 0.3s ease-out both' }}
+            >
               {componentsStatus === 'generating' ? (
-                <Loader2 className="size-3.5 animate-spin text-primary" />
+                <Loader2 className="size-3.5 animate-spin text-primary"  />
               ) : (
-                <Check className="size-3.5 text-green-600 dark:text-green-500" />
+                <Check className="size-3.5 text-green-600 dark:text-green-500" style={{ animation: 'fadeSlideIn 0.2s ease-out' }} />
               )}
               <span
                 className={`text-xs ${
@@ -79,17 +92,29 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
           )}
 
           {/* Per-page list */}
-          {pageStatuses.map((page) => (
-            <div key={page.filename}>
-              <div className="flex items-center gap-2">
+          {pageStatuses.map((page, idx) => (
+            <div
+              key={page.filename}
+              style={{
+                animation: 'fadeSlideIn 0.3s ease-out both',
+                animationDelay: `${(idx + 1) * 60}ms`,
+              }}
+            >
+              <div
+                className={`flex items-center gap-2 rounded-md px-1.5 py-0.5 transition-all duration-300 ${
+                  page.status === 'generating'
+                    ? 'border-l-2 border-primary bg-primary/[0.04]'
+                    : ''
+                }`}
+              >
                 {page.status === 'pending' && (
                   <Clock className="size-3.5 text-muted-foreground/50" />
                 )}
                 {page.status === 'generating' && (
-                  <Loader2 className="size-3.5 animate-spin text-primary" />
+                  <Loader2 className="size-3.5 animate-spin text-primary"  />
                 )}
                 {page.status === 'complete' && (
-                  <Check className="size-3.5 text-green-600 dark:text-green-500" />
+                  <Check className="size-3.5 text-green-600 dark:text-green-500" style={{ animation: 'fadeSlideIn 0.2s ease-out' }} />
                 )}
                 {page.status === 'error' && (
                   <AlertCircle className="size-3.5 text-destructive" />
@@ -115,10 +140,17 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
               {/* Tool activity for currently generating page */}
               {page.status === 'generating' && page.toolActivities && page.toolActivities.length > 0 && (
                 <div className="ml-5.5 mt-0.5 flex flex-col gap-0.5">
-                  {page.toolActivities.map((activity) => {
+                  {page.toolActivities.map((activity, actIdx) => {
                     const Icon = TOOL_ICONS[activity.toolName] ?? Globe;
                     return (
-                      <div key={activity.toolCallId} className="flex items-center gap-1.5 text-[11px] leading-tight">
+                      <div
+                        key={activity.toolCallId}
+                        className="flex items-center gap-1.5 text-[11px] leading-tight"
+                        style={{
+                          animation: 'fadeSlideIn 0.25s ease-out both',
+                          animationDelay: `${actIdx * 30}ms`,
+                        }}
+                      >
                         {activity.status === 'running' && (
                           <Loader2 className="size-2.5 animate-spin text-muted-foreground" />
                         )}

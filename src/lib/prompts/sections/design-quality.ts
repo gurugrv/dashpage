@@ -3,17 +3,17 @@
 // Font names in the prompt below must stay in sync with src/lib/fonts.ts FONT_CATEGORIES.
 
 export const DESIGN_QUALITY_SECTION = `<color_system>
-Use EXACTLY 3-5 colors total. Count them before finalizing.
+Use selectColorPalette to get curated, proven color palettes. Each palette returns semantic roles: primary, secondary, accent, background, surface, text, textMuted.
 
-Required structure:
-1. ONE primary brand color (drives the identity)
-2. 2-3 neutrals (background, surface, text variations)
-3. 1-2 accent colors maximum (for CTAs, highlights)
+Workflow:
+1. Pick mood tags (warm, cool, earthy, pastel, bold, muted, elegant, playful, minimal, vibrant, dark, luxury)
+2. Pick an industry tag (restaurant, saas, healthcare, fintech, ecommerce, creative, legal, education, beauty, nature, corporate, portfolio)
+3. Call selectColorPalette → choose the best palette from the results
+4. Apply the palette roles directly to your :root CSS custom properties
 
 Color rules:
-- Use color psychology: warm tones (orange, red, amber) for energy; cool tones (blue, teal, green) for trust; dark tones for luxury
-- Maintain WCAG AA contrast (4.5:1 for text, 3:1 for large text)
-- Pick colors that match the SUBJECT — a bakery site shouldn't use tech-blue, a fintech app shouldn't use playful pink
+- Maintain WCAG AA contrast (4.5:1 for text, 3:1 for large text) — the curated palettes are pre-checked but verify when mixing colors
+- Pick mood/industry tags that match the SUBJECT — a bakery should use warm/earthy, not cool/minimal
 
 Gradient rules:
 - DEFAULT: Use solid colors. Avoid gradients unless they serve a purpose.

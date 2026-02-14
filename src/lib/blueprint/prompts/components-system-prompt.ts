@@ -92,7 +92,7 @@ You have access to this tool — call it BEFORE writing HTML:
    - style: "outline" for nav/UI chrome, "solid" for emphasis/active states.
    - WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons BEFORE writing HTML.
 
-Unavailable tools (do NOT attempt to call): writeFiles, editFile, readFile, webSearch, fetchUrl, searchImages, generateColorPalette.
+Unavailable tools (do NOT attempt to call): writeFiles, editFile, readFile, webSearch, fetchUrl, searchImages, selectColorPalette.
 </available_tools>
 
 <rules>

@@ -1,40 +1,50 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { generatePalette } from '@/lib/colors/palette';
+import { selectPalettes } from '@/lib/colors/select-palette';
 
 export function createColorTools() {
   return {
-    generateColorPalette: tool({
+    selectColorPalette: tool({
       description:
-        'Generate a harmonious color palette from a base color. Returns { success, primary, secondary, accent, bg, surface, text, textMuted, contrastChecks }. Use the returned hex values directly in your :root CSS custom properties. If any contrastCheck shows FAIL, adjust baseColor slightly and re-call.',
+        'Select harmonious color palettes from a curated collection based on mood and industry. Returns up to 3 matching palettes with semantic role mappings (primary, secondary, accent, background, surface, text, textMuted). Pick one and use the hex values directly in your :root CSS custom properties.',
       inputSchema: z.object({
-        baseColor: z
-          .string()
-          .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Must be a valid hex color (e.g. "#1e40af")')
-          .describe('Base brand color as hex (e.g. "#1e40af", "#e63946"). This becomes the primary color.'),
-        harmony: z
-          .enum(['complementary', 'analogous', 'triadic', 'split-complementary', 'tetradic'])
+        mood: z
+          .array(z.string())
           .describe(
-            'Color harmony method. complementary (bold contrast), analogous (subtle, cohesive), triadic (vibrant, balanced), split-complementary (nuanced contrast), tetradic (rich, complex).',
+            '1-3 mood tags: warm, cool, earthy, pastel, bold, muted, elegant, playful, minimal, vibrant, dark, luxury',
+          ),
+        industry: z
+          .string()
+          .optional()
+          .describe(
+            'Industry: restaurant, saas, healthcare, fintech, ecommerce, creative, legal, education, beauty, nature, corporate, portfolio',
           ),
         scheme: z
           .enum(['light', 'dark'])
           .default('light')
           .describe('Color scheme. light: light backgrounds + dark text. dark: dark backgrounds + light text.'),
       }),
-      execute: async ({ baseColor, harmony, scheme }) => {
-        try {
-          const result = generatePalette(baseColor, harmony, scheme);
-          return {
-            success: true as const,
-            ...result,
-          };
-        } catch (error) {
+      execute: async ({ mood, industry, scheme }) => {
+        const tags = [...mood];
+        if (industry) tags.push(industry);
+
+        const palettes = selectPalettes(tags, scheme, 3);
+
+        if (palettes.length === 0) {
           return {
             success: false as const,
-            error: `Color palette generation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Pick colors manually using your design system.`,
+            error: 'No matching palettes found. Pick colors manually using your design system.',
           };
         }
+
+        return {
+          success: true as const,
+          palettes: palettes.map(p => ({
+            name: p.name,
+            roles: p.roles,
+            scheme: p.scheme,
+          })),
+        };
       },
     }),
   };

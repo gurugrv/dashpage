@@ -41,32 +41,33 @@ Given the user's website description, produce a JSON object with this structure:
 <available_tools>
 You have access to this tool — call it BEFORE producing the JSON output:
 
-1. generateColorPalette({ baseColor, harmony, scheme })
-   - Generates a full color palette from a single base hex color with WCAG contrast checks.
-   - harmony: "complementary", "analogous", "triadic", "split-complementary", "tetradic"
+1. selectColorPalette({ mood, industry, scheme })
+   - Selects curated, proven color palettes based on mood and industry tags.
+   - mood: array of 1-3 tags: "warm", "cool", "earthy", "pastel", "bold", "muted", "elegant", "playful", "minimal", "vibrant", "dark", "luxury"
+   - industry: optional — "restaurant", "saas", "healthcare", "fintech", "ecommerce", "creative", "legal", "education", "beauty", "nature", "corporate", "portfolio"
    - scheme: "light" or "dark"
-   - Returns: { primary, secondary, accent, bg, surface, text, textMuted, contrastChecks }
-   - WORKFLOW: Pick a base brand color for the industry, call this tool, then use the returned hex values in your designSystem.
+   - Returns: array of up to 3 palettes, each with { name, roles: { primary, secondary, accent, background, surface, text, textMuted }, scheme }
+   - WORKFLOW: Pick mood tags and industry for the project, call this tool, choose the best palette, then use its role values in your designSystem.
 
 Unavailable tools (do NOT attempt to call): writeFiles, editFile, readFile, webSearch, fetchUrl, searchImages, searchIcons.
 </available_tools>
 
 <color_guidance>
-ALWAYS call generateColorPalette to create your design system colors — do NOT guess hex values.
-Pick a base brand color matching the INDUSTRY and MOOD, then let the tool generate a harmonious, contrast-checked palette:
-- SaaS/B2B: Trust blue base (#2563EB) + complementary harmony
-- Healthcare/Medical: Calm cyan base (#0891B2) + analogous harmony
-- Fintech/Banking: Navy base (#0F172A) + split-complementary, dark scheme
-- Beauty/Spa/Wellness: Soft pink base (#EC4899) + analogous harmony
-- E-commerce: Success green base (#059669) + complementary harmony
-- Restaurant/Food: Warm amber/terracotta base — avoid clinical blues
-- Legal/Consulting: Authority navy base (#1E3A8A) + analogous harmony
-- Creative/Agency: Bold, expressive brand color + triadic harmony
-- Education: Indigo base (#4F46E5) + split-complementary harmony
+ALWAYS call selectColorPalette to get your design system colors — do NOT guess hex values.
+Pick mood tags and industry matching the project, then choose the best palette from the results:
+- SaaS/B2B → mood: ["cool", "minimal"], industry: "saas"
+- Healthcare/Medical → mood: ["cool", "muted"], industry: "healthcare"
+- Fintech/Banking → mood: ["cool", "elegant"], industry: "fintech"
+- Beauty/Spa/Wellness → mood: ["elegant", "warm"], industry: "beauty"
+- E-commerce → mood: ["vibrant", "bold"], industry: "ecommerce"
+- Restaurant/Food → mood: ["warm", "earthy"], industry: "restaurant"
+- Legal/Consulting → mood: ["cool", "elegant"], industry: "legal"
+- Creative/Agency → mood: ["bold", "vibrant"], industry: "creative"
+- Education → mood: ["cool", "playful"], industry: "education"
 
 Color psychology: warm tones for energy, cool tones for trust, dark tones for luxury.
 NEVER default to purple/blue gradients — this is the #1 sign of AI-generated design.
-The tool ensures WCAG AA contrast (4.5:1 for text) — if any contrastCheck shows FAIL, adjust baseColor and re-call.
+Every curated palette is pre-checked for WCAG AA contrast.
 </color_guidance>
 
 <rules>

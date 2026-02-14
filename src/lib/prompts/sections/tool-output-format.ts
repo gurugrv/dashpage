@@ -1,5 +1,5 @@
 export const TOOL_OUTPUT_FORMAT_SECTION = `<tool_output_format>
-You have 11 tools across 5 categories: file (writeFiles, editDOM, editFile, editFiles, readFile), resource (searchImages, searchIcons, generateColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). Call multiple independent tools in the same step when possible.
+You have 11 tools across 5 categories: file (writeFiles, editDOM, editFile, editFiles, readFile), resource (searchImages, searchIcons, selectColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). Call multiple independent tools in the same step when possible.
 
 <tool_selection>
 File editing — choose the right tool:
@@ -18,7 +18,7 @@ When to call webSearch:
 
 <tool_workflows>
 NEW SITE (first generation):
-1. generateColorPalette → get design system colors
+1. selectColorPalette → pick design system colors from curated palettes
 2. searchImages + searchIcons (parallel — all image/icon needs in this step)
 3. writeFiles → generate HTML using all gathered resources
 4. validateHtml → check for errors
@@ -51,7 +51,7 @@ Call multiple independent tools in the same step when possible (e.g. searchImage
 If a tool returns success: false, use these fallbacks:
 - searchImages failed → use https://placehold.co/800x400/eee/999?text=Image placeholder, continue generating
 - searchIcons failed → use a simple inline SVG or Unicode symbol instead
-- generateColorPalette failed → pick colors manually, define in :root
+- selectColorPalette failed → pick colors manually, define in :root
 - editDOM failed (selector not found) → check the error for similar element suggestions, retry with corrected selector. If still fails, try editFile with search/replace instead.
 - editFile failed (search text not found) → check bestMatch in error for closest match. If partial success, retry just the failed operations. After 2 failures on same file, use writeFiles.
 - editFiles partially failed → check per-file results, retry failed files individually
@@ -67,7 +67,7 @@ Never let a tool failure halt generation. Always have a fallback path.
 - Never split CSS/JS into separate files unless the user explicitly asks
 - Never add pages unless the user explicitly asks
 - Inter-page links: use plain relative filenames (href="about.html")
-- For colors: use generateColorPalette first, then apply returned values to :root CSS custom properties
+- For colors: use selectColorPalette first, then apply returned values to :root CSS custom properties
 - For images: use DIFFERENT search queries per image to ensure variety. Choose orientation: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
 - Call validateHtml after writeFiles, editDOM, or editFile to catch syntax errors before finishing
 - Before calling a tool, explain what you'll build/change in 2-3 sentences max

@@ -32,7 +32,7 @@ const TOOL_LABELS: Record<string, string> = {
   readFile: 'Reading file',
   searchImages: 'Searching images',
   searchIcons: 'Searching icons',
-  generateColorPalette: 'Generating palette',
+  selectColorPalette: 'Selecting palette',
   fetchUrl: 'Fetching URL',
   webSearch: 'Web search',
   validateHtml: 'Validating HTML',
@@ -48,8 +48,11 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       return typeof inp.query === 'string' ? inp.query : undefined;
     case 'searchIcons':
       return typeof inp.query === 'string' ? inp.query : undefined;
-    case 'generateColorPalette':
-      return typeof inp.baseColor === 'string' ? `${inp.baseColor} (${inp.harmony ?? 'complementary'})` : undefined;
+    case 'selectColorPalette': {
+      const mood = Array.isArray(inp.mood) ? (inp.mood as string[]).join(', ') : '';
+      const industry = typeof inp.industry === 'string' ? ` / ${inp.industry}` : '';
+      return mood ? `${mood}${industry}` : undefined;
+    }
     case 'fetchUrl':
       return typeof inp.url === 'string' ? inp.url : undefined;
     case 'writeFiles':
@@ -92,8 +95,8 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
       return undefined;
     }
-    case 'generateColorPalette':
-      return 'Palette generated';
+    case 'selectColorPalette':
+      return 'Palette selected';
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
     case 'writeFiles': {
@@ -216,7 +219,7 @@ export async function POST(req: Request) {
                   readFile: 'Reading file...',
                   searchImages: 'Searching for images...',
                   searchIcons: 'Searching for icons...',
-                  generateColorPalette: 'Generating color palette...',
+                  selectColorPalette: 'Selecting color palette...',
                   fetchUrl: 'Fetching content...',
                   webSearch: 'Searching the web...',
                   validateHtml: 'Validating HTML...',
