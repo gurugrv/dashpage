@@ -2,6 +2,7 @@ import { generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output } 
 import { NextResponse } from 'next/server';
 import { designBriefSchema, type DesignBrief } from '@/lib/design-brief/types';
 import { getDesignBriefSystemPrompt } from '@/lib/design-brief/prompts';
+import { sanitizeFont } from '@/lib/fonts';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { buildTemporalContext, resolvePreferredTimeZone } from '@/lib/prompts/temporal-context';
@@ -116,6 +117,9 @@ export async function POST(req: Request) {
 
     debugSession.logResponse({ response: rawText ?? '', status: 'complete' });
     debugSession.finish('complete');
+
+    brief.headingFont = sanitizeFont(brief.headingFont, 'heading');
+    brief.bodyFont = sanitizeFont(brief.bodyFont, 'body');
 
     return NextResponse.json({ brief });
   } catch (err: unknown) {

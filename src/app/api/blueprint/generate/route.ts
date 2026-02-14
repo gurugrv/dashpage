@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { Prisma } from '@/generated/prisma/client';
 import { blueprintSchema, type Blueprint } from '@/lib/blueprint/types';
 import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-execution';
+import { sanitizeFont } from '@/lib/fonts';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
@@ -116,6 +117,9 @@ export async function POST(req: Request) {
     });
     debugSession.finish('complete');
     debugSession.logFullResponse(finishReason ?? 'unknown');
+
+    blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
+    blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');
 
     const dbBlueprint = await prisma.blueprint.upsert({
       where: { conversationId },

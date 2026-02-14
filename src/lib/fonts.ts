@@ -44,6 +44,25 @@ export const FONT_CATEGORIES: FontCategory[] = [
 /** Flat list of all approved font names */
 export const ALL_FONTS: string[] = FONT_CATEGORIES.flatMap((c) => c.fonts);
 
+/** Case-insensitive lookup: lowercased name -> canonical name */
+const FONT_LOOKUP = new Map<string, string>(
+  ALL_FONTS.map((f) => [f.toLowerCase(), f]),
+);
+
+const DEFAULT_HEADING_FONT = 'DM Sans';
+const DEFAULT_BODY_FONT = 'Inter';
+
+/**
+ * Validate a font name against the approved list (case-insensitive).
+ * Returns the canonical name if found, or a fallback default.
+ */
+export function sanitizeFont(name: string, role: 'heading' | 'body'): string {
+  const match = FONT_LOOKUP.get(name.toLowerCase());
+  if (match) return match;
+  console.warn(`Font "${name}" not in approved list, falling back to default for ${role}`);
+  return role === 'heading' ? DEFAULT_HEADING_FONT : DEFAULT_BODY_FONT;
+}
+
 /**
  * Build a Google Fonts CSS URL for the given font names.
  * Deduplicates and encodes names.
