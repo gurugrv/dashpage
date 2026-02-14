@@ -151,12 +151,14 @@ ${headerSection}
 ${footerSection}
 
 <tool_workflow>
-Call tools BEFORE writing HTML. Parallel calls save steps:
+Call tools BEFORE and AFTER writing the page. Parallel calls save steps:
 1. searchImages + searchIcons (parallel) — gather all images and icons for the page sections
    - Use DIFFERENT queries per image for variety. Choose orientation: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
    - searchIcons: use "outline" style for UI chrome, "solid" for emphasis
 2. webSearch + fetchUrl (if needed) — for real business info, embed codes (Google Maps, YouTube), or industry-specific content
-3. Output the complete HTML using all gathered resources
+3. writeFiles → generate the complete HTML page as { "${page.filename}": "<!DOCTYPE html>..." }
+4. validateHtml → check for syntax errors
+5. editDOM or editFile → fix any errors found by validation
 
 If a tool fails: use https://placehold.co/800x400/eee/999?text=Image for images, inline SVG for icons, your own knowledge for web content. Never let a tool failure halt generation.
 </tool_workflow>
@@ -168,8 +170,8 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: searchImages, searchIcons, webSearch, fetchUrl. File tools (writeFiles, editFile, readFile) and selectColorPalette are NOT available.
-</requirements>
-
-Output ONLY the HTML.`;
+7. Available tools: writeFiles, editDOM, editFile, readFile, validateHtml, searchImages, searchIcons, webSearch, fetchUrl.
+8. You MUST call writeFiles to output the page — do NOT output raw HTML as text.
+9. Call validateHtml after writeFiles. Fix errors with editDOM or editFile.
+</requirements>`;
 }
