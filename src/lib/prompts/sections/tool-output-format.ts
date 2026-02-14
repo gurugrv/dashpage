@@ -1,11 +1,13 @@
 export const TOOL_OUTPUT_FORMAT_SECTION = `<tool_output_format>
-You have 9 tools across 5 categories: file (writeFiles, editFile, readFile), resource (searchImages, searchIcons, generateColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). Call multiple independent tools in the same step when possible.
+You have 11 tools across 5 categories: file (writeFiles, editDOM, editFile, editFiles, readFile), resource (searchImages, searchIcons, generateColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). Call multiple independent tools in the same step when possible.
 
 <tool_selection>
-File tool decision:
-- editFile: targeted changes — colors, text, adding/removing elements, CSS tweaks, bug fixes. Batch multiple changes into one call with multiple operations. Preferred when changes are localized.
-- writeFiles: new files, complete redesigns, structural overhauls, or when editFile fails (exact match not found). Include ONLY files being created or rewritten.
-- readFile: inspect a file before editing to get exact whitespace for accurate search strings. Use for complex multi-step edits.
+File editing — choose the right tool:
+- editDOM (preferred for targeted changes): change text, images, links, colors, classes, attributes. Remove or hide elements. Add elements adjacent to existing ones. Uses CSS selectors to target elements precisely — never fails on whitespace mismatches.
+- editFile (for structural/block changes): add new HTML sections or blocks of code. Rearrange or reorder sections. Complex changes spanning multiple nested elements. Changes where CSS selectors can't isolate the target. Uses multi-tier matching (exact → whitespace → token → fuzzy).
+- editFiles (for cross-page changes): same change needed on 2+ files (nav links, headers, footers, branding). Combines DOM and search/replace operations in one call. Each file can use DOM operations, replace operations, or both.
+- writeFiles: new files, complete redesigns, structural overhauls, or when editFile fails twice on the same file. Include ONLY files being created or fully rewritten — unchanged files are preserved automatically.
+- readFile: inspect a file before editing to get exact content for accurate search strings. Use for complex multi-step edits.
 
 When to call webSearch:
 - User mentions a specific business, brand, or real-world entity you need facts about
@@ -20,14 +22,22 @@ NEW SITE (first generation):
 2. searchImages + searchIcons (parallel — all image/icon needs in this step)
 3. writeFiles → generate HTML using all gathered resources
 4. validateHtml → check for errors
-5. editFile → fix any errors found
+5. editDOM or editFile → fix any errors found
 
-EDIT (existing site):
+EDIT (existing site — small change):
+1. editDOM → apply change using CSS selectors (preferred for text/image/color/class changes)
+2. validateHtml → verify correctness
+
+EDIT (existing site — structural change):
 1. readFile (if unsure about current file state)
 2. searchImages/searchIcons (if adding new visual elements)
 3. editFile → apply changes (batch all operations in one call)
 4. validateHtml → verify correctness
 5. editFile → fix any errors found
+
+EDIT (cross-page change):
+1. editFiles → batch all changes across files in one call
+2. validateHtml → verify correctness
 
 EXTERNAL CONTENT:
 1. webSearch → find sources/embed codes
@@ -42,7 +52,9 @@ If a tool returns success: false, use these fallbacks:
 - searchImages failed → use https://placehold.co/800x400/eee/999?text=Image placeholder, continue generating
 - searchIcons failed → use a simple inline SVG or Unicode symbol instead
 - generateColorPalette failed → pick colors manually, define in :root
-- editFile failed (search text not found) → call readFile to see current state, then use writeFiles with complete replacement
+- editDOM failed (selector not found) → check the error for similar element suggestions, retry with corrected selector. If still fails, try editFile with search/replace instead.
+- editFile failed (search text not found) → check bestMatch in error for closest match. If partial success, retry just the failed operations. After 2 failures on same file, use writeFiles.
+- editFiles partially failed → check per-file results, retry failed files individually
 - webSearch failed → proceed using your own knowledge
 - fetchUrl failed → use the search result snippets instead
 - validateHtml failed → file likely doesn't exist yet, generate with writeFiles first
@@ -57,7 +69,7 @@ Never let a tool failure halt generation. Always have a fallback path.
 - Inter-page links: use plain relative filenames (href="about.html")
 - For colors: use generateColorPalette first, then apply returned values to :root CSS custom properties
 - For images: use DIFFERENT search queries per image to ensure variety. Choose orientation: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
-- Call validateHtml after writeFiles or editFile to catch syntax errors before finishing
+- Call validateHtml after writeFiles, editDOM, or editFile to catch syntax errors before finishing
 - Before calling a tool, explain what you'll build/change in 2-3 sentences max
 - After tool calls complete, add a 1-sentence summary of what was delivered
 </tool_rules>

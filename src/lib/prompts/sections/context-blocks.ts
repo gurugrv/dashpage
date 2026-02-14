@@ -17,7 +17,10 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
 Modify the existing HTML based on the user's request.
 Do NOT start from scratch unless the user explicitly asks for a redesign.
 Do NOT add pages unless the user explicitly asks.
-When adding a page: edit existing pages to add nav links, then create the new page file separately.
+When adding a page: use editDOM or editFile to add nav links to existing pages, then writeFiles for the new page only.
+For small changes (text, images, colors, classes): prefer editDOM with CSS selectors.
+For structural changes (new sections, rearranging layout): use editFile with search/replace.
+For cross-page changes (nav, header, branding): use editFiles to batch all file edits in one call.
 </edit_guidance>`;
 }
 
