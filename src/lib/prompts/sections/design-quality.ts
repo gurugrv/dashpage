@@ -68,7 +68,7 @@ Every page MUST include these details — they separate professional from amateu
 
 Transitions & Hover:
 - All interactive elements need hover states (opacity, scale, color shift, or shadow change)
-- Use smooth transitions: transition-all duration-200 ease-in-out (or duration-300)
+- Use smooth transitions: duration-200 ease-in-out (or duration-300). Prefer specific transition utilities (transition-colors, transition-shadow, transition-transform) or combine them. Use transition-all only when multiple properties change together.
 - Buttons: subtle scale (hover:scale-105) or shadow lift on hover
 - Links: underline animation or color transition
 - Cards: shadow elevation on hover (hover:shadow-lg)

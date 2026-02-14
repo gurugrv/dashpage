@@ -7,8 +7,8 @@ import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createImageTools } from '@/lib/chat/tools/image-tools';
 import { createIconTools } from '@/lib/chat/tools/icon-tools';
-import { createColorTools } from '@/lib/chat/tools/color-tools';
 import { createWebTools } from '@/lib/chat/tools/web-tools';
+import { createSearchTools } from '@/lib/chat/tools/search-tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
@@ -27,8 +27,8 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       return typeof inp.query === 'string' ? inp.query : undefined;
     case 'searchIcons':
       return typeof inp.query === 'string' ? inp.query : undefined;
-    case 'generateColorPalette':
-      return typeof inp.baseColor === 'string' ? `${inp.baseColor} (${inp.harmony ?? 'complementary'})` : undefined;
+    case 'webSearch':
+      return typeof inp.query === 'string' ? inp.query : undefined;
     case 'fetchUrl':
       return typeof inp.url === 'string' ? inp.url : undefined;
     default:
@@ -53,8 +53,11 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
       return undefined;
     }
-    case 'generateColorPalette':
-      return 'Palette generated';
+    case 'webSearch': {
+      const results = out.results as unknown[] | undefined;
+      if (results) return results.length > 0 ? `${results.length} result${results.length !== 1 ? 's' : ''} found` : 'No results found';
+      return undefined;
+    }
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
     default:
@@ -192,15 +195,15 @@ export async function POST(req: Request) {
       const blueprintTools = {
         ...createImageTools(),
         ...createIconTools(),
-        ...createColorTools(),
         ...createWebTools(),
+        ...createSearchTools(),
       };
 
       const TOOL_LABELS: Record<string, string> = {
         searchImages: 'Searching images',
         searchIcons: 'Searching icons',
-        generateColorPalette: 'Generating palette',
         fetchUrl: 'Fetching URL',
+        webSearch: 'Searching the web',
       };
 
       let hasErrors = false;

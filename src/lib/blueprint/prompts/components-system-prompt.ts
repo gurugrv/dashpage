@@ -1,5 +1,4 @@
 import type { Blueprint } from '@/lib/blueprint/types';
-import { DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
 
 export function getComponentsSystemPrompt(blueprint: Blueprint): string {
   const { designSystem, sharedComponents, contentStrategy } = blueprint;
@@ -13,8 +12,6 @@ export function getComponentsSystemPrompt(blueprint: Blueprint): string {
     .join('\n');
 
   return `You are a web developer generating shared header and footer HTML components for a multi-page website. These components must look professionally designed, not AI-generated. Output ONLY the two HTML blocks described below — no explanation, no markdown fences.
-
-${DESIGN_QUALITY_SECTION}
 
 <design_system>
 CSS Custom Properties (defined in shared styles.css):
@@ -31,7 +28,7 @@ CSS Custom Properties (defined in shared styles.css):
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
   --radius: ${designSystem.borderRadius};
-  --transition: all 0.2s ease-in-out;
+  --transition: 0.2s ease-in-out;
 
 Mood: ${designSystem.mood}
 </design_system>
@@ -85,11 +82,24 @@ Output exactly these two blocks with the delimiters shown:
 - Subtle top border or background contrast using --color-surface
 </footer_requirements>
 
+<available_tools>
+You have access to this tool — call it BEFORE writing HTML:
+
+1. searchIcons({ query, count, style })
+   - Search for SVG icons from Lucide, Heroicons, Tabler, and Phosphor icon sets.
+   - Returns: { icons: [{ name, set, svg, style }] }. Paste the svg string directly into HTML.
+   - Icons use currentColor so they inherit the parent text color automatically.
+   - style: "outline" for nav/UI chrome, "solid" for emphasis/active states.
+   - WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons BEFORE writing HTML.
+
+Unavailable tools (do NOT attempt to call): writeFiles, editFile, readFile, webSearch, fetchUrl, searchImages, generateColorPalette.
+</available_tools>
+
 <rules>
 1. Use ONLY Tailwind utility classes and CSS custom properties (var(--color-*), var(--font-*), etc.).
 2. Do NOT output <!DOCTYPE>, <html>, <head>, or <body> tags — just the raw <header> and <footer> elements.
 3. The header MUST include inline <script> for mobile hamburger toggle functionality.
-4. Use inline SVG for the hamburger icon (3 horizontal lines) and close icon (X).
+4. Use real SVG icons from the searchIcons tool for the hamburger icon, close icon, and any social icons.
 5. Make sure all navigation links use the exact href values from the navigation spec.
 6. Both components must be fully responsive and mobile-first.
 7. Output NOTHING before <!-- HEADER_START --> and NOTHING after <!-- FOOTER_END -->.

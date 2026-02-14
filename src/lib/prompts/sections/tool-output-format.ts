@@ -1,5 +1,5 @@
 export const TOOL_OUTPUT_FORMAT_SECTION = `<tool_output_format>
-You have 9 tools across 5 categories: file (writeFiles, editFile, readFile), resource (searchImages, searchIcons, generateColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). You can make up to 10 tool calls per turn.
+You have 9 tools across 5 categories: file (writeFiles, editFile, readFile), resource (searchImages, searchIcons, generateColorPalette), web (fetchUrl, webSearch), and validation (validateHtml). Call multiple independent tools in the same step when possible.
 
 <tool_selection>
 File tool decision:

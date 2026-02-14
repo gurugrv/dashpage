@@ -93,7 +93,7 @@ CSS Custom Properties to define in <style>:
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
   --radius: ${designSystem.borderRadius};
-  --transition: all 0.2s ease-in-out;
+  --transition: 0.2s ease-in-out;
 
 Mood: ${designSystem.mood}
 </design_system>`;
@@ -117,7 +117,7 @@ CRITICAL: Use the design system CSS custom properties EVERYWHERE in your markup.
 - Borders: border-[var(--color-primary)], border-[var(--color-surface)]
 - Shadows: shadow-[var(--shadow-sm)], shadow-[var(--shadow-md)], shadow-[var(--shadow-lg)]
 - Radius: rounded-[var(--radius)]
-- Transitions: transition-all duration-200 ease-in-out
+- Transitions: duration-200 ease-in-out (prefer transition-colors, transition-shadow, transition-transform; use transition-all when multiple properties change)
 
 This page is PART OF A MULTI-PAGE SITE. It must feel like it belongs to the same site as every other page — consistent color usage, typography, spacing rhythm, and visual personality across all pages.
 </design_token_usage>
@@ -132,12 +132,12 @@ Sections (generate in this order):
 ${sectionsList}
 </page_spec>
 
-<shared_navigation>
+${hasSharedHeader && hasSharedFooter ? '' : `<shared_navigation>
 Site name: ${blueprint.siteName}
 Navigation links (use in BOTH header and footer):
 ${navLinksSpec}
 Footer tagline: ${sharedComponents.footerTagline}
-</shared_navigation>
+</shared_navigation>`}
 
 <content_strategy>
 Tone: ${contentStrategy.tone}
@@ -150,6 +150,17 @@ ${headerSection}
 
 ${footerSection}
 
+<tool_workflow>
+Call tools BEFORE writing HTML. Parallel calls save steps:
+1. searchImages + searchIcons (parallel) — gather all images and icons for the page sections
+   - Use DIFFERENT queries per image for variety. Choose orientation: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
+   - searchIcons: use "outline" style for UI chrome, "solid" for emphasis
+2. webSearch + fetchUrl (if needed) — for real business info, embed codes (Google Maps, YouTube), or industry-specific content
+3. Output the complete HTML using all gathered resources
+
+If a tool fails: use https://placehold.co/800x400/eee/999?text=Image for images, inline SVG for icons, your own knowledge for web content. Never let a tool failure halt generation.
+</tool_workflow>
+
 <requirements>
 1. Output a COMPLETE <!DOCTYPE html> document.
 ${requirement2}
@@ -157,7 +168,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: searchImages (stock photos — returns { url, alt }), searchIcons (SVG icons — returns { svg }), generateColorPalette (color harmony), fetchUrl (external content). Call resource tools BEFORE writing HTML. File tools (writeFiles, editFile, readFile) and webSearch are NOT available — output the complete HTML directly. Use DIFFERENT image queries per image for variety.
+7. Available tools: searchImages, searchIcons, webSearch, fetchUrl. File tools (writeFiles, editFile, readFile) and generateColorPalette are NOT available.
 </requirements>
 
 Output ONLY the HTML.`;

@@ -52,19 +52,9 @@ Content max-width: max-w-3xl for text (65-75ch readable length)
 NEVER:
 - Use emojis as UI icons (use the searchIcons tool instead)
 - Remove outline without replacement (focus:outline-none alone)
-- Use transition-all (specify properties: transition-colors)
 - Block paste on password fields
 - Use placeholder-only inputs (always add labels)
 - Disable zoom on mobile viewport
-- Animate width/height/top/left (use transform/opacity)
+- Animate width/height/top/left directly (use transform/opacity instead)
 </anti_patterns_critical>
-
-<professional_details>
-- No Lorem ipsum — write realistic, contextual content
-- Navigation: contextually appropriate menu items
-- CTAs: action-specific text ("Book a Call" not "Learn More")
-- Spacing: py-16 md:py-24 minimum between sections
-- Shadows: layered, not flat — creates depth
-- Border radius: consistent token usage (--radius)
-</professional_details>
 </ui_ux_guidelines>`;

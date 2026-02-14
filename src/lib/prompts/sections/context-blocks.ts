@@ -17,7 +17,7 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
 Modify the existing HTML based on the user's request.
 Do NOT start from scratch unless the user explicitly asks for a redesign.
 Do NOT add pages unless the user explicitly asks.
-When adding a page: use editFile to add nav links to existing pages, then writeFiles for the new page only.
+When adding a page: edit existing pages to add nav links, then create the new page file separately.
 </edit_guidance>`;
 }
 
