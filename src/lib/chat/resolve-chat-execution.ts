@@ -1,9 +1,16 @@
+import type { DesignBrief } from '@/lib/design-brief/types';
 import { getSystemPrompt } from '@/lib/prompts/system-prompt';
 import { buildTemporalContext, resolvePreferredTimeZone } from '@/lib/prompts/temporal-context';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { MAX_OUTPUT_CAP } from '@/lib/chat/constants';
 import { ChatRequestError } from '@/lib/chat/errors';
+
+interface DesignBriefInput {
+  brief: DesignBrief;
+  sharedStyles: string;
+  headTags: string;
+}
 
 interface ResolveChatExecutionInput {
   provider: string;
@@ -12,6 +19,7 @@ interface ResolveChatExecutionInput {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   currentFiles?: Record<string, string>;
+  designBriefContext?: DesignBriefInput;
 }
 
 interface ResolvedChatExecution {
@@ -27,6 +35,7 @@ export async function resolveChatExecution({
   savedTimeZone,
   browserTimeZone,
   currentFiles,
+  designBriefContext,
 }: ResolveChatExecutionInput): Promise<ResolvedChatExecution> {
   const apiKey = await resolveApiKey(provider);
   if (!apiKey) {
@@ -44,7 +53,7 @@ export async function resolveChatExecution({
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPrompt = getSystemPrompt(currentFiles, temporalContext);
+  const systemPrompt = getSystemPrompt(currentFiles, temporalContext, designBriefContext);
   const modelInstance = providerConfig.createModel(apiKey, model);
 
   return { modelInstance, maxOutputTokens, systemPrompt };

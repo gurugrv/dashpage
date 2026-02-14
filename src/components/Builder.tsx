@@ -19,8 +19,10 @@ import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-
 import { useBlueprintModelConfig } from '@/features/settings/use-blueprint-model-config';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
 import { useBlueprintGeneration } from '@/hooks/useBlueprintGeneration';
-import type { Blueprint } from '@/lib/blueprint/types';
+import type { Blueprint, BlueprintDesignSystem } from '@/lib/blueprint/types';
+import type { DesignBrief } from '@/lib/design-brief/types';
 import { detectMultiPageIntent } from '@/lib/blueprint/detect-multi-page';
+import { generateSharedStyles } from '@/lib/blueprint/generate-shared-styles';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
@@ -342,6 +344,31 @@ export function Builder() {
         streamingTextRef.current = '';
         setHasPartialMessage(false);
 
+        // Design brief for initial prompt (single-page only)
+        let designBriefContext: { brief: DesignBrief; sharedStyles: string; headTags: string } | undefined;
+        if (!detectMultiPageIntent(promptToSubmit)) {
+          try {
+            const briefRes = await fetch('/api/design-brief/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt: promptToSubmit,
+                provider: effectiveSelectedProvider,
+                model: effectiveSelectedModel,
+                savedTimeZone: getSavedTimeZone(),
+                browserTimeZone: getBrowserTimeZone(),
+              }),
+            });
+            if (briefRes.ok) {
+              const { brief } = await briefRes.json() as { brief: DesignBrief };
+              const { stylesCss, headTags } = generateSharedStyles(brief as unknown as BlueprintDesignSystem);
+              designBriefContext = { brief, sharedStyles: stylesCss, headTags };
+            }
+          } catch (err) {
+            console.warn('Design brief generation failed, continuing without:', err);
+          }
+        }
+
         await sendMessage(
           { text: promptToSubmit },
           {
@@ -353,6 +380,7 @@ export function Builder() {
               savedTimeZone: getSavedTimeZone(),
               browserTimeZone: getBrowserTimeZone(),
               conversationId: conversation.id,
+              designBriefContext,
             },
           },
         );
@@ -415,6 +443,33 @@ export function Builder() {
     const messageText = input;
     setInput('');
 
+    // Design brief: first message (single-page) gets a lightweight design system
+    let designBriefContext: { brief: DesignBrief; sharedStyles: string; headTags: string } | undefined;
+    if (messages.length === 0) {
+      try {
+        const briefRes = await fetch('/api/design-brief/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: messageText,
+            provider: effectiveSelectedProvider,
+            model: effectiveSelectedModel,
+            savedTimeZone: getSavedTimeZone(),
+            browserTimeZone: getBrowserTimeZone(),
+          }),
+        });
+        if (briefRes.ok) {
+          const { brief } = await briefRes.json() as { brief: DesignBrief };
+          // generateSharedStyles expects BlueprintDesignSystem shape (same fields minus tone/primaryCTA)
+          const { stylesCss, headTags } = generateSharedStyles(brief as unknown as BlueprintDesignSystem);
+          designBriefContext = { brief, sharedStyles: stylesCss, headTags };
+        }
+      } catch (err) {
+        // Non-fatal: proceed without brief — the AI will pick its own design
+        console.warn('Design brief generation failed, continuing without:', err);
+      }
+    }
+
     await sendMessage(
       { text: messageText },
       {
@@ -426,6 +481,7 @@ export function Builder() {
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
           conversationId: activeConversationIdRef.current,
+          designBriefContext,
         },
       },
     );
@@ -690,6 +746,15 @@ export function Builder() {
               buildProgress={buildProgress}
               blueprintPhase={blueprintPhase}
               pageStatuses={pageStatuses}
+              blueprintPalette={blueprint?.designSystem ? {
+                primary: blueprint.designSystem.primaryColor,
+                secondary: blueprint.designSystem.secondaryColor,
+                accent: blueprint.designSystem.accentColor,
+                background: blueprint.designSystem.backgroundColor,
+                surface: blueprint.designSystem.surfaceColor,
+                text: blueprint.designSystem.textColor,
+                textMuted: blueprint.designSystem.textMutedColor,
+              } : undefined}
             />
           </Panel>
         </PanelGroup>

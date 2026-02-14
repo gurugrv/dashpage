@@ -8,6 +8,26 @@ import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 import type { ToolActivityEvent } from '@/types/build-progress';
 import { prisma } from '@/lib/db/prisma';
 
+interface DesignBriefBody {
+  brief: {
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+    backgroundColor: string;
+    surfaceColor: string;
+    textColor: string;
+    textMutedColor: string;
+    headingFont: string;
+    bodyFont: string;
+    borderRadius: string;
+    mood: string;
+    tone: string;
+    primaryCTA: string;
+  };
+  sharedStyles: string;
+  headTags: string;
+}
+
 interface ChatRequestBody {
   messages: Array<Omit<UIMessage, 'id'>>;
   currentFiles?: Record<string, string>;
@@ -17,6 +37,7 @@ interface ChatRequestBody {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   conversationId?: string;
+  designBriefContext?: DesignBriefBody;
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
@@ -30,11 +51,10 @@ const TOOL_LABELS: Record<string, string> = {
   writeFiles: 'Writing files',
   editFile: 'Editing file',
   readFile: 'Reading file',
-  searchImages: 'Searching images',
-  searchIcons: 'Searching icons',
-  selectColorPalette: 'Selecting palette',
-  fetchUrl: 'Fetching URL',
-  webSearch: 'Web search',
+  searchImages: 'Adding images',
+  searchIcons: 'Adding icons',
+  fetchUrl: 'Loading content',
+  webSearch: 'Researching content',
   validateHtml: 'Validating HTML',
 };
 
@@ -48,11 +68,6 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       return typeof inp.query === 'string' ? inp.query : undefined;
     case 'searchIcons':
       return typeof inp.query === 'string' ? inp.query : undefined;
-    case 'selectColorPalette': {
-      const mood = Array.isArray(inp.mood) ? (inp.mood as string[]).join(', ') : '';
-      const industry = typeof inp.industry === 'string' ? ` / ${inp.industry}` : '';
-      return mood ? `${mood}${industry}` : undefined;
-    }
     case 'fetchUrl':
       return typeof inp.url === 'string' ? inp.url : undefined;
     case 'writeFiles':
@@ -95,13 +110,11 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
       return undefined;
     }
-    case 'selectColorPalette':
-      return 'Palette selected';
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
     case 'writeFiles': {
-      const files = out.files as Record<string, unknown> | undefined;
-      if (files) return `${Object.keys(files).length} file${Object.keys(files).length !== 1 ? 's' : ''} written`;
+      const fileNames = out.fileNames as string[] | undefined;
+      if (fileNames) return `${fileNames.length} file${fileNames.length !== 1 ? 's' : ''} written`;
       return undefined;
     }
     case 'editFile':
@@ -136,6 +149,7 @@ export async function POST(req: Request) {
     savedTimeZone,
     browserTimeZone,
     conversationId: clientConversationId,
+    designBriefContext,
   } = body;
 
   try {
@@ -146,6 +160,7 @@ export async function POST(req: Request) {
       savedTimeZone,
       browserTimeZone,
       currentFiles,
+      designBriefContext,
     });
 
     const tools = createWebsiteTools(currentFiles ?? {});
@@ -177,6 +192,42 @@ export async function POST(req: Request) {
         let finalFinishReason: FinishReason | undefined;
         const toolCallNames = new Map<string, string>();
 
+        // Track whether file-producing tools were called (for incomplete generation detection)
+        let hasFileOutput = false;
+        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editFile', 'editDOM', 'editFiles']);
+
+        // Tool-aware monotonic progress tracker
+        const TOOL_START_PERCENT: Record<string, number> = {
+          searchImages: 18,
+          searchIcons: 18,
+          webSearch: 18,
+          fetchUrl: 18,
+          readFile: 28,
+          writeFiles: 32,
+          editFile: 32,
+          editDOM: 32,
+          editFiles: 32,
+          validateHtml: 82,
+        };
+        const TOOL_END_PERCENT: Record<string, number> = {
+          searchImages: 28,
+          searchIcons: 28,
+          webSearch: 28,
+          fetchUrl: 28,
+          readFile: 30,
+          writeFiles: 80,
+          editFile: 78,
+          editDOM: 78,
+          editFiles: 78,
+          validateHtml: 92,
+        };
+        let maxPercent = 0;
+
+        function bumpPercent(percent: number): number {
+          if (percent > maxPercent) maxPercent = percent;
+          return maxPercent;
+        }
+
         try {
           for (let segment = 0; segment < MAX_CONTINUATION_SEGMENTS; segment += 1) {
             let segmentText = '';
@@ -196,13 +247,23 @@ export async function POST(req: Request) {
 
               if (!isStreamPart(part)) continue;
 
-              // Text delta: track for debug + progress
+              // Text delta: track for debug + progress (only if detector percent exceeds tool-driven maxPercent)
               if (part.type === 'text-delta' && typeof part.delta === 'string') {
                 debugSession.logDelta(part.delta);
                 segmentText += part.delta;
                 const progress = detector.processDelta(part.delta);
-                if (progress) {
-                  writer.write({ type: 'data-buildProgress', data: progress, transient: true });
+                if (progress && (progress.percent > maxPercent || maxPercent < 5)) {
+                  writer.write({
+                    type: 'data-buildProgress',
+                    data: {
+                      phase: 'generating' as const,
+                      label: progress.label,
+                      file: 'index.html',
+                      percent: bumpPercent(Math.max(progress.percent, 5)),
+                      timestamp: Date.now(),
+                    },
+                    transient: true,
+                  });
                 }
               }
 
@@ -216,12 +277,13 @@ export async function POST(req: Request) {
                 const progressLabels: Record<string, string> = {
                   writeFiles: 'Generating code...',
                   editFile: 'Applying edits...',
+                  editDOM: 'Applying edits...',
+                  editFiles: 'Applying edits...',
                   readFile: 'Reading file...',
-                  searchImages: 'Searching for images...',
-                  searchIcons: 'Searching for icons...',
-                  selectColorPalette: 'Selecting color palette...',
-                  fetchUrl: 'Fetching content...',
-                  webSearch: 'Searching the web...',
+                  searchImages: 'Adding images...',
+                  searchIcons: 'Adding icons...',
+                  fetchUrl: 'Loading content...',
+                  webSearch: 'Researching content...',
                   validateHtml: 'Validating HTML...',
                 };
 
@@ -231,7 +293,7 @@ export async function POST(req: Request) {
                     phase: 'generating' as const,
                     label: progressLabels[toolName] ?? 'Processing...',
                     file: 'index.html',
-                    percent: 15,
+                    percent: bumpPercent(TOOL_START_PERCENT[toolName] ?? maxPercent),
                     timestamp: Date.now(),
                   },
                   transient: true,
@@ -277,9 +339,34 @@ export async function POST(req: Request) {
                 const output = (part as { output?: unknown }).output;
                 debugSession.logToolResult({ toolCallId, output });
 
+                // Track file-producing tool completions
+                if (FILE_PRODUCING_TOOLS.has(toolName)) {
+                  const out = output as Record<string, unknown> | undefined;
+                  if (out && out.success !== false) hasFileOutput = true;
+                }
+
+                const TOOL_END_LABELS: Record<string, string> = {
+                  validateHtml: 'Validation complete',
+                  writeFiles: 'Code generated',
+                  searchImages: 'Images found',
+                  searchIcons: 'Icons found',
+                  webSearch: 'Search complete',
+                  fetchUrl: 'Content fetched',
+                  readFile: 'File read',
+                  editFile: 'Edits applied',
+                  editDOM: 'Edits applied',
+                  editFiles: 'Edits applied',
+                };
+                const endLabel = TOOL_END_LABELS[toolName] ?? 'Processing...';
                 writer.write({
                   type: 'data-buildProgress',
-                  data: { phase: 'generating' as const, label: 'Code generated', file: 'index.html', percent: 90, timestamp: Date.now() },
+                  data: {
+                    phase: 'generating' as const,
+                    label: endLabel,
+                    file: 'index.html',
+                    percent: bumpPercent(TOOL_END_PERCENT[toolName] ?? maxPercent),
+                    timestamp: Date.now(),
+                  },
                   transient: true,
                 });
 
@@ -319,7 +406,16 @@ export async function POST(req: Request) {
 
             finalFinishReason = await result.finishReason;
 
-            if (finalFinishReason !== 'length') {
+            // Auto-continue when:
+            // 1. Output was truncated (finish reason 'length'), OR
+            // 2. Model gathered assets (tool activity) but never produced files —
+            //    common with models that stop early with finish reason 'other'
+            const hadToolActivity = toolCallNames.size > 0;
+            const needsContinuation =
+              finalFinishReason === 'length' ||
+              (finalFinishReason !== 'stop' && hadToolActivity && !hasFileOutput);
+
+            if (!needsContinuation) {
               break;
             }
 
@@ -338,14 +434,15 @@ export async function POST(req: Request) {
           debugSession.finish('complete');
           debugSession.logFullResponse(finalFinishReason);
 
-          // Clean up generation state on successful completion
+          // Send finish immediately so client can update UI without waiting for DB cleanup
+          writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
+
+          // Fire-and-forget: clean up generation state after finish is sent
           if (clientConversationId) {
-            await prisma.generationState.delete({
+            prisma.generationState.delete({
               where: { conversationId: clientConversationId },
             }).catch(() => {});
           }
-
-          writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
         } catch (err: unknown) {
           if (err instanceof Error && err.name === 'AbortError') {
             debugSession.finish('aborted');
