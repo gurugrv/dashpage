@@ -8,6 +8,7 @@ interface ToolPart {
   type: string;
   toolName?: string;
   state?: string;
+  input?: unknown;
   output?: unknown;
 }
 
@@ -45,9 +46,15 @@ function extractFilesFromToolParts(
 
     if (!files) files = { ...baseFiles };
 
-    // writeFiles output: { success: true, files: Record<string, string> }
-    if ('files' in output && typeof output.files === 'object' && output.files !== null) {
-      Object.assign(files, output.files as Record<string, string>);
+    // writeFiles: read file content from tool input (lean output only has fileNames)
+    // Normalize keys: AI may send "index_html" instead of "index.html" — convert underscore-extension to dot
+    const input = part.input as Record<string, unknown> | undefined;
+    if (input && 'files' in input && typeof input.files === 'object' && input.files !== null) {
+      const rawFiles = input.files as Record<string, string>;
+      for (const [key, value] of Object.entries(rawFiles)) {
+        const normalizedKey = key.includes('.') ? key : key.replace(/_([a-z]+)$/, '.$1');
+        files[normalizedKey] = value;
+      }
     }
     // editFile/editDOM output: { success: true|"partial", file: string, content: string }
     else if ('file' in output && 'content' in output) {
