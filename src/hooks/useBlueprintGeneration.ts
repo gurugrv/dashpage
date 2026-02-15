@@ -68,6 +68,25 @@ interface ToolActivitySSEEvent {
 
 type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent;
 
+interface ComponentStatusEvent {
+  type: 'component-status';
+  status: 'generating' | 'complete' | 'error';
+  headerHtml?: string;
+  footerHtml?: string;
+  error?: string;
+}
+
+interface ComponentToolActivityEvent {
+  type: 'tool-activity';
+  toolCallId: string;
+  toolName: string;
+  status: 'running' | 'done' | 'error';
+  label: string;
+  detail?: string;
+}
+
+type ComponentSSEEvent = ComponentStatusEvent | ComponentToolActivityEvent;
+
 export function useBlueprintGeneration({
   resolveStepModel,
   savedTimeZone,
@@ -81,6 +100,7 @@ export function useBlueprintGeneration({
   const [headerHtml, setHeaderHtml] = useState<string | null>(null);
   const [footerHtml, setFooterHtml] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [componentToolActivities, setComponentToolActivities] = useState<PageToolActivity[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
@@ -103,6 +123,7 @@ export function useBlueprintGeneration({
     setHeaderHtml(null);
     setFooterHtml(null);
     setRetryAttempt(0);
+    setComponentToolActivities([]);
     filesAccumulatorRef.current = {};
     sharedStylesRef.current = null;
   }, []);
@@ -162,6 +183,7 @@ export function useBlueprintGeneration({
 
     setPhase('generating-components');
     setError(null);
+    setComponentToolActivities([]);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -184,10 +206,68 @@ export function useBlueprintGeneration({
         throw new Error(data.error || 'Components generation failed');
       }
 
-      const data = await response.json();
-      setHeaderHtml(data.headerHtml);
-      setFooterHtml(data.footerHtml);
-      return { headerHtml: data.headerHtml, footerHtml: data.footerHtml };
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let result: { headerHtml: string; footerHtml: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr) as ComponentSSEEvent;
+
+            if (event.type === 'tool-activity') {
+              setComponentToolActivities((prev) => {
+                const idx = prev.findIndex((a) => a.toolCallId === event.toolCallId);
+                const entry: PageToolActivity = {
+                  toolCallId: event.toolCallId,
+                  toolName: event.toolName,
+                  status: event.status,
+                  label: event.label,
+                  detail: event.detail,
+                };
+                if (idx >= 0) {
+                  const next = [...prev];
+                  next[idx] = entry;
+                  return next;
+                }
+                return [...prev, entry];
+              });
+            } else if (event.type === 'component-status') {
+              if (event.status === 'complete' && event.headerHtml && event.footerHtml) {
+                result = { headerHtml: event.headerHtml, footerHtml: event.footerHtml };
+                setHeaderHtml(event.headerHtml);
+                setFooterHtml(event.footerHtml);
+                setComponentToolActivities([]);
+              } else if (event.status === 'error') {
+                throw new Error(event.error || 'Components generation failed');
+              }
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== 'Components generation failed' && !parseErr.message.startsWith('Failed to generate')) {
+              // Skip malformed SSE JSON, but re-throw component errors
+              continue;
+            }
+            throw parseErr;
+          }
+        }
+      }
+
+      return result;
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return null;
       setError(err instanceof Error ? err.message : 'Components generation failed');
@@ -479,6 +559,7 @@ export function useBlueprintGeneration({
     headerHtml,
     footerHtml,
     retryAttempt,
+    componentToolActivities,
     generateBlueprint,
     generatePages,
     approveAndGenerate,
