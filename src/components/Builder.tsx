@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import { useChat } from '@ai-sdk/react';
@@ -29,43 +29,30 @@ import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 import type { BuildProgressData, ToolActivityEvent } from '@/types/build-progress';
 
-/** Split text parts of a message into preface (before first tool) and summary (after last tool). */
-function splitTextAroundTools(parts: UIMessage['parts']): { preface: string; summary: string } {
+/** Split text parts of a message into preface (before first tool) and summary (after last tool).
+ *  Single-pass: accumulates text into buckets, moving post-tool text into summary on each tool hit. */
+function splitTextAroundTools(parts: UIMessage['parts']): { preface: string; summary: string; hasTools: boolean } {
   let preface = '';
-  let summary = '';
-  let lastToolIndex = -1;
+  let postToolText = '';
+  let hasTools = false;
 
-  // Find the index of the last tool part
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type.startsWith('tool-')) {
-      lastToolIndex = i;
-    }
-  }
-
-  if (lastToolIndex === -1) {
-    // No tool parts — all text is preface
-    for (const part of parts) {
-      if (typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type === 'text') {
-        preface += (part as { text: string }).text;
-      }
-    }
-    return { preface: preface.trim(), summary: '' };
-  }
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
+  for (const part of parts) {
     if (typeof part !== 'object' || part === null || !('type' in part)) continue;
     const typed = part as { type: string; text?: string };
-    if (typed.type !== 'text') continue;
-    if (i <= lastToolIndex) {
-      preface += typed.text ?? '';
-    } else {
-      summary += typed.text ?? '';
+    if (typed.type.startsWith('tool-')) {
+      hasTools = true;
+      // Any text accumulated after a previous tool is not the final summary — discard into preface
+      postToolText = '';
+    } else if (typed.type === 'text') {
+      if (!hasTools) {
+        preface += typed.text ?? '';
+      } else {
+        postToolText += typed.text ?? '';
+      }
     }
   }
 
-  return { preface: preface.trim(), summary: summary.trim() };
+  return { preface: preface.trim(), summary: postToolText.trim(), hasTools };
 }
 
 const chatTransport = new DefaultChatTransport({ api: '/api/chat' });
@@ -219,10 +206,10 @@ export function Builder() {
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
-  const displayMessages: UIMessage[] = messages.flatMap((message, index) => {
+  const displayMessages: UIMessage[] = useMemo(() => messages.flatMap((message, index) => {
     if (message.role !== 'assistant') return [message];
 
-    const { preface, summary } = splitTextAroundTools(message.parts);
+    const { preface, summary, hasTools } = splitTextAroundTools(message.parts);
     const isLastMessage = index === messages.length - 1;
     const isCurrentlyStreaming = isLastMessage && isLoading;
 
@@ -236,10 +223,7 @@ export function Builder() {
     }
 
     if (!isCurrentlyStreaming) {
-      const hasToolParts = message.parts.some(
-        (p) => typeof p === 'object' && p !== null && 'type' in p && (p as { type: string }).type.startsWith('tool-'),
-      );
-      const completionText = summary || (hasToolParts ? ARTIFACT_COMPLETION_MESSAGE : '');
+      const completionText = summary || (hasTools ? ARTIFACT_COMPLETION_MESSAGE : '');
       if (completionText && completionText !== preface) {
         output.push({
           ...message,
@@ -251,7 +235,7 @@ export function Builder() {
 
     if (output.length > 0) return output;
     return [];
-  });
+  }), [messages, isLoading]);
 
   const { savePartial } = useStreamingPersistence({
     currentFiles,
