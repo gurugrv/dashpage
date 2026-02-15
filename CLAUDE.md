@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-AI Builder - a simplified AI-powered website builder where users create websites by prompting. Generates single self-contained HTML pages (with Tailwind CDN, inline CSS/JS) rendered in an interactive iframe. No WebContainer, no file system, no code editor. Core loop: **prompt -> generate -> preview -> iterate**.
+AI Builder - a simplified AI-powered website builder where users create websites by prompting. Uses AI tool calls (writeFiles, editDOM, editFiles) to generate self-contained HTML pages (Tailwind CDN, inline CSS/JS) rendered in an interactive iframe. Supports single-page chat mode and multi-page blueprint mode. Core loop: **prompt -> generate -> preview -> iterate**.
+
+**Design philosophy:** Generated websites must be beautiful, creative, and aesthetically pleasing with a "wow" effect. Avoid generic or template-like output - every site should feel distinctive and polished with thoughtful typography, color, spacing, and visual hierarchy.
 
 ## Commands
 
@@ -31,39 +33,69 @@ No test framework is configured (no Jest/Vitest/Playwright).
 
 **Path alias:** `@/*` maps to `./src/*`
 
-### Data Flow
+### Two Generation Modes
+
+**Chat mode** (single-page) - Conversational prompt-and-iterate. AI uses tools to generate/edit one HTML file. Route: `POST /api/chat`.
+
+**Blueprint mode** (multi-page) - Structured planning then parallel page generation. AI generates a Blueprint JSON (site structure, design system, pages), user reviews/edits it, then pages are generated in parallel. Routes: `POST /api/blueprint/{generate,components,pages}`.
+
+### Data Flow (Chat Mode)
 
 ```
 User prompt -> Builder.handleSubmit() -> useChat.sendMessage()
   -> POST /api/chat -> resolveChatExecution() (resolve provider/model/key + build system prompt)
-  -> streamText() -> createUIMessageStream() SSE stream
-  -> Client parse priority in useHtmlParser:
-     1) <editOperations> extraction + applyEditOperations()
-     2) JSON with files map
-     3) <htmlOutput> fallback extraction
+  -> Tool set selection: fileCount === 1 ? createSinglePageTools() : createWebsiteTools()
+  -> streamText() with tools -> createUIMessageStream() SSE stream
+  -> Client useHtmlParser extraction priority:
+     1) Tool output parts (writeFiles input, editDOM/editFiles output)
+     2) Streaming code detection (live writeFiles input preview)
+     3) Text-based HTML extraction (fallback if no tools invoked)
   -> ProjectFiles update -> iframe preview
   -> onFinish: sanitize + split (preface/summary) + persist assistant message + htmlArtifact
-  -> if finishReason === 'length': auto-continue loop (max 3 segments, handled server-side in route)
+  -> if finishReason === 'length': auto-continue loop (max 3 segments, server-side)
   -> if interrupted/unload: POST /api/conversations/[id]/messages/partial
 ```
 
+### Tool System
+
+AI generates HTML via tool calls, not raw text output. Two tool sets selected dynamically:
+
+**`createWebsiteTools()`** - Full set for new sites / multi-page:
+- `writeFiles` - Create/rewrite complete HTML files (returns only fileNames for lean output)
+- `editDOM` - CSS selector-based DOM manipulation via Cheerio (setAttribute, setText, setHTML, addClass, removeClass, replaceClass, remove, insertAdjacentHTML)
+- `editFiles` - Combined DOM + search/replace per file with 5-tier matching (exact → whitespace-tolerant → token-based → fuzzy ≥85% → auto-correct ≥75%)
+- `readFile` - Read file contents before editing
+- `searchImages` - Batch photo search (Pexels)
+- `searchIcons` - Batch SVG icon search
+- `fetchUrl` - Fetch/parse web content (blocks localhost/private IPs)
+- `webSearch` - Research via Brave (primary) / Tavily (fallback)
+
+**`createSinglePageTools()`** - Minimal set for single-page edits:
+- `editDOM` + resource tools + web tools (no writeFiles/editFiles/readFile)
+
+Tools defined in `src/lib/chat/tools/` - each file exports a factory function. Combined in `src/lib/chat/tools/index.ts`.
+
 ### Key Patterns
 
-**ProjectFiles type** - `Record<string, string>` used everywhere instead of raw HTML strings. V1 always uses `{ "index.html": "..." }`. Future-proofs for multi-file projects.
+**Tool-based generation** - AI must call tools (writeFiles, editDOM, editFiles) to produce HTML. No fallback for text-only responses (no tool calls = empty preview). Client parser (`useHtmlParser`) extracts files from tool output parts only. System prompt defines tool workflows in `src/lib/prompts/sections/tool-output-format.ts`.
 
-**Closure safety via refs** - Builder uses refs (`currentFilesRef`, `activeConversationIdRef`, `partialSavedRef`) synced in useEffect. The `onFinish` callback reads from refs, not state, to avoid stale closures in async callbacks. This is critical - always use refs when accessing current values inside `onFinish` or similar callbacks.
+**ProjectFiles type** - `Record<string, string>` used everywhere. V1 single-page uses `{ "index.html": "..." }`. Multi-page blueprint mode uses multiple file keys.
 
-**Message splitting** - Assistant responses are split into "preface" (explanation before artifact) and "summary" (after artifact) for cleaner display. Both are persisted as separate DB messages. `htmlArtifact` (JSON ProjectFiles snapshot) stored only on artifact-containing messages.
+**Closure safety via refs** - Builder uses refs (`currentFilesRef`, `activeConversationIdRef`, `partialSavedRef`) synced in useEffect. The `onFinish` callback reads from refs, not state, to avoid stale closures. Always use refs when accessing current values inside `onFinish` or similar async callbacks.
 
-**Edit operations with fallback** - Edit operations are applied atomically. If any single operation fails (exact match then normalized match both miss), the entire apply fails and `editFailed` flag signals Builder to request a full HTML replacement instead.
+**Message splitting** - Assistant responses split into "preface" (before artifact) and "summary" (after artifact). Both persisted as separate DB messages. `htmlArtifact` (JSON ProjectFiles snapshot) stored only on artifact-containing messages.
 
-**Auto-continue** - Dual-level: server-side loop in `/api/chat` route appends assistant + continue prompt and re-requests (up to 3 segments); client-side `useAutoContinue` hook enables manual continue button if needed.
+**Edit operations with fallback** - Edit operations applied atomically. If any operation fails (after all 5 tiers), the entire apply fails and `editFailed` flag signals Builder to request a full HTML replacement.
 
-**System prompt composition** - Built dynamically from modular sections: base rules, UI/UX guidelines, output format, timezone context, and conditionally: first-generation instructions OR current website context + edit mode instructions.
+**Auto-continue** - Server-side loop in `/api/chat` appends assistant + continue prompt and re-requests (up to 3 segments). Client-side `useAutoContinue` hook enables manual continue button if needed. Degenerate loop detection tracks previous segment text to avoid repeats.
 
-**iframe sandboxing** - Uses `sandbox="allow-scripts allow-forms allow-same-origin"`. The `allow-same-origin` is required for reliable external resource loading (Google Fonts, CDNs). A CSP meta tag (`connect-src https: data: blob:`) is injected into preview HTML to mitigate security impact by blocking same-origin HTTP fetch/XHR to the parent's API routes.
+**System prompt composition** - Modular sections in `src/lib/prompts/sections/`: base-rules, ui-ux-guidelines, design-quality, tool-output-format (two variants: single-page vs full), context-blocks. Assembled dynamically with conditional first-gen vs edit-mode instructions.
 
-**Partial message persistence** - `use-streaming-persistence` auto-saves incomplete generations on stop/page unload. On resume, `isPartial: true` messages are detected and surfaced in UI.
+**iframe sandboxing** - `sandbox="allow-scripts allow-forms allow-same-origin"`. CSP meta tag (`connect-src https: data: blob:`) injected to block same-origin API requests.
+
+**Partial message persistence** - `use-streaming-persistence` auto-saves incomplete generations on stop/page unload. `isPartial: true` messages detected on resume.
+
+**Build progress tracking** - `BuildProgressDetector` detects HTML landmarks via regex and emits phase/percent events. `useBuildProgress` hook tracks phases (explaining → html-started → styles → content → complete) and tool activity. UI in `BuildProgress.tsx`.
 
 ### Source Layout
 
@@ -71,43 +103,55 @@ User prompt -> Builder.handleSubmit() -> useChat.sendMessage()
 - `src/components/Builder.tsx` - Main orchestrator: wires useChat + sidebar + panels + settings
 - `src/components/PreviewPanel.tsx` - Interactive iframe with device toggles + download
 - `src/components/PromptPanel.tsx` - Chat messages + input + model selector
+- `src/components/BuildProgress.tsx` - Streaming build progress with tool activity log
 - `src/components/ConversationSidebar.tsx` - Multi-conversation management (drawer on mobile)
-- `src/lib/providers/registry.ts` - Provider registry: each config has `createModel()` factory, `staticModels`, `fetchModels()` async
-- `src/lib/providers/{openrouter,anthropic,google,openai}.ts` - Individual provider configs
-- `src/lib/prompts/system-prompt.ts` - Modular system prompt builder with conditional sections
-- `src/lib/parser/html-extractor.ts` - Streaming `<htmlOutput>` tag parser (fallback strategy)
-- `src/lib/parser/edit-operations/` - `edit-stream-extractor.ts` (XML parsing), `apply-edit-operations.ts` (search/replace with normalized fallback), `types.ts`
-- `src/lib/parser/output-parser.ts` - Zod schema/types for structured output contracts
-- `src/lib/search/` - Web search clients: `brave.ts` (primary), `tavily.ts` (fallback), `types.ts` (shared types)
-- `src/lib/chat/tools/search-tools.ts` - `webSearch` tool definition with Brave-primary, Tavily-fallback
+- `src/lib/chat/tools/` - Tool factories: `file-tools.ts`, `image-tools.ts`, `icon-tools.ts`, `web-tools.ts`, `search-tools.ts`, `index.ts`
+- `src/lib/providers/registry.ts` - Imports all provider configs, exports `PROVIDERS` record
+- `src/lib/providers/configs/` - Individual provider configs (openrouter, anthropic, google, openai, deepinfra, minimax, moonshot, zai)
+- `src/lib/prompts/system-prompt.ts` - Modular system prompt builder
+- `src/lib/prompts/sections/` - Prompt sections: base-rules, ui-ux-guidelines, design-quality, tool-output-format, context-blocks
+- `src/lib/parser/html-extractor.ts` - Streaming `<htmlOutput>` tag parser (legacy fallback)
+- `src/lib/parser/edit-operations/` - `apply-edit-operations.ts` (5-tier search/replace), `apply-dom-operations.ts` (Cheerio-based DOM ops), `edit-stream-extractor.ts`, `types.ts`
+- `src/lib/parser/validate-artifact.ts` - Validates persistable HTML artifacts
+- `src/lib/stream/build-progress-detector.ts` - HTML landmark detection + percent calculation
+- `src/lib/blueprint/` - Blueprint system: `types.ts`, `detect-multi-page.ts`, `repair-json.ts`, `generate-shared-styles.ts`, `stream-utils.ts`
+- `src/lib/blueprint/prompts/` - Blueprint-specific prompts: `blueprint-system-prompt.ts`, `page-system-prompt.ts`, `components-system-prompt.ts`
+- `src/lib/search/` - Web search clients: `brave.ts` (primary), `tavily.ts` (fallback)
 - `src/lib/keys/key-manager.ts` - AES-256-CBC encryption for DB-stored API keys
-- `src/hooks/useHtmlParser.ts` - Parse priority chain: edit ops -> JSON files -> html tags. Tracks `currentFiles` (live) vs `lastValidFiles` (completed snapshot)
+- `src/hooks/useHtmlParser.ts` - Parse priority: tool parts → streaming code → text HTML. Tracks `currentFiles` (live) vs `lastValidFiles` (completed)
+- `src/hooks/useBuildProgress.ts` - Build progress + tool activity tracking
 - `src/hooks/useAutoContinue.ts` - Client-side auto-continue tracking
 - `src/hooks/useConversations.ts` - CRUD for conversation sidebar
 - `src/hooks/useModels.ts` - Fetches + caches available models per provider
-- `src/features/builder/hooks/use-streaming-persistence.ts` - Persist partial responses on stop/unload
-- `src/features/builder/hooks/use-conversation-actions.ts` - Hydrates messages/files when switching conversations
-- `src/features/builder/hooks/use-model-selection.ts` - Provider/model selection with fallback resolution
-- `src/features/settings/` - API key management UI + `use-provider-keys.ts` hook
-- `src/features/prompt/` - Prompt panel sub-components (message list, error/interrupted banners)
-- `src/features/preview/` - Preview panel sub-components (empty state, toolbar, loading overlay)
+- `src/features/builder/hooks/` - `use-streaming-persistence.ts`, `use-conversation-actions.ts`, `use-model-selection.ts`
+- `src/features/blueprint/` - Blueprint UI: `blueprint-card.tsx`, `font-picker.tsx`, `page-progress.tsx`
+- `src/features/settings/` - API key management UI + `use-provider-keys.ts`
+- `src/features/prompt/` - Prompt panel sub-components
+- `src/features/preview/` - Preview panel sub-components
 
 ### API Routes
 
-- `POST /api/chat` - Streaming chat via `streamText()` + auto-continue loop (up to 3 segments)
+- `POST /api/chat` - Streaming chat with tools + auto-continue loop (up to 3 segments)
 - `POST /api/chat/continue` - Manual continue for truncated generations
+- `POST /api/blueprint/generate` - Generate blueprint JSON from prompt (structured output)
+- `POST /api/blueprint/components` - Generate shared components (header/footer) from blueprint
+- `POST /api/blueprint/pages` - Generate individual pages from blueprint (max 3 concurrent)
+- `GET /api/blueprint/[conversationId]` - Fetch saved blueprint
 - `GET /api/models` - Lists available models per configured provider
 - `GET|POST /api/conversations` - List/create conversations
 - `GET|PATCH|DELETE /api/conversations/[id]` - Single conversation CRUD
 - `GET|POST /api/conversations/[id]/messages` - Messages for a conversation
 - `POST /api/conversations/[id]/messages/partial` - Persist partial assistant output
+- `GET|DELETE /api/conversations/[id]/generation-state` - Blueprint generation state
 - `GET|POST|DELETE /api/keys` - API key management (encrypted storage)
 
 ### Database
 
-PostgreSQL via Docker (`docker-compose.yml`: postgres:17, credentials builder/builder, db ai_builder). Prisma 7 with `@prisma/adapter-pg` driver adapter. Generated client at `src/generated/prisma/` (gitignored). Schema at `prisma/schema.prisma`. Three models:
-- `Conversation` - title, timestamps
+PostgreSQL via Docker (`docker-compose.yml`: postgres:17, credentials builder/builder, db ai_builder). Prisma 7 with `@prisma/adapter-pg` driver adapter. Generated client at `src/generated/prisma/` (gitignored). Schema at `prisma/schema.prisma`. Five models:
+- `Conversation` - title, provider, model, timestamps
 - `Message` - role, content, `htmlArtifact` (JSON ProjectFiles), `isPartial` flag
+- `Blueprint` - conversationId (unique), data (JSON blueprint spec)
+- `GenerationState` - conversationId (unique), mode (chat/blueprint), phase, autoSegment, blueprintId, componentHtml, sharedStyles, completedPages, pageStatuses
 - `ApiKey` - provider (unique), encryptedKey
 
 ## Environment
