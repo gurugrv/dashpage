@@ -6,7 +6,7 @@ import { sanitizeFontsInHtml } from '@/lib/fonts';
  * index.html always comes first.
  */
 export function getHtmlPages(files: ProjectFiles): string[] {
-  const pages = Object.keys(files).filter(f => f.endsWith('.html'));
+  const pages = Object.keys(files).filter(f => f.endsWith('.html') && !f.startsWith('_components/'));
   pages.sort((a, b) => {
     if (a === 'index.html') return -1;
     if (b === 'index.html') return 1;
@@ -23,8 +23,15 @@ export function getHtmlPages(files: ProjectFiles): string[] {
  * - Single-file projects pass through unchanged
  */
 export function combineForPreview(files: ProjectFiles, activePage = 'index.html'): string {
-  const raw = files[activePage];
+  let raw = files[activePage];
   if (!raw) return '';
+
+  // Inject shared components: replace <!-- @component:X --> with _components/X.html content
+  for (const [filename, content] of Object.entries(files)) {
+    if (!filename.startsWith('_components/')) continue;
+    const componentName = filename.replace('_components/', '').replace('.html', '');
+    raw = raw.replace(`<!-- @component:${componentName} -->`, content);
+  }
 
   // Validate font names against the full Google Fonts catalog before rendering
   const html = sanitizeFontsInHtml(raw);
