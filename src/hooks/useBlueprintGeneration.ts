@@ -112,18 +112,80 @@ export function useBlueprintGeneration({
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
+  const streamingCodeRafRef = useRef<number>(0);
+  const toolActivityRafRef = useRef<number>(0);
+  const pendingToolActivitiesRef = useRef<ToolActivitySSEEvent[]>([]);
 
   const MAX_PAGE_RETRIES = 1;
+
+  /** Cancel any pending RAF handles without flushing state */
+  const cancelPendingRafs = useCallback(() => {
+    if (streamingCodeRafRef.current) {
+      cancelAnimationFrame(streamingCodeRafRef.current);
+      streamingCodeRafRef.current = 0;
+    }
+    if (toolActivityRafRef.current) {
+      cancelAnimationFrame(toolActivityRafRef.current);
+      toolActivityRafRef.current = 0;
+    }
+    pendingToolActivitiesRef.current = [];
+  }, []);
+
+  /** Synchronously flush any pending RAF state updates (for use before completion) */
+  const flushPendingRafs = useCallback(() => {
+    // Flush streaming code
+    if (streamingCodeRafRef.current) {
+      cancelAnimationFrame(streamingCodeRafRef.current);
+      streamingCodeRafRef.current = 0;
+      const values = Object.values(blueprintStreamingCodeRef.current);
+      setBlueprintStreamingCode(values.length > 0 ? values[values.length - 1] : null);
+    }
+    // Flush tool activities
+    if (toolActivityRafRef.current) {
+      cancelAnimationFrame(toolActivityRafRef.current);
+      toolActivityRafRef.current = 0;
+      const pending = pendingToolActivitiesRef.current;
+      pendingToolActivitiesRef.current = [];
+      if (pending.length > 0) {
+        setPageStatuses((prev) => {
+          let next = prev;
+          for (const evt of pending) {
+            next = next.map((ps) => {
+              if (ps.filename !== evt.filename) return ps;
+              const activities = [...(ps.toolActivities ?? [])];
+              const idx = activities.findIndex((a) => a.toolCallId === evt.toolCallId);
+              const entry: PageToolActivity = {
+                toolCallId: evt.toolCallId,
+                toolName: evt.toolName,
+                status: evt.status,
+                label: evt.label,
+                detail: evt.detail,
+              };
+              if (idx >= 0) {
+                activities[idx] = entry;
+              } else {
+                activities.push(entry);
+              }
+              return { ...ps, toolActivities: activities };
+            });
+          }
+          return next;
+        });
+      }
+    }
+  }, []);
 
   const cancel = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    cancelPendingRafs();
     setPhase('idle');
-  }, []);
+  }, [cancelPendingRafs]);
 
   const reset = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    cancelPendingRafs();
     setPhase('idle');
     setBlueprint(null);
     setPageStatuses([]);
@@ -132,9 +194,11 @@ export function useBlueprintGeneration({
     setFooterHtml(null);
     setRetryAttempt(0);
     setComponentToolActivities([]);
+    setBlueprintStreamingCode(null);
     filesAccumulatorRef.current = {};
+    blueprintStreamingCodeRef.current = {};
     sharedStylesRef.current = null;
-  }, []);
+  }, [cancelPendingRafs]);
 
   const generateBlueprint = useCallback(async (prompt: string, conversationId: string) => {
     const stepModel = resolveStepModel('planning');
@@ -390,29 +454,49 @@ export function useBlueprintGeneration({
             if (event.type === 'code-delta') {
               const perPage = blueprintStreamingCodeRef.current;
               perPage[event.filename] = (perPage[event.filename] ?? '') + event.delta;
-              // Show the most recent generating page's code
-              setBlueprintStreamingCode(perPage[event.filename]);
+              // RAF-throttle: accumulate in ref, flush state at most once per frame
+              if (!streamingCodeRafRef.current) {
+                streamingCodeRafRef.current = requestAnimationFrame(() => {
+                  streamingCodeRafRef.current = 0;
+                  const values = Object.values(blueprintStreamingCodeRef.current);
+                  setBlueprintStreamingCode(values.length > 0 ? values[values.length - 1] : null);
+                });
+              }
             } else if (event.type === 'tool-activity') {
-              setPageStatuses((prev) =>
-                prev.map((ps) => {
-                  if (ps.filename !== event.filename) return ps;
-                  const activities = [...(ps.toolActivities ?? [])];
-                  const idx = activities.findIndex((a) => a.toolCallId === event.toolCallId);
-                  const entry: PageToolActivity = {
-                    toolCallId: event.toolCallId,
-                    toolName: event.toolName,
-                    status: event.status,
-                    label: event.label,
-                    detail: event.detail,
-                  };
-                  if (idx >= 0) {
-                    activities[idx] = entry;
-                  } else {
-                    activities.push(entry);
-                  }
-                  return { ...ps, toolActivities: activities };
-                }),
-              );
+              // Queue tool-activity events and flush in a single RAF callback
+              pendingToolActivitiesRef.current.push(event);
+              if (!toolActivityRafRef.current) {
+                toolActivityRafRef.current = requestAnimationFrame(() => {
+                  toolActivityRafRef.current = 0;
+                  const pending = pendingToolActivitiesRef.current;
+                  pendingToolActivitiesRef.current = [];
+                  if (pending.length === 0) return;
+                  setPageStatuses((prev) => {
+                    let next = prev;
+                    for (const evt of pending) {
+                      next = next.map((ps) => {
+                        if (ps.filename !== evt.filename) return ps;
+                        const activities = [...(ps.toolActivities ?? [])];
+                        const idx = activities.findIndex((a) => a.toolCallId === evt.toolCallId);
+                        const entry: PageToolActivity = {
+                          toolCallId: evt.toolCallId,
+                          toolName: evt.toolName,
+                          status: evt.status,
+                          label: evt.label,
+                          detail: evt.detail,
+                        };
+                        if (idx >= 0) {
+                          activities[idx] = entry;
+                        } else {
+                          activities.push(entry);
+                        }
+                        return { ...ps, toolActivities: activities };
+                      });
+                    }
+                    return next;
+                  });
+                });
+              }
             } else if (event.type === 'page-status') {
               setPageStatuses((prev) =>
                 prev.map((ps) =>
@@ -441,6 +525,8 @@ export function useBlueprintGeneration({
                 filesAccumulatorRef.current[event.filename] = event.html;
               }
             } else if (event.type === 'pipeline-status' && event.status === 'complete') {
+              // Flush any pending RAF updates so final state is consistent
+              flushPendingRafs();
               // Merge shared styles.css into files if available
               let files = { ...filesAccumulatorRef.current };
               if (sharedStylesRef.current) {
@@ -493,7 +579,7 @@ export function useBlueprintGeneration({
       setError(err instanceof Error ? err.message : 'Page generation failed');
       setPhase('error');
     }
-  }, [blueprint, resolveStepModel, onFilesReady]);
+  }, [blueprint, resolveStepModel, onFilesReady, flushPendingRafs]);
 
   const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
 
