@@ -3,11 +3,11 @@
 
 export const UI_UX_GUIDELINES_SECTION = `<ui_ux_guidelines>
 <industry_colors>
-Use the industry as inspiration, but generate unique custom hex values every time (NOT generic purple/blue):
+Use the industry as inspiration, generate unique custom HSL values every time:
 - SaaS/B2B: Trust-evoking blues or teals with an energetic CTA accent
-- Healthcare/Medical: Calm, clean tones — cyans, sage greens, or soft blues
+- Healthcare/Medical: Calm tones — cyans, sage greens, soft blues
 - Fintech/Banking: Deep authoritative tones with warm metallic accents
-- Beauty/Spa/Wellness: Soft warm tones — rose, sage, champagne, or lavender
+- Beauty/Spa/Wellness: Soft warm tones — rose, sage, champagne, lavender
 - E-commerce: Confidence-building greens or warm urgency tones for CTAs
 - Restaurant/Food: Appetizing warm colors — terracotta, amber, olive, burgundy
 - Legal/Consulting: Deep authoritative tones with understated elegance
@@ -15,25 +15,11 @@ Use the industry as inspiration, but generate unique custom hex values every tim
 - Education: Approachable and clear — balanced warm/cool with progress indicators
 </industry_colors>
 
-<interaction_essentials>
-CRITICAL: Every interactive element must have:
-1. cursor-pointer class
-2. Hover feedback (color, shadow, or scale)
-3. Smooth transition: duration-200 or duration-300
-4. Visible focus state: focus-visible:ring-2 focus-visible:ring-primary
-
-Touch targets: minimum 44x44px (min-h-[44px] min-w-[44px])
-Animations: 150-300ms for micro-interactions, never >500ms for UI
-Respect prefers-reduced-motion for accessibility
-</interaction_essentials>
-
 <accessibility_rules>
-- Text contrast: minimum 4.5:1 ratio (use contrast checker)
-- Form inputs: ALWAYS have associated labels
-- Icon buttons: aria-label required
-- Images: meaningful alt text
-- Keyboard navigation: all features accessible via Tab/Enter
-- Focus rings: visible 3-4px on interactive elements
+- All interactive elements: cursor-pointer, hover feedback, smooth transition (duration-200/300), focus-visible:ring-2
+- Touch targets: minimum 44x44px. Animations: 150-300ms, never >500ms. Respect prefers-reduced-motion.
+- Text contrast: minimum 4.5:1 ratio. Form inputs: ALWAYS have labels. Icon buttons: aria-label required.
+- Images: meaningful alt text. Keyboard navigation: all features via Tab/Enter.
 </accessibility_rules>
 
 <layout_patterns>
