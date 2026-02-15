@@ -259,7 +259,7 @@ export function createDebugSession(params: {
       timing.inputSizeBytes += delta.length;
 
       // For file-producing tools, show periodic size progress instead of full code
-      if (timing.toolName === 'writeFile' || timing.toolName === 'writeFiles' || timing.toolName === 'editDOM') {
+      if (timing.toolName === 'writeFile' || timing.toolName === 'writeFiles' || timing.toolName === 'editBlock') {
         const prevSize = timing.inputSizeBytes - delta.length;
         const PROGRESS_INTERVAL = 4096; // Log every 4KB
         const prevBucket = Math.floor(prevSize / PROGRESS_INTERVAL);
@@ -297,7 +297,7 @@ export function createDebugSession(params: {
           if (timing) timing.inputSizeBytes = totalBytes;
           inputSizeInfo = `\n${dimPrefix()}  File sizes: ${fileSizes.join(', ')} (total: ${formatBytes(totalBytes)})`;
         } else if ('html' in inp && typeof inp.html === 'string') {
-          // editDOM
+          // editBlock
           const bytes = new TextEncoder().encode(inp.html).length;
           if (timing) timing.inputSizeBytes = bytes;
           inputSizeInfo = `\n${dimPrefix()}  HTML size: ${formatBytes(bytes)}`;
@@ -428,7 +428,7 @@ export function createDebugSession(params: {
       if (!hasFileOutput && toolCallCount > 0) {
         parts.push(`${prefix()}`);
         parts.push(`${prefix()}\x1b[31m⚠ WARNING: Tools were called but no file output was produced!${RESET}`);
-        parts.push(`${dimPrefix()}  This usually means the model used tools (search, etc.) but never called writeFile/writeFiles/editDOM/editFiles.`);
+        parts.push(`${dimPrefix()}  This usually means the model used tools (search, etc.) but never called writeFile/writeFiles/editBlock/editFiles.`);
       }
       if (!hasFileOutput && toolCallCount === 0) {
         parts.push(`${prefix()}`);

@@ -69,18 +69,33 @@ export function extractNavLinks(html: string): string[] {
   return links;
 }
 
-interface SectionEntry {
-  selector: string;
+interface BlockEntry {
+  id: string;        // data-block value
+  tag: string;       // nav, section, footer, etc.
+  component?: string; // component name if this is a placeholder
   summary: string;
-  navLinks?: string[];
 }
 
 /**
- * Extract structural sections (nav, header, section, footer, aside, main)
- * with their IDs/classes and a short content summary.
+ * Extract blocks from HTML: elements with data-block attributes and component placeholders.
  */
-export function extractSections(html: string): SectionEntry[] {
-  const sections: SectionEntry[] = [];
+export function extractBlocks(html: string, componentNames: Set<string>): BlockEntry[] {
+  const blocks: BlockEntry[] = [];
+
+  // Check for component placeholders: <!-- @component:X -->
+  const placeholderRe = /<!-- @component:(\S+) -->/g;
+  let placeholderMatch;
+  while ((placeholderMatch = placeholderRe.exec(html)) !== null) {
+    const compName = placeholderMatch[1];
+    blocks.push({
+      id: compName,
+      tag: 'component',
+      component: compName,
+      summary: `(shared component — edit _components/${compName}.html)`,
+    });
+  }
+
+  // Extract data-block elements
   const tagRe = /<(nav|header|section|footer|aside|main)(\s[^>]*)?>([\s\S]*?)(?=<\/\1>)/gi;
   let match;
 
@@ -89,48 +104,29 @@ export function extractSections(html: string): SectionEntry[] {
     const attrs = match[2] || '';
     const inner = match[3];
 
-    // Build CSS selector from tag + id/class
-    let selector = tag;
-    const idMatch = attrs.match(/id=["']([^"']+)["']/);
-    if (idMatch) selector += `#${idMatch[1]}`;
-    const classMatch = attrs.match(/class=["']([^"']+)["']/);
-    if (classMatch) {
-      // Pick first 2 meaningful classes (skip Tailwind utilities)
-      const meaningful = classMatch[1]
-        .split(/\s+/)
-        .filter((c) => !isTailwindUtility(c))
-        .slice(0, 2);
-      if (meaningful.length > 0) selector += `.${meaningful.join('.')}`;
-    }
+    const blockMatch = attrs.match(/data-block=["']([^"']+)["']/);
+    if (!blockMatch) continue; // skip elements without data-block
+
+    const id = blockMatch[1];
+
+    // Skip if this block is a component (already listed as placeholder)
+    if (componentNames.has(id)) continue;
 
     const summary = summarizeContent(inner);
-    const entry: SectionEntry = { selector, summary };
 
     // For nav elements, extract link targets
     if (tag === 'nav') {
       const navLinks = extractNavLinks(`<nav>${inner}</nav>`);
-      if (navLinks.length > 0) entry.navLinks = navLinks;
+      if (navLinks.length > 0) {
+        blocks.push({ id, tag, summary: `${summary} -> [${navLinks.join(', ')}]` });
+        continue;
+      }
     }
 
-    sections.push(entry);
+    blocks.push({ id, tag, summary });
   }
 
-  return sections;
-}
-
-/** Heuristic: Tailwind utilities are short and contain colons, brackets, or common prefixes. */
-function isTailwindUtility(cls: string): boolean {
-  if (cls.includes(':') || cls.includes('[') || cls.includes('/')) return true;
-  const prefixes = [
-    'flex', 'grid', 'hidden', 'block', 'inline', 'relative', 'absolute', 'fixed', 'sticky',
-    'w-', 'h-', 'p-', 'px-', 'py-', 'pt-', 'pb-', 'pl-', 'pr-', 'm-', 'mx-', 'my-',
-    'mt-', 'mb-', 'ml-', 'mr-', 'text-', 'font-', 'bg-', 'border', 'rounded', 'shadow',
-    'gap-', 'space-', 'max-', 'min-', 'overflow', 'z-', 'opacity', 'transition', 'duration',
-    'transform', 'translate', 'rotate', 'scale', 'cursor', 'select-', 'items-', 'justify-',
-    'self-', 'col-', 'row-', 'order-', 'grow', 'shrink', 'basis-', 'top-', 'right-',
-    'bottom-', 'left-', 'inset-', 'object-', 'aspect-',
-  ];
-  return prefixes.some((p) => cls.startsWith(p));
+  return blocks;
 }
 
 /** Build a short summary: headings + paragraph preview + element counts. */
@@ -237,6 +233,14 @@ export function extractSiteOverview(files: ProjectFiles): string {
 export function generateManifest(files: ProjectFiles): { perFile: string; siteOverview: string } {
   const entries: string[] = [];
 
+  // Collect component names for block extraction
+  const componentNames = new Set<string>();
+  for (const filename of Object.keys(files)) {
+    if (filename.startsWith('_components/')) {
+      componentNames.add(filename.replace('_components/', '').replace('.html', ''));
+    }
+  }
+
   for (const [filename, content] of Object.entries(files)) {
     if (content.length <= SMALL_FILE_THRESHOLD) {
       entries.push(`<file name="${filename}" size="${content.length}">\n${content}\n</file>`);
@@ -245,7 +249,7 @@ export function generateManifest(files: ProjectFiles): { perFile: string; siteOv
 
     const tokens = extractDesignTokens(content);
     const fonts = extractFonts(content);
-    const sections = extractSections(content);
+    const blocks = extractBlocks(content, componentNames);
 
     let manifest = `<file name="${filename}" size="${content.length}">`;
 
@@ -257,12 +261,13 @@ export function generateManifest(files: ProjectFiles): { perFile: string; siteOv
       manifest += `\n  <fonts>${fonts.join(', ')}</fonts>`;
     }
 
-    if (sections.length > 0) {
-      manifest += `\n  <sections>\n${sections.map((s) => {
-        let line = `    ${s.selector} — ${s.summary}`;
-        if (s.navLinks && s.navLinks.length > 0) line += ` → [${s.navLinks.join(', ')}]`;
+    if (blocks.length > 0) {
+      manifest += `\n  <blocks>\n${blocks.map((b) => {
+        let line = `    ${b.id}`;
+        if (b.component) line += ` (component:${b.component})`;
+        line += ` — ${b.summary}`;
         return line;
-      }).join('\n')}\n  </sections>`;
+      }).join('\n')}\n  </blocks>`;
     }
 
     manifest += '\n</file>';

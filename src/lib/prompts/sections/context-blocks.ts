@@ -5,28 +5,34 @@ import { generateManifest } from '@/lib/prompts/manifest/generate-manifest';
 export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
-  const isMultiPage = Object.keys(currentFiles).length > 1;
+  const hasComponents = Object.keys(currentFiles).some(f => f.startsWith('_components/'));
+
+  const componentBlock = hasComponents
+    ? `\nShared components:
+- Blocks marked (component:X) are shared across all pages. Edit them in _components/ — changes apply everywhere.
+- NEVER edit component blocks in page files — they contain placeholders, not HTML.
+- To give a page a unique version, replace the placeholder with inline HTML using a different data-block name.`
+    : '';
+
+  const isMultiPage = Object.keys(currentFiles).filter(f => f.endsWith('.html') && !f.startsWith('_components/')).length > 1;
 
   const crossPageBlock = isMultiPage
     ? `\nCross-page awareness:
-- Nav and footer appear on ALL pages. Changing them requires editing every file.
 - New pages must use the same design_system tokens and font imports from site_overview.
-- Use editFiles to batch cross-page changes in one call.
-Only add new pages when the user explicitly asks for them.`
+- Only add new pages when the user explicitly asks for them.`
     : '';
 
   return `\n<edit_guidance>
 Modify the existing HTML based on the user's request.
 Build on the existing design — preserve what works, change what's requested.
 
-BEFORE EDITING: Check the manifest above. It contains the site's design system, page structure, and CSS selectors. Use this context FIRST — do not call readFile unless you need exact content for editFiles search strings.
+BEFORE EDITING: Check the manifest above. It shows every block's data-block ID and content summary. Target blocks by ID using editBlock.
 
 Tool selection:
-- editDOM: text, images, colors, classes, attributes. Use CSS selectors from the manifest sections.
-- editFiles: structural changes, new sections. MUST call readFile first for precise search string matches.
-- writeFiles: new pages only, or full rewrites. Match the design system from the manifest.${crossPageBlock}
-
-IMPORTANT: Before using editFiles, you MUST call readFile to inspect the exact file content. The manifest is a structural summary — editFiles needs precise text matches.
+- editBlock (blockId): section-level changes — replace, modify, add, remove entire blocks. Primary tool.
+- editBlock (selector): fine-grained changes within a block — change a heading, update an image, tweak classes.
+- editFiles: text-level search/replace for small string changes. MUST call readFile first for exact content.
+- writeFiles: full page rewrites or new pages only.${componentBlock}${crossPageBlock}
 </edit_guidance>`;
 }
 

@@ -67,10 +67,23 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
     const activeFiles = files['index.html'] ? files : lastValidFiles;
     if (!activeFiles['index.html']) return;
 
-    const fileKeys = Object.keys(activeFiles);
+    // Bake components into page files for download, exclude _components/ from output
+    const downloadFiles: Record<string, string> = {};
+    for (const [filename, content] of Object.entries(activeFiles)) {
+      if (filename.startsWith('_components/')) continue;
+      let processed = content;
+      for (const [compFile, compContent] of Object.entries(activeFiles)) {
+        if (!compFile.startsWith('_components/')) continue;
+        const compName = compFile.replace('_components/', '').replace('.html', '');
+        processed = processed.replace(`<!-- @component:${compName} -->`, compContent);
+      }
+      downloadFiles[filename] = processed;
+    }
+
+    const fileKeys = Object.keys(downloadFiles);
 
     if (fileKeys.length === 1) {
-      const blob = new Blob([activeFiles['index.html']], { type: 'text/html' });
+      const blob = new Blob([downloadFiles['index.html']], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -81,7 +94,7 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
       URL.revokeObjectURL(url);
     } else {
       const zip = new JSZip();
-      for (const [path, content] of Object.entries(activeFiles)) {
+      for (const [path, content] of Object.entries(downloadFiles)) {
         zip.file(path, content);
       }
       const blob = await zip.generateAsync({ type: 'blob' });
