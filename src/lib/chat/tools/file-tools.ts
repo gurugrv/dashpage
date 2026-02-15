@@ -83,6 +83,48 @@ export function createEditDomTool(workingFiles: ProjectFiles) {
   };
 }
 
+/**
+ * Normalize malformed writeFiles input from models that pass structured objects
+ * instead of a flat Record<string, string>. Handles cases like:
+ *   { version: 1, id: "services", content: "<!DOCTYPE..." }
+ *   { "services.html": { content: "<!DOCTYPE..." } }
+ * Strips non-file keys and extracts HTML content where possible.
+ */
+function normalizeFilesInput(val: unknown): unknown {
+  if (!val || typeof val !== 'object' || Array.isArray(val)) return val;
+
+  const obj = val as Record<string, unknown>;
+  const keys = Object.keys(obj);
+
+  // Already valid: all values are strings — pass through
+  if (keys.length > 0 && keys.every(k => typeof obj[k] === 'string')) return val;
+
+  const result: Record<string, string> = {};
+
+  // Metadata keys that models hallucinate — never filenames
+  const metadataKeys = new Set(['version', 'id', 'type', 'name', 'title', 'description', 'metadata', 'schema']);
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip obvious metadata (non-string values like numbers/booleans)
+    if (metadataKeys.has(key) && typeof value !== 'string') continue;
+    if (metadataKeys.has(key) && typeof value === 'string' && !value.includes('<')) continue;
+
+    if (typeof value === 'string') {
+      // String value — keep as-is (likely filename -> HTML)
+      result[key] = value;
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      // Nested object — try to extract HTML from content/html/body fields
+      const nested = value as Record<string, unknown>;
+      const html = nested.content ?? nested.html ?? nested.body ?? nested.source;
+      if (typeof html === 'string') {
+        result[key] = html;
+      }
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : val;
+}
+
 export function createFileTools(workingFiles: ProjectFiles) {
   const editFileMistakes: MistakeTracker = new Map();
   let writeFilesEmptyCount = 0;
@@ -92,9 +134,10 @@ export function createFileTools(workingFiles: ProjectFiles) {
       description:
         'Create or rewrite complete HTML files. Use for new sites, major redesigns, structural overhauls, or adding new pages. Include ONLY files being created or fully rewritten — unchanged files are preserved automatically. Returns { success, fileNames } with the list of written filenames.',
       inputSchema: z.object({
-        files: z
-          .record(z.string(), z.string())
-          .describe(
+        files: z.preprocess(
+          (val) => normalizeFilesInput(val),
+          z.record(z.string(), z.string()),
+        ).describe(
             'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document starting with <!DOCTYPE html>, containing <head> with Tailwind CDN, fonts, and design system, and a full <body>. Values must be complete HTML — never single words or placeholders.',
           ),
       }),

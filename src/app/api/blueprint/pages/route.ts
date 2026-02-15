@@ -13,7 +13,11 @@ import type { Blueprint } from '@/lib/blueprint/types';
 const MAX_PAGE_CONTINUATIONS = 2;
 const MAX_CONCURRENT_PAGES = 3;
 function buildPageContinuePrompt(filename: string): string {
-  return `The page was not completed. Call writeFiles with key "${filename}" containing a complete HTML document starting with <!DOCTYPE html>. Generate the full page content — do not use placeholder text or abbreviated content.`;
+  return `The page was not completed. Call writeFiles to output the full page:
+
+writeFiles({ files: { "${filename}": "<!DOCTYPE html>..." } })
+
+The "files" value must be a simple object: one key "${filename}", one value which is the complete HTML string starting with <!DOCTYPE html>. Generate the full page content — no placeholders or abbreviated content.`;
 }
 
 interface PagesRequestBody {
