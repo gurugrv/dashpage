@@ -46,7 +46,8 @@ export function createEditDomTool(workingFiles: ProjectFiles) {
         file: z.string().describe('The filename to edit, e.g. "index.html" or "about.html"'),
         operations: z.array(domOperationSchema).describe('Ordered list of DOM operations to apply'),
       }),
-      execute: async ({ file, operations }) => {
+      execute: async ({ file: rawFile, operations }) => {
+        const file = rawFile.replace(/^['"](.+)['"]$/, '$1');
         const source = workingFiles[file];
         if (!source) {
           return {
@@ -91,7 +92,23 @@ export function createEditDomTool(workingFiles: ProjectFiles) {
  * Strips non-file keys and extracts HTML content where possible.
  */
 function normalizeFilesInput(val: unknown): unknown {
-  if (!val || typeof val !== 'object' || Array.isArray(val)) return val;
+  if (!val || typeof val !== 'object') return val;
+
+  // Handle array format: [{ name: "header.html", content: "..." }, ...]
+  if (Array.isArray(val)) {
+    const result: Record<string, string> = {};
+    for (const item of val) {
+      if (item && typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        const name = obj.name ?? obj.filename ?? obj.file ?? obj.path;
+        const content = obj.content ?? obj.html ?? obj.body ?? obj.source ?? obj.code;
+        if (typeof name === 'string' && typeof content === 'string') {
+          result[name.replace(/^['"](.+)['"]$/, '$1')] = content;
+        }
+      }
+    }
+    return Object.keys(result).length > 0 ? result : val;
+  }
 
   const obj = val as Record<string, unknown>;
   const keys = Object.keys(obj);
@@ -149,7 +166,8 @@ export function createFileTools(workingFiles: ProjectFiles) {
           if (writeFilesEmptyCount >= 3) {
             return {
               success: false as const,
-              error: `${base} This is attempt #${writeFilesEmptyCount} with empty files. STOP calling writeFiles with empty content. Instead, generate the complete HTML document first, then pass it as the file value.`,
+              error: `${base} This is attempt #${writeFilesEmptyCount} with empty files. STOP calling writeFiles with empty content. Instead, output the HTML as text in your response — do NOT call writeFiles again.`,
+              fatal: true as const,
             };
           }
           return { success: false as const, error: base };
@@ -158,15 +176,16 @@ export function createFileTools(workingFiles: ProjectFiles) {
         // Reset empty counter on non-empty call
         writeFilesEmptyCount = 0;
 
-        // Normalize keys: convert underscores to dots for extension (e.g. "index_html" -> "index.html")
+        // Normalize keys: strip wrapping quotes, convert underscores to dots for extension
         const normalized: Record<string, string> = {};
         for (const [key, value] of Object.entries(files)) {
-          let fixedKey = key;
-          if (!key.includes('.')) {
+          // Strip wrapping single/double quotes (hallucinated by some models)
+          let fixedKey = key.replace(/^['"](.+)['"]$/, '$1');
+          if (!fixedKey.includes('.')) {
             // Try underscore convention first: "index_html" -> "index.html"
-            const underscored = key.replace(/_([a-z]+)$/, '.$1');
+            const underscored = fixedKey.replace(/_([a-z]+)$/, '.$1');
             // If regex matched, use it; otherwise default to .html
-            fixedKey = underscored !== key ? underscored : `${key}.html`;
+            fixedKey = underscored !== fixedKey ? underscored : `${fixedKey}.html`;
           }
           normalized[fixedKey] = value;
         }
@@ -198,6 +217,36 @@ export function createFileTools(workingFiles: ProjectFiles) {
       },
     }),
 
+    // Flat single-file variant — easier for models that struggle with nested Record schemas
+    // (e.g. Gemini 3 Flash/Pro get MALFORMED_FUNCTION_CALL with large Record<string,string> args)
+    writeFile: tool({
+      description:
+        'Write a single complete HTML file. Use this to create or rewrite one page. The content must be a complete HTML document starting with <!DOCTYPE html>. Returns { success, fileName }.',
+      inputSchema: z.object({
+        filename: z.string().describe('Filename with extension, e.g. "index.html", "about.html"'),
+        content: z.string().describe('Complete HTML document starting with <!DOCTYPE html>. Must include <head> with Tailwind CDN, fonts, design system, and a full <body>. Never use placeholders or abbreviated content.'),
+      }),
+      execute: async ({ filename, content }) => {
+        // Strip wrapping quotes hallucinated by some models
+        let fixedName = filename.replace(/^['"](.+)['"]$/, '$1');
+        if (!fixedName.includes('.')) {
+          const underscored = fixedName.replace(/_([a-z]+)$/, '.$1');
+          fixedName = underscored !== fixedName ? underscored : `${fixedName}.html`;
+        }
+
+        const MIN_HTML_LENGTH = 50;
+        if (fixedName.endsWith('.html') && content.length < MIN_HTML_LENGTH) {
+          return {
+            success: false as const,
+            error: `File "${fixedName}" is too small (${content.length} chars). Must be a complete HTML document with <!DOCTYPE html>, <head>, and <body>.`,
+          };
+        }
+
+        workingFiles[fixedName] = content;
+        return { success: true as const, fileName: fixedName, notice: 'File written. Proceed without re-reading.' };
+      },
+    }),
+
     ...createEditDomTool(workingFiles),
 
     editFiles: tool({
@@ -224,7 +273,8 @@ export function createFileTools(workingFiles: ProjectFiles) {
           bestMatch?: unknown;
         }> = [];
 
-        for (const edit of edits) {
+        for (const rawEdit of edits) {
+          const edit = { ...rawEdit, file: rawEdit.file.replace(/^['"](.+)['"]$/, '$1') };
           const source = workingFiles[edit.file];
           if (!source) {
             results.push({
@@ -315,7 +365,8 @@ export function createFileTools(workingFiles: ProjectFiles) {
       inputSchema: z.object({
         file: z.string().describe('The filename to read, e.g. "index.html" or "about.html"'),
       }),
-      execute: async ({ file }) => {
+      execute: async ({ file: rawFile }) => {
+        const file = rawFile.replace(/^['"](.+)['"]$/, '$1');
         const content = workingFiles[file];
         if (content === undefined) {
           return {
