@@ -41,12 +41,14 @@ export function applyDomOperations(
         continue;
       }
 
-      // For most actions, warn if selector matches multiple elements unexpectedly
-      if ($el.length > 1 && op.action !== 'addClass' && op.action !== 'removeClass' && op.action !== 'replaceClass') {
+      // For content-replacement actions (setText, setHTML, insertAdjacentHTML), require single-element match
+      // to avoid accidentally overwriting multiple elements. Attribute/class/remove operations are safe on multiple.
+      const singleTargetActions = new Set(['setText', 'setHTML', 'insertAdjacentHTML']);
+      if ($el.length > 1 && singleTargetActions.has(op.action)) {
         results.push({
           index: i,
           success: false,
-          error: `Selector "${op.selector}" matched ${$el.length} elements. Use a more specific selector (add ID, class, or nth-child).`,
+          error: `Selector "${op.selector}" matched ${$el.length} elements. Use a more specific selector (add ID, class, or nth-child) for ${op.action}.`,
         });
         continue;
       }
