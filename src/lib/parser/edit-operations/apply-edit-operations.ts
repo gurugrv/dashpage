@@ -1,5 +1,4 @@
 import search from 'approx-string-match';
-import { distance } from 'fastest-levenshtein';
 import { findOriginalPosition } from '@/lib/parser/edit-operations/find-original-position';
 import type {
   ApplyResult,
@@ -128,37 +127,35 @@ function tryFuzzyMatch(
 
 /**
  * Find the best approximate match for error reporting, regardless of threshold.
+ * Uses a generous maxErrors (70% of search length) to find any plausible match.
  */
-function findBestMatchForError(source: string, search: string): BestMatch | null {
-  if (!search.trim() || !source) return null;
+function findBestMatchForError(source: string, searchStr: string): BestMatch | null {
+  if (!searchStr.trim() || !source) return null;
 
-  const searchLen = search.length;
-  const minWindow = Math.floor(searchLen * 0.8);
-  const maxWindow = Math.ceil(searchLen * 1.2);
+  const searchLen = searchStr.length;
+  const maxErrors = Math.max(1, Math.floor(searchLen * 0.7));
+  const matches = search(source, searchStr, maxErrors);
+  if (matches.length === 0) return null;
 
-  let bestScore = 0;
-  let bestIndex = -1;
-
-  // Sample positions to avoid O(n*m) on huge files
-  const step = Math.max(1, Math.floor(source.length / 500));
-  for (let i = 0; i <= source.length - minWindow; i += step) {
-    const candidate = source.slice(i, i + Math.min(maxWindow, source.length - i));
-    const maxLen = Math.max(candidate.length, search.length);
-    if (maxLen === 0) continue;
-    const similarity = 1 - distance(candidate, search) / maxLen;
-    if (similarity > bestScore) {
-      bestScore = similarity;
-      bestIndex = i;
+  // Pick the best match (lowest error count)
+  let best = matches[0];
+  for (let i = 1; i < matches.length; i++) {
+    if (matches[i].errors < best.errors) {
+      best = matches[i];
     }
   }
 
-  if (bestIndex === -1 || bestScore < 0.3) return null;
+  const matchLength = best.end - best.start;
+  const maxLen = Math.max(matchLength, searchLen);
+  const similarity = 1 - best.errors / maxLen;
 
-  const matchText = source.slice(bestIndex, bestIndex + maxWindow).split('\n').slice(0, 3).join('\n');
+  if (similarity < 0.3) return null;
+
+  const matchText = source.slice(best.start, best.end).split('\n').slice(0, 3).join('\n');
   return {
     text: matchText.length > 150 ? matchText.slice(0, 150) + '...' : matchText,
-    similarity: Math.round(bestScore * 100) / 100,
-    line: lineNumberAt(source, bestIndex),
+    similarity: Math.round(similarity * 100) / 100,
+    line: lineNumberAt(source, best.start),
   };
 }
 
