@@ -44,8 +44,11 @@ Gradient rules: prefer solid colors; use gradients only to reinforce mood. Analo
 </color_system>
 
 <typography>
-Use EXACTLY 2 font families maximum. Load via Google Fonts CDN.
-Pick a HEADING font for personality, pair with a legible BODY font. Mix categories (serif + sans, geometric + humanist, display + workhorse). Each project should use a DIFFERENT combination — rotate through the list.
+Choose 2 primary font families (heading + body). Add a monospace font when the page contains code snippets, terminal output, or technical content. Load all via Google Fonts CDN.
+
+Pick a HEADING font for personality, pair with a legible BODY font. Mix categories — serif + sans, geometric + humanist, display + workhorse.
+
+VARIETY IS MANDATORY: Do NOT default to Inter, DM Sans, Poppins, or Montserrat. Treat these as last-resort options. Start from less common pairings — Sora + Literata, Epilogue + Source Serif 4, Bricolage Grotesque + Karla, Outfit + Spectral — then branch out from there.
 
 Approved Google Fonts (ONLY use fonts from this list):
 Sans-serif (body/UI): Inter, DM Sans, Work Sans, Lato, Open Sans, Source Sans 3, Nunito Sans, Manrope, Barlow, Karla, IBM Plex Sans, Public Sans, Figtree, Albert Sans, Mulish, Sora, Hanken Grotesk
@@ -53,13 +56,14 @@ Geometric sans (headings): Montserrat, Poppins, Raleway, Space Grotesk, Outfit, 
 Serif (editorial): Playfair Display, Lora, Merriweather, EB Garamond, Cormorant, Spectral, DM Serif Display, Literata, Source Serif 4, Alegreya
 Slab serif: Roboto Slab, Arvo, Aleo, Bitter, Zilla Slab
 Display (hero only): Oswald, Anton, Bebas Neue, Abril Fatface, Bricolage Grotesque
-Monospace: Space Mono, JetBrains Mono, Fira Code, IBM Plex Mono, Azeret Mono
+Monospace (code/technical): Space Mono, JetBrains Mono, Fira Code, IBM Plex Mono, Azeret Mono
 
 Rules:
 - Clear size hierarchy: text-sm -> text-base -> text-lg -> text-xl -> text-2xl -> text-4xl+
 - Body line-height: 1.5-1.7. Minimum 16px for body content (readability baseline).
 - Use font weight variation meaningfully (300/400/500/600/700)
 - Headings must feel distinctly different from body text
+- Use font-mono class for code/pre elements when a monospace font is loaded
 </typography>
 
 <visual_polish>

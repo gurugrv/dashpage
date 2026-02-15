@@ -25,6 +25,7 @@ Every page MUST start with CSS custom properties:
   --color-text-muted: /* secondary text */;
   --font-heading: /* heading font family */;
   --font-body: /* body font family */;
+  --font-mono: /* monospace font (optional, for code/technical content) */;
   --shadow-sm: /* subtle shadow */;
   --shadow-md: /* card shadow */;
   --shadow-lg: /* elevated shadow */;
@@ -45,6 +46,7 @@ tailwind.config = {
       fontFamily: {
         heading: ['var(--font-heading)', 'sans-serif'],
         body: ['var(--font-body)', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
       }
     }
   }
