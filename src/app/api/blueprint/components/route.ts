@@ -1,5 +1,4 @@
-import { generateText, stepCountIs } from 'ai';
-import { NextResponse } from 'next/server';
+import { stepCountIs, streamText } from 'ai';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { getComponentsSystemPrompt } from '@/lib/blueprint/prompts/components-system-prompt';
@@ -8,6 +7,7 @@ import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
+import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 interface ComponentsRequestBody {
@@ -17,92 +17,192 @@ interface ComponentsRequestBody {
   conversationId?: string;
 }
 
-
 export async function POST(req: Request) {
   let body: ComponentsRequestBody;
   try {
     body = await req.json() as ComponentsRequestBody;
   } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const { blueprint, provider, model, conversationId } = body;
 
   if (!blueprint || !provider || !model) {
-    return NextResponse.json({ error: 'blueprint, provider, and model are required' }, { status: 400 });
+    return new Response(JSON.stringify({ error: 'blueprint, provider, and model are required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
+  let apiKey: string | null;
   try {
-    const apiKey = await resolveApiKey(provider);
+    apiKey = await resolveApiKey(provider);
     if (!apiKey) throw new ChatRequestError(`No API key for ${provider}`);
-
-    const providerConfig = PROVIDERS[provider];
-    if (!providerConfig) throw new ChatRequestError(`Unknown provider: ${provider}`);
-
-    const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model);
-    const systemPrompt = getComponentsSystemPrompt(blueprint);
-    const modelInstance = providerConfig.createModel(apiKey, model);
-    const userPrompt = `Generate the shared header and footer HTML components for the "${blueprint.siteName}" website.`;
-
-    const debugSession = createDebugSession({
-      scope: 'blueprint-components',
-      model,
-      provider,
-    });
-    debugSession.logPrompt({
-      systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-      maxOutputTokens,
-    });
-
-    const { tools, workingFiles } = createWebsiteTools({});
-
-    const result = await generateText({
-      model: modelInstance,
-      system: systemPrompt,
-      prompt: userPrompt,
-      maxOutputTokens,
-      tools,
-      stopWhen: stepCountIs(8),
-    });
-
-    const responseText = result.steps.map((s) => s.text).filter(Boolean).join('\n');
-
-    debugSession.logResponse({
-      response: responseText,
-      status: 'complete',
-    });
-
-    // Extract from workingFiles — model should have called writeFiles with header.html and footer.html
-    const resolvedHeader = workingFiles['header.html'];
-    const resolvedFooter = workingFiles['footer.html'];
-
-    if (!resolvedHeader || !resolvedFooter) {
-      console.error('Model did not produce header.html and/or footer.html via writeFiles. Available files:', Object.keys(workingFiles), 'Raw response:', responseText.slice(0, 2000));
-      return NextResponse.json(
-        { error: 'Failed to generate header/footer — model did not call writeFiles' },
-        { status: 500 },
-      );
-    }
-
-    if (conversationId) {
-      await prisma.generationState.update({
-        where: { conversationId },
-        data: {
-          phase: 'components-complete',
-          componentHtml: { headerHtml: resolvedHeader, footerHtml: resolvedFooter },
-        },
-      }).catch(() => {});
-    }
-    return NextResponse.json({ headerHtml: resolvedHeader, footerHtml: resolvedFooter });
   } catch (err: unknown) {
     if (err instanceof ChatRequestError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: err.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-    console.error('Components generation failed:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Components generation failed' },
-      { status: 500 },
-    );
+    throw err;
   }
+
+  const providerConfig = PROVIDERS[provider];
+  if (!providerConfig) {
+    return new Response(JSON.stringify({ error: `Unknown provider: ${provider}` }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model);
+  const systemPrompt = getComponentsSystemPrompt(blueprint);
+  const modelInstance = providerConfig.createModel(apiKey, model);
+  const userPrompt = `Generate the shared header and footer HTML components for the "${blueprint.siteName}" website.`;
+  const abortSignal = req.signal;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+
+      function sendEvent(data: Record<string, unknown>) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      }
+
+      sendEvent({ type: 'component-status', status: 'generating' });
+
+      try {
+        const debugSession = createDebugSession({
+          scope: 'blueprint-components',
+          model,
+          provider,
+        });
+        debugSession.logPrompt({
+          systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+          maxOutputTokens,
+        });
+
+        const { tools, workingFiles } = createWebsiteTools({});
+
+        const result = streamText({
+          model: modelInstance,
+          system: systemPrompt,
+          prompt: userPrompt,
+          maxOutputTokens,
+          tools,
+          stopWhen: stepCountIs(8),
+          abortSignal,
+        });
+
+        for await (const part of result.fullStream) {
+          if (part.type === 'text-delta') {
+            debugSession.logDelta(part.text);
+          } else if (part.type === 'tool-input-start') {
+            debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
+            sendEvent({
+              type: 'tool-activity',
+              toolCallId: part.id,
+              toolName: part.toolName,
+              status: 'running',
+              label: TOOL_LABELS[part.toolName] ?? part.toolName,
+            });
+          } else if (part.type === 'tool-call') {
+            debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
+            const detail = summarizeToolInput(part.toolName, part.input);
+            if (detail) {
+              sendEvent({
+                type: 'tool-activity',
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                status: 'running',
+                label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                detail,
+              });
+            }
+          } else if (part.type === 'tool-result') {
+            debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, output: part.output });
+            sendEvent({
+              type: 'tool-activity',
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              status: 'done',
+              label: TOOL_LABELS[part.toolName] ?? part.toolName,
+              detail: summarizeToolOutput(part.toolName, part.output),
+            });
+          } else if (part.type === 'tool-error') {
+            const rawErr = (part as { error?: unknown }).error;
+            const errMsg = rawErr instanceof Error ? rawErr.message.slice(0, 100) : typeof rawErr === 'string' ? rawErr.slice(0, 100) : 'Tool error';
+            debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, error: errMsg });
+            sendEvent({
+              type: 'tool-activity',
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              status: 'error',
+              label: TOOL_LABELS[part.toolName] ?? part.toolName,
+              detail: errMsg,
+            });
+          }
+        }
+
+        debugSession.finish('complete');
+        const responseText = debugSession.getFullResponse();
+        debugSession.logFullResponse(await result.finishReason);
+
+        const resolvedHeader = workingFiles['header.html'];
+        const resolvedFooter = workingFiles['footer.html'];
+
+        if (!resolvedHeader || !resolvedFooter) {
+          console.error('Model did not produce header.html and/or footer.html via writeFiles. Available files:', Object.keys(workingFiles), 'Raw response:', responseText.slice(0, 2000));
+          sendEvent({
+            type: 'component-status',
+            status: 'error',
+            error: 'Failed to generate header/footer — model did not call writeFiles',
+          });
+        } else {
+          if (conversationId) {
+            await prisma.generationState.update({
+              where: { conversationId },
+              data: {
+                phase: 'components-complete',
+                componentHtml: { headerHtml: resolvedHeader, footerHtml: resolvedFooter },
+              },
+            }).catch(() => {});
+          }
+
+          sendEvent({
+            type: 'component-status',
+            status: 'complete',
+            headerHtml: resolvedHeader,
+            footerHtml: resolvedFooter,
+          });
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          // Client disconnected — close silently
+        } else {
+          console.error('Components generation failed:', err);
+          sendEvent({
+            type: 'component-status',
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Components generation failed',
+          });
+        }
+      }
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }
