@@ -29,15 +29,17 @@ async function getModels(providerKey: string, apiKey: string): Promise<ModelInfo
 }
 
 export async function GET() {
-  const available: { name: string; models: ModelInfo[] }[] = [];
+  const entries = Object.keys(PROVIDERS);
 
-  for (const [key] of Object.entries(PROVIDERS)) {
-    const apiKey = await resolveApiKey(key);
-    if (apiKey) {
+  const results = await Promise.all(
+    entries.map(async (key) => {
+      const apiKey = await resolveApiKey(key);
+      if (!apiKey) return null;
       const models = await getModels(key, apiKey);
-      available.push({ name: key, models });
-    }
-  }
+      return { name: key, models };
+    }),
+  );
 
+  const available = results.filter((r): r is NonNullable<typeof r> => r !== null);
   return NextResponse.json({ providers: available });
 }
