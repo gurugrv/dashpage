@@ -251,7 +251,7 @@ export async function POST(req: Request) {
     // Single-page mode: only when editing an existing single-page site (exactly 1 file).
     // First generation (0 files) and multi-page (>1 files) use full tool set.
     const isSinglePageEdit = fileCount === 1;
-    const { tools, workingFiles: _workingFiles } = isSinglePageEdit
+    const { tools } = isSinglePageEdit
       ? createSinglePageTools(currentFiles ?? {})
       : createWebsiteTools(currentFiles ?? {});
     // continuePrompt is built dynamically per segment via buildContinuePrompt()
@@ -497,7 +497,6 @@ export async function POST(req: Request) {
               }
               if (part.type === 'tool-output-error') {
                 const toolCallId = part.toolCallId as string;
-                const toolName = toolCallNames.get(toolCallId) ?? '';
                 const errorText = (part as { errorText?: string }).errorText || 'Unknown tool error';
                 debugSession.logToolResult({ toolCallId, error: errorText });
                 // Don't emit tool activity for errors — the SDK sends the error back

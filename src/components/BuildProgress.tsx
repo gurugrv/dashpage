@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Loader2, Check, Circle, Globe, Image, Code, Search, FileText, Pencil } from 'lucide-react'
 import type { BuildProgressState } from '@/hooks/useBuildProgress'
 import type { ToolActivityEvent } from '@/types/build-progress'
@@ -91,12 +91,9 @@ function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
             {activity.status === 'done' && (
               <Check className="mt-px size-3 shrink-0 text-primary" />
             )}
-            {activity.status === 'error' && (
-              <Loader2 className="mt-px size-3 shrink-0 animate-spin text-muted-foreground" />
-            )}
             <Icon className="mt-px size-3 shrink-0 text-muted-foreground" />
             <span className={
-              activity.status === 'running' || activity.status === 'error'
+              activity.status === 'running'
                 ? 'text-foreground'
                 : 'text-muted-foreground'
             }>
@@ -115,7 +112,11 @@ function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
 
 function ElapsedTimer() {
   const [seconds, setSeconds] = useState(0)
-  const startRef = useRef(Date.now())
+  const startRef = useRef(0)
+
+  useEffect(() => {
+    startRef.current = Date.now()
+  }, [])
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -130,16 +131,11 @@ function ElapsedTimer() {
 }
 
 export function BuildProgress({ progress }: BuildProgressProps) {
-  const wasEditRef = useRef(false)
-
-  // Track if we entered edit mode at any point during this build
-  if (isEditPhase(progress.phase)) wasEditRef.current = true
   if (!progress.isActive) {
-    wasEditRef.current = false
     return null
   }
 
-  const isEdit = wasEditRef.current
+  const isEdit = isEditPhase(progress.phase)
   const steps = isEdit ? EDIT_STEPS : GENERATE_STEPS
 
   return (

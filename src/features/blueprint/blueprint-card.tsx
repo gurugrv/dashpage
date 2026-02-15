@@ -24,7 +24,7 @@ export function BlueprintCard({
   onUpdate,
   disabled,
 }: BlueprintCardProps) {
-  const { designSystem, pages, contentStrategy, sharedComponents } = blueprint;
+  const { designSystem, pages, contentStrategy } = blueprint;
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<Blueprint>(blueprint);
