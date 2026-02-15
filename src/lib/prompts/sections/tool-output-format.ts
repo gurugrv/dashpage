@@ -21,12 +21,13 @@ NEW SITE:
 2. searchImages + searchIcons (parallel — all image/icon needs in this step)
 3. Output complete HTML as text (NOT in a tool call), enriched with real data from search
 
-EDIT (small change):
+EDIT (small change — text, colors, layout tweaks, removing/hiding elements):
 1. editDOM → apply change using CSS selectors
+DO NOT call searchImages, searchIcons, or webSearch for small edits. Only use resource/web tools when the user explicitly asks for new images, icons, or real-world data.
 
 EDIT (major rework):
 1. webSearch (if adding new content that benefits from real-world data)
-2. searchImages/searchIcons (if needed)
+2. searchImages/searchIcons (ONLY if adding NEW images/icons not already on the page)
 3. Output complete HTML as text
 
 EXTERNAL CONTENT:
@@ -81,13 +82,14 @@ NEW SITE (first generation):
 2. searchImages + searchIcons (parallel — all image/icon needs in this step)
 3. writeFiles → generate HTML using gathered resources + real data from search + generated color palette
 
-EDIT (existing site — small change):
+EDIT (existing site — small change like text, colors, layout tweaks, removing/hiding elements):
 1. editDOM → apply change using CSS selectors (preferred for text/image/color/class changes)
+DO NOT call searchImages, searchIcons, or webSearch for small edits. Only use resource/web tools when the user explicitly asks for new images, icons, or real-world data.
 
 EDIT (existing site — structural change):
 1. readFile (if unsure about current file state)
 2. webSearch (if adding content that benefits from real-world data)
-3. searchImages/searchIcons (if adding new visual elements)
+3. searchImages/searchIcons (ONLY if adding NEW images/icons not already on the page)
 4. editFiles → apply changes (batch all operations in one call)
 
 EDIT (cross-page change):
