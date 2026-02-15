@@ -85,23 +85,6 @@ function extractHtmlFromTextParts(parts: UIMessage['parts']): string | null {
   return null;
 }
 
-/** Check if tool parts produced any file content (writeFiles, editDOM, editFiles, etc.) */
-function toolPartsProducedFiles(parts: UIMessage['parts']): boolean {
-  for (const part of parts) {
-    if (!isToolPart(part)) continue;
-    if (part.state !== 'output-available' || !part.output) continue;
-    const output = part.output as Record<string, unknown>;
-    if (output.success === false) continue;
-    // writeFiles input has files map
-    const input = part.input as Record<string, unknown> | undefined;
-    if (input && 'files' in input) return true;
-    // editDOM output has file + content
-    if ('file' in output && 'content' in output) return true;
-    // editFiles output has results array
-    if ('results' in output && Array.isArray(output.results)) return true;
-  }
-  return false;
-}
 
 /**
  * Extract files from tool output parts in a message.
@@ -112,9 +95,10 @@ function toolPartsProducedFiles(parts: UIMessage['parts']): boolean {
 function extractFilesFromToolParts(
   parts: UIMessage['parts'],
   baseFiles: ProjectFiles,
-): { files: ProjectFiles | null; hasToolActivity: boolean } {
+): { files: ProjectFiles | null; hasToolActivity: boolean; producedFiles: boolean } {
   let files: ProjectFiles | null = null;
   let hasToolActivity = false;
+  let producedFiles = false;
 
   for (const part of parts) {
     if (!isToolPart(part)) continue;
@@ -129,12 +113,12 @@ function extractFilesFromToolParts(
     // Skip complete failures (no content to extract)
     if (output.success === false) continue;
 
-    if (!files) files = { ...baseFiles };
-
     // writeFiles: read file content from tool input (lean output only has fileNames)
     // Normalize keys: AI may send "index_html" or bare "index" instead of "index.html"
     const input = part.input as Record<string, unknown> | undefined;
     if (input && 'files' in input && typeof input.files === 'object' && input.files !== null) {
+      if (!files) files = { ...baseFiles };
+      producedFiles = true;
       const rawFiles = input.files as Record<string, string>;
       for (const [key, value] of Object.entries(rawFiles)) {
         let normalizedKey = key;
@@ -148,6 +132,8 @@ function extractFilesFromToolParts(
     }
     // editDOM output: { success: true|"partial", file: string, content: string }
     else if ('file' in output && 'content' in output) {
+      if (!files) files = { ...baseFiles };
+      producedFiles = true;
       const fileName = output.file as string;
       const content = output.content as string;
       files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
@@ -156,6 +142,8 @@ function extractFilesFromToolParts(
     else if ('results' in output && Array.isArray(output.results)) {
       for (const result of output.results as Array<Record<string, unknown>>) {
         if (result.success !== false && result.content && result.file) {
+          if (!files) files = { ...baseFiles };
+          producedFiles = true;
           const fileName = result.file as string;
           const content = result.content as string;
           files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
@@ -164,7 +152,7 @@ function extractFilesFromToolParts(
     }
   }
 
-  return { files, hasToolActivity };
+  return { files, hasToolActivity, producedFiles };
 }
 
 export function useHtmlParser() {
@@ -203,13 +191,13 @@ export function useHtmlParser() {
     setIsGenerating(isLoading);
 
     // Extract files from tool result parts
-    const { files: toolFiles, hasToolActivity } = extractFilesFromToolParts(
+    const { files: toolFiles, hasToolActivity, producedFiles } = extractFilesFromToolParts(
       lastMessage.parts,
       lastValidFilesRef.current,
     );
 
     // If tools produced file content (writeFiles, editDOM, editFiles), use that
-    if (toolFiles !== null && toolPartsProducedFiles(lastMessage.parts)) {
+    if (toolFiles !== null && producedFiles) {
       setCurrentFiles(toolFiles);
       if (!isLoading && isPersistableArtifact(toolFiles)) {
         updateLastValid(toolFiles);
@@ -218,9 +206,11 @@ export function useHtmlParser() {
     }
 
     // Text-based HTML extraction (single-page text output mode)
-    // Also handles: tool activity (searchImages etc) + text HTML output
+    // Only use when no tools were invoked — during streaming, tool parts may still be
+    // pending (state !== 'output-available') so toolPartsProducedFiles returns false,
+    // but text mentioning <!DOCTYPE html> would incorrectly overwrite the eventual tool output.
     const textHtml = extractHtmlFromTextParts(lastMessage.parts);
-    if (textHtml) {
+    if (textHtml && !hasToolActivity) {
       const baseFiles = toolFiles ?? lastValidFilesRef.current;
       const files = { ...baseFiles, 'index.html': textHtml };
       setCurrentFiles(files);

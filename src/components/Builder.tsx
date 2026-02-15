@@ -280,6 +280,12 @@ export function Builder() {
   const initialPromptProcessedRef = useRef(false);
   const pendingInitialPromptRef = useRef<string | null>(null);
   
+  // Reset initial prompt flag when conversation changes so future
+  // sessionStorage prompts (e.g. after page refresh) are not blocked
+  useEffect(() => {
+    initialPromptProcessedRef.current = false;
+  }, [activeConversationId]);
+
   // Check for initial prompt on mount
   useEffect(() => {
     if (initialPromptProcessedRef.current) return;

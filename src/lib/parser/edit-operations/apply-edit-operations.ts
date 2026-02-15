@@ -49,8 +49,29 @@ function tryExactMatch(
 }
 
 /**
+ * Normalize whitespace outside of <script> and <style> blocks.
+ * Collapses runs of whitespace to single spaces in HTML markup while
+ * preserving original whitespace (indentation, newlines) inside code blocks.
+ */
+function normalizeHtmlWhitespace(text: string): string {
+  // Split on script/style tags, normalize only the HTML parts
+  return text.replace(
+    /(<(script|style)\b[^>]*>)([\s\S]*?)(<\/\2>)|([^<]+|<[^>]*>)/gi,
+    (match, openTag, _tagName, innerContent, closeTag, other) => {
+      if (openTag) {
+        // Preserve script/style content as-is, only normalize the tags themselves
+        return openTag.replace(/\s+/g, ' ') + innerContent + closeTag;
+      }
+      // Normalize whitespace in HTML markup and text nodes
+      return (other ?? match).replace(/\s+/g, ' ');
+    },
+  );
+}
+
+/**
  * Tier 2: Whitespace-tolerant match.
- * Collapses runs of whitespace in both source and search to single spaces.
+ * Collapses runs of whitespace in both source and search to single spaces,
+ * but preserves whitespace inside <script> and <style> blocks.
  */
 function tryWhitespaceMatch(
   source: string,
@@ -59,8 +80,8 @@ function tryWhitespaceMatch(
   const trimmed = search.trim();
   if (!trimmed) return null;
 
-  const normalizedSource = source.replace(/\s+/g, ' ');
-  const normalizedSearch = trimmed.replace(/\s+/g, ' ');
+  const normalizedSource = normalizeHtmlWhitespace(source);
+  const normalizedSearch = normalizeHtmlWhitespace(trimmed);
   const normalizedIndex = normalizedSource.indexOf(normalizedSearch);
   if (normalizedIndex === -1) return null;
 

@@ -426,11 +426,9 @@ export function useBlueprintGeneration({
                 files['styles.css'] = sharedStylesRef.current.stylesCss;
               }
               files = removeDeadNavLinks(files);
-              // Push files first, then delay phase transition so the site
-              // renders under the loading overlay before it disappears
               onFilesReady(files);
               setRetryAttempt(0);
-              setTimeout(() => setPhase('complete'), 600);
+              setPhase('complete');
             } else if (event.type === 'pipeline-status' && event.status === 'error') {
               const completedFilenames = Object.keys(filesAccumulatorRef.current);
 
