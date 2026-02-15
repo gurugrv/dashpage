@@ -17,10 +17,10 @@ function highlightHtml(text: string): string {
   return text.replace(
     /(<\/?[\w-]+)|(\s[\w-]+=)|(\"[^\"]*\")|('([^']*)')/g,
     (match, tag, attr, dblStr, singleStr) => {
-      if (tag) return `<span class="text-blue-400/40">${escapeHtml(tag)}</span>`;
-      if (attr) return `<span class="text-emerald-400/30">${escapeHtml(attr)}</span>`;
-      if (dblStr) return `<span class="text-amber-400/30">${escapeHtml(dblStr)}</span>`;
-      if (singleStr) return `<span class="text-amber-400/30">${escapeHtml(singleStr)}</span>`;
+      if (tag) return `<span class="text-blue-400/60">${escapeHtml(tag)}</span>`;
+      if (attr) return `<span class="text-emerald-400/50">${escapeHtml(attr)}</span>`;
+      if (dblStr) return `<span class="text-amber-400/50">${escapeHtml(dblStr)}</span>`;
+      if (singleStr) return `<span class="text-amber-400/50">${escapeHtml(singleStr)}</span>`;
       return escapeHtml(match);
     }
   );
@@ -69,13 +69,13 @@ export function LiveCodeBackground({ code, visible }: LiveCodeBackgroundProps) {
     <div
       className={cn(
         'absolute inset-0 overflow-hidden rounded-md transition-opacity duration-500',
-        visible ? 'opacity-40' : 'opacity-0 pointer-events-none',
+        visible ? 'opacity-70' : 'opacity-0 pointer-events-none',
       )}
     >
       <div className="h-full overflow-auto bg-zinc-950/60 p-4">
         <pre
           ref={codeRef}
-          className="font-mono text-[10px] leading-relaxed text-zinc-500/60 whitespace-pre-wrap break-all"
+          className="font-mono text-[10px] leading-relaxed text-zinc-400/70 whitespace-pre-wrap break-all"
         />
       </div>
     </div>
