@@ -147,6 +147,16 @@ export async function POST(req: Request) {
 
       // --- Concurrency-limited parallel page generation ---
 
+      /** Unescape JSON string escape sequences in streaming deltas */
+      function unescapeJson(text: string): string {
+        return text
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\r/g, '\r')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+      }
+
       async function generateSinglePage(page: typeof pages[number]) {
         if (abortSignal.aborted) return;
 
@@ -215,6 +225,11 @@ export async function POST(req: Request) {
             });
           }
 
+          // Per-segment streaming state for writeFiles code deltas
+          let writeFilesToolId: string | null = null;
+          let writeFilesJsonBuffer = '';
+          let writeFilesContentStarted = false;
+
           for await (const part of result.fullStream) {
             if (part.type === 'text-delta') {
               debugSession.logDelta(part.text);
@@ -228,6 +243,36 @@ export async function POST(req: Request) {
                 status: 'running',
                 label: TOOL_LABELS[part.toolName] ?? part.toolName,
               });
+              // Track writeFiles tool for streaming code deltas
+              if (part.toolName === 'writeFiles') {
+                writeFilesToolId = part.id;
+                writeFilesJsonBuffer = '';
+                writeFilesContentStarted = false;
+              }
+            } else if (part.type === 'tool-input-delta' && writeFilesToolId && part.id === writeFilesToolId) {
+              writeFilesJsonBuffer += part.delta;
+              if (!writeFilesContentStarted) {
+                // Look for the opening of the first string value: {"files":{"filename.html":"
+                const match = writeFilesJsonBuffer.match(/"files"\s*:\s*\{\s*"[^"]+"\s*:\s*"/);
+                if (match) {
+                  writeFilesContentStarted = true;
+                  const contentStart = writeFilesJsonBuffer.indexOf(match[0]) + match[0].length;
+                  const initialContent = writeFilesJsonBuffer.slice(contentStart);
+                  if (initialContent) {
+                    sendEvent({
+                      type: 'code-delta',
+                      filename: page.filename,
+                      delta: unescapeJson(initialContent),
+                    });
+                  }
+                }
+              } else {
+                sendEvent({
+                  type: 'code-delta',
+                  filename: page.filename,
+                  delta: unescapeJson(part.delta),
+                });
+              }
             } else if (part.type === 'tool-call') {
               debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
               const detail = summarizeToolInput(part.toolName, part.input);

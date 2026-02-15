@@ -66,7 +66,13 @@ interface ToolActivitySSEEvent {
   detail?: string;
 }
 
-type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent;
+interface CodeDeltaEvent {
+  type: 'code-delta';
+  filename: string;
+  delta: string;
+}
+
+type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent | CodeDeltaEvent;
 
 interface ComponentStatusEvent {
   type: 'component-status';
@@ -101,6 +107,8 @@ export function useBlueprintGeneration({
   const [footerHtml, setFooterHtml] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [componentToolActivities, setComponentToolActivities] = useState<PageToolActivity[]>([]);
+  const [blueprintStreamingCode, setBlueprintStreamingCode] = useState<string | null>(null);
+  const blueprintStreamingCodeRef = useRef('');
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
@@ -379,7 +387,10 @@ export function useBlueprintGeneration({
           try {
             const event = JSON.parse(jsonStr) as SSEEvent;
 
-            if (event.type === 'tool-activity') {
+            if (event.type === 'code-delta') {
+              blueprintStreamingCodeRef.current += event.delta;
+              setBlueprintStreamingCode(blueprintStreamingCodeRef.current);
+            } else if (event.type === 'tool-activity') {
               setPageStatuses((prev) =>
                 prev.map((ps) => {
                   if (ps.filename !== event.filename) return ps;
@@ -414,6 +425,12 @@ export function useBlueprintGeneration({
                     : ps,
                 ),
               );
+
+              // Reset streaming code when page completes or errors
+              if (event.status === 'complete' || event.status === 'error') {
+                blueprintStreamingCodeRef.current = '';
+                setBlueprintStreamingCode(null);
+              }
 
               // When a page completes, add it to accumulator (don't push to preview yet)
               if (event.status === 'complete' && event.html) {
@@ -558,6 +575,7 @@ export function useBlueprintGeneration({
     footerHtml,
     retryAttempt,
     componentToolActivities,
+    blueprintStreamingCode,
     generateBlueprint,
     generatePages,
     approveAndGenerate,

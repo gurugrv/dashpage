@@ -12,6 +12,7 @@ import { DEVICE_WIDTHS, type DeviceSize } from '@/features/preview/constants';
 import { PreviewEmptyState } from '@/features/preview/preview-empty-state';
 import { PreviewLoadingOverlay } from '@/features/preview/preview-loading-overlay';
 import { PreviewToolbar } from '@/features/preview/preview-toolbar';
+import { LiveCodeBackground } from '@/features/preview/live-code-background';
 
 interface PreviewPanelProps {
   files: ProjectFiles;
@@ -21,9 +22,10 @@ interface PreviewPanelProps {
   blueprintPhase?: BlueprintPhase;
   pageStatuses?: PageGenerationStatus[];
   blueprintPalette?: PaletteColors;
+  streamingCode?: string | null;
 }
 
-export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress, blueprintPhase, pageStatuses, blueprintPalette }: PreviewPanelProps) {
+export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress, blueprintPhase, pageStatuses, blueprintPalette, streamingCode }: PreviewPanelProps) {
   const [device, setDevice] = useState<DeviceSize>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedPage, setSelectedPage] = useState('index.html');
@@ -195,6 +197,12 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
       />
 
       <div className="relative flex flex-1 items-start justify-center overflow-auto p-4">
+        {/* Live code background — visible behind skeleton during writeFiles generation */}
+        <LiveCodeBackground
+          code={streamingCode ?? null}
+          visible={!hasContent && isGenerating && !!streamingCode}
+        />
+
         {/* Wireframe empty state — visible when no content, crossfades out when content arrives */}
         <div
           className={cn(

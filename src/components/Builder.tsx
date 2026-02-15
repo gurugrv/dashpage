@@ -82,7 +82,7 @@ export function Builder() {
   }, [searchParams, router]);
 
   // Restore conversation from URL when conversations are loaded
-  const { currentFiles, lastValidFiles, isGenerating, processMessages, setFiles } = useHtmlParser();
+  const { currentFiles, lastValidFiles, isGenerating, streamingCode, processMessages, setFiles } = useHtmlParser();
   const { conversations, create, rename, remove, updateModel } = useConversations();
   const { availableProviders, refetch } = useModels();
   const { progress: buildProgress, handleProgressData, handleToolActivity, resetProgress } = useBuildProgress();
@@ -121,6 +121,7 @@ export function Builder() {
     resumeFromState,
     updateBlueprint,
     retryAttempt,
+    blueprintStreamingCode,
     cancel: cancelBlueprint,
     reset: resetBlueprint,
   } = useBlueprintGeneration({
@@ -670,6 +671,7 @@ export function Builder() {
               buildProgress={buildProgress}
               blueprintPhase={blueprintPhase}
               pageStatuses={pageStatuses}
+              streamingCode={streamingCode ?? blueprintStreamingCode}
               blueprintPalette={blueprint?.designSystem ? {
                 primary: blueprint.designSystem.primaryColor,
                 secondary: blueprint.designSystem.secondaryColor,

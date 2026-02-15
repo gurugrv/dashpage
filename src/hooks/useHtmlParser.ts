@@ -15,7 +15,7 @@ interface ToolPart {
 function isToolPart(part: unknown): part is ToolPart {
   if (typeof part !== 'object' || part === null || !('type' in part)) return false;
   const p = part as { type: string };
-  return p.type.startsWith('tool-');
+  return p.type.startsWith('tool-') || p.type === 'dynamic-tool';
 }
 
 /**
@@ -155,10 +155,35 @@ function extractFilesFromToolParts(
   return { files, hasToolActivity, producedFiles };
 }
 
+/**
+ * Extract streaming HTML from in-progress writeFiles tool parts.
+ * Returns the accumulated partial HTML string, or null if no streaming tool input.
+ */
+function extractStreamingCode(parts: UIMessage['parts']): string | null {
+  for (const part of parts) {
+    if (!isToolPart(part)) continue;
+    if (part.state !== 'input-streaming') continue;
+    if (part.toolName !== 'writeFiles') continue;
+
+    const input = part.input as Record<string, unknown> | undefined;
+    if (!input || !('files' in input) || typeof input.files !== 'object' || input.files === null) continue;
+
+    // Extract the first file's content (partial HTML)
+    const files = input.files as Record<string, string>;
+    const values = Object.values(files);
+    if (values.length > 0 && typeof values[0] === 'string') {
+      return values[0];
+    }
+  }
+  return null;
+}
+
 export function useHtmlParser() {
   const [currentFiles, setCurrentFiles] = useState<ProjectFiles>({});
   const [lastValidFiles, setLastValidFiles] = useState<ProjectFiles>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingCode, setStreamingCode] = useState<string | null>(null);
+  const streamingCodeRef = useRef<string | null>(null);
   const lastValidFilesRef = useRef<ProjectFiles>({});
   const lastProcessedRef = useRef<{ messageId: string; partsLength: number; isLoading: boolean } | null>(null);
 
@@ -183,12 +208,24 @@ export function useHtmlParser() {
     // so same length means no new tool output to extract
     const partsLength = lastMessage.parts.length;
     const cached = lastProcessedRef.current;
-    if (cached && cached.messageId === lastMessage.id && cached.partsLength === partsLength && cached.isLoading === isLoading) {
+    if (cached && cached.messageId === lastMessage.id && cached.partsLength === partsLength && cached.isLoading === isLoading && !isLoading) {
       return;
     }
     lastProcessedRef.current = { messageId: lastMessage.id, partsLength, isLoading };
 
     setIsGenerating(isLoading);
+
+    // Extract streaming code from in-progress writeFiles tool parts
+    if (isLoading) {
+      const code = extractStreamingCode(lastMessage.parts);
+      if (code !== streamingCodeRef.current) {
+        streamingCodeRef.current = code;
+        setStreamingCode(code);
+      }
+    } else if (streamingCodeRef.current !== null) {
+      streamingCodeRef.current = null;
+      setStreamingCode(null);
+    }
 
     // Extract files from tool result parts
     const { files: toolFiles, hasToolActivity, producedFiles } = extractFilesFromToolParts(
@@ -231,5 +268,5 @@ export function useHtmlParser() {
     updateLastValid(files);
   }, [updateLastValid]);
 
-  return { currentFiles, lastValidFiles, isGenerating, processMessages, setFiles };
+  return { currentFiles, lastValidFiles, isGenerating, streamingCode, processMessages, setFiles };
 }
