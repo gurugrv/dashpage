@@ -57,7 +57,9 @@ ${snippets}`,
 
     // Check if we got anything useful (at least one non-empty field)
     const hasContent = Object.values(object).some((v) =>
-      v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0) && !(typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0)
+      v !== undefined && v !== null && v !== '' &&
+      !(Array.isArray(v) && v.length === 0) &&
+      !(typeof v === 'object' && !Array.isArray(v) && Object.values(v as Record<string, unknown>).every((sv) => !sv))
     );
 
     return hasContent ? object : null;
