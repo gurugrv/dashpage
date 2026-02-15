@@ -7,6 +7,8 @@ import { createDebugSession } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 import type { ToolActivityEvent } from '@/types/build-progress';
 import { prisma } from '@/lib/db/prisma';
+import { validateBlocks } from '@/lib/blocks/validate-blocks';
+import { extractComponents } from '@/lib/blocks/extract-components';
 
 interface ChatRequestBody {
   messages: Array<Omit<UIMessage, 'id'>>;
@@ -540,6 +542,12 @@ export async function POST(req: Request) {
               { role: 'assistant', parts: [{ type: 'text', text: segmentText }] },
               { role: 'user', parts: [{ type: 'text', text: buildContinuePrompt(segmentText) }] },
             ] as Array<Omit<UIMessage, 'id'>>;
+          }
+
+          // Post-generation: validate blocks and extract components on workingFiles
+          if (hasFileOutput && Object.keys(workingFiles).some(f => f.endsWith('.html'))) {
+            validateBlocks(workingFiles);
+            extractComponents(workingFiles);
           }
 
           writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });
