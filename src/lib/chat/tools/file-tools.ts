@@ -93,6 +93,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
       inputSchema: z.object({
         files: z
           .record(z.string(), z.string())
+          .default({})
           .describe(
             'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document starting with <!DOCTYPE html>, containing <head> with Tailwind CDN, fonts, and design system, and a full <body>. Values must be complete HTML — never single words or placeholders.',
           ),
