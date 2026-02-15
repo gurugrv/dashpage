@@ -25,6 +25,16 @@ export interface BuildProgressData {
   timestamp: number
 }
 
+export interface PaletteColors {
+  primary: string
+  secondary: string
+  accent: string
+  background: string
+  surface: string
+  text: string
+  textMuted: string
+}
+
 export interface ToolActivityEvent {
   toolCallId: string
   toolName: string

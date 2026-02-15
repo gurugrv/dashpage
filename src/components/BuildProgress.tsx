@@ -16,10 +16,16 @@ interface Step {
 }
 
 // Steps with percent thresholds matching tool-aware progress milestones
-const STEPS: Step[] = [
+const GENERATE_STEPS: Step[] = [
   { label: 'Planning', threshold: 8 },
   { label: 'Design & assets', threshold: 30 },
   { label: 'Generating', threshold: 80 },
+  { label: 'Finalizing', threshold: 100 },
+]
+
+const EDIT_STEPS: Step[] = [
+  { label: 'Analyzing', threshold: 15 },
+  { label: 'Applying edits', threshold: 80 },
   { label: 'Finalizing', threshold: 100 },
 ]
 
@@ -33,11 +39,15 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
   readFile: FileText,
 }
 
-function getStepStatus(step: Step, stepIndex: number, percent: number): 'done' | 'active' | 'pending' {
+function getStepStatus(step: Step, stepIndex: number, percent: number, steps: Step[]): 'done' | 'active' | 'pending' {
   if (percent >= step.threshold) return 'done'
-  const prevThreshold = stepIndex > 0 ? STEPS[stepIndex - 1].threshold : 0
+  const prevThreshold = stepIndex > 0 ? steps[stepIndex - 1].threshold : 0
   if (percent >= prevThreshold) return 'active'
   return 'pending'
+}
+
+function isEditPhase(phase: string): boolean {
+  return phase.startsWith('edit-')
 }
 
 function ToolActivityLog({ activities }: { activities: ToolActivityEvent[] }) {
@@ -126,7 +136,17 @@ function ElapsedTimer() {
 }
 
 export function BuildProgress({ progress }: BuildProgressProps) {
-  if (!progress.isActive) return null
+  const wasEditRef = useRef(false)
+
+  // Track if we entered edit mode at any point during this build
+  if (isEditPhase(progress.phase)) wasEditRef.current = true
+  if (!progress.isActive) {
+    wasEditRef.current = false
+    return null
+  }
+
+  const isEdit = wasEditRef.current
+  const steps = isEdit ? EDIT_STEPS : GENERATE_STEPS
 
   return (
     <div className="flex gap-3 px-4 py-3">
@@ -158,8 +178,8 @@ export function BuildProgress({ progress }: BuildProgressProps) {
 
         {/* Step checklist */}
         <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {STEPS.map((step, i) => {
-            const status = getStepStatus(step, i, progress.percent)
+          {steps.map((step, i) => {
+            const status = getStepStatus(step, i, progress.percent, steps)
             return (
               <div key={step.label} className="flex items-center gap-1">
                 {status === 'done' && (

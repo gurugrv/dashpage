@@ -54,8 +54,8 @@ export function useBuildProgress() {
 
   const handleToolActivity = useCallback((event: ToolActivityEvent) => {
     setProgress((prev) => {
-      const idx = prev.toolActivities.findIndex((a) => a.toolCallId === event.toolCallId)
       const next = [...prev.toolActivities]
+      const idx = next.findIndex((a) => a.toolCallId === event.toolCallId)
       if (idx >= 0) {
         next[idx] = event
       } else {
