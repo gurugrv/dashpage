@@ -19,8 +19,8 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
 
 export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCancel }: PageProgressProps) {
   const completedPages = pageStatuses.filter((p) => p.status === 'complete').length;
-  const generatingPage = pageStatuses.find((p) => p.status === 'generating');
-  const currentPage = completedPages + (generatingPage ? 1 : 0);
+  const generatingCount = pageStatuses.filter((p) => p.status === 'generating').length;
+  const currentPage = completedPages + generatingCount;
   const totalPages = pageStatuses.length;
 
   // Include components step in progress calculation

@@ -67,9 +67,8 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
   const isPagesPhase = blueprintPhase === 'generating-pages';
 
   const completed = pageStatuses?.filter((p) => p.status === 'complete').length ?? 0;
-  const generating = pageStatuses?.find((p) => p.status === 'generating');
+  const generatingPages = pageStatuses?.filter((p) => p.status === 'generating') ?? [];
   const total = pageStatuses?.length ?? 0;
-  const currentNum = completed + (generating ? 1 : 0);
 
   // During components: indeterminate (no page count yet)
   // During pages: determinate with (1 + completed) / (1 + total)
@@ -80,9 +79,11 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
 
   const label = isComponentsPhase
     ? 'Styles & components'
-    : generating
-      ? `${generating.filename} (${currentNum}/${total})`
-      : `Pages (${completed}/${total})`;
+    : generatingPages.length > 1
+      ? `Generating ${generatingPages.length} pages...`
+      : generatingPages.length === 1
+        ? `${generatingPages[0].filename} (${completed + 1}/${total})`
+        : `Pages (${completed}/${total})`;
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-muted-foreground/10 bg-background/90 pl-2 pr-4 py-2 shadow-lg backdrop-blur-sm">

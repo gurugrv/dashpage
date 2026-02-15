@@ -11,6 +11,7 @@ import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blue
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
+const MAX_CONCURRENT_PAGES = 3;
 const PAGE_CONTINUE_PROMPT = 'The page was not completed. Call writeFiles to append the remaining HTML — do NOT restart from the beginning.';
 
 interface PagesRequestBody {
@@ -144,9 +145,10 @@ export async function POST(req: Request) {
       let hasErrors = false;
       const completedPagesMap: Record<string, string> = {};
 
-      // Generate pages sequentially so progress updates are visible one at a time
-      for (const page of pages) {
-        if (abortSignal.aborted) break;
+      // --- Concurrency-limited parallel page generation ---
+
+      async function generateSinglePage(page: typeof pages[number]) {
+        if (abortSignal.aborted) return;
 
         // Fresh tool set per page — workingFiles accumulator starts empty
         const { tools: pageTools, workingFiles } = createWebsiteTools({});
@@ -164,179 +166,214 @@ export async function POST(req: Request) {
         const modelInstance = providerConfig.createModel(apiKey!, model);
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
-        try {
-          let prevMessages: ModelMessage[] = [];
+        let prevMessages: ModelMessage[] = [];
 
-          for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
-            if (abortSignal.aborted) break;
+        for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
+          if (abortSignal.aborted) break;
 
-            const debugSession = createDebugSession({
-              scope: `blueprint-page:${page.filename}${segment > 0 ? `:cont${segment}` : ''}`,
-              model,
-              provider,
-              conversationId,
+          const debugSession = createDebugSession({
+            scope: `blueprint-page:${page.filename}${segment > 0 ? `:cont${segment}` : ''}`,
+            model,
+            provider,
+            conversationId,
+          });
+
+          let result;
+          if (segment === 0) {
+            debugSession.logPrompt({
+              systemPrompt,
+              messages: [{ role: 'user', content: pagePrompt }],
+              maxOutputTokens,
             });
+            result = streamText({
+              model: modelInstance,
+              system: systemPrompt,
+              prompt: pagePrompt,
+              maxOutputTokens,
+              tools: pageTools,
+              stopWhen: stepCountIs(8),
+              abortSignal,
+            });
+          } else {
+            const continuationMessages: ModelMessage[] = [
+              ...prevMessages,
+              { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
+            ];
+            debugSession.logPrompt({
+              systemPrompt,
+              messages: [{ role: 'system', content: `[continuation: ${continuationMessages.length} messages including tool call history]` }],
+              maxOutputTokens,
+            });
+            result = streamText({
+              model: modelInstance,
+              system: systemPrompt,
+              messages: continuationMessages,
+              maxOutputTokens,
+              tools: pageTools,
+              stopWhen: stepCountIs(8),
+              abortSignal,
+            });
+          }
 
-            let result;
-            if (segment === 0) {
-              debugSession.logPrompt({
-                systemPrompt,
-                messages: [{ role: 'user', content: pagePrompt }],
-                maxOutputTokens,
+          for await (const part of result.fullStream) {
+            if (part.type === 'text-delta') {
+              debugSession.logDelta(part.text);
+            } else if (part.type === 'tool-input-start') {
+              debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
+              sendEvent({
+                type: 'tool-activity',
+                filename: page.filename,
+                toolCallId: part.id,
+                toolName: part.toolName,
+                status: 'running',
+                label: TOOL_LABELS[part.toolName] ?? part.toolName,
               });
-              result = streamText({
-                model: modelInstance,
-                system: systemPrompt,
-                prompt: pagePrompt,
-                maxOutputTokens,
-                tools: pageTools,
-                stopWhen: stepCountIs(8),
-                abortSignal,
-              });
-            } else {
-              const continuationMessages: ModelMessage[] = [
-                ...prevMessages,
-                { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
-              ];
-              debugSession.logPrompt({
-                systemPrompt,
-                messages: [{ role: 'system', content: `[continuation: ${continuationMessages.length} messages including tool call history]` }],
-                maxOutputTokens,
-              });
-              result = streamText({
-                model: modelInstance,
-                system: systemPrompt,
-                messages: continuationMessages,
-                maxOutputTokens,
-                tools: pageTools,
-                stopWhen: stepCountIs(8),
-                abortSignal,
-              });
-            }
-
-            for await (const part of result.fullStream) {
-              if (part.type === 'text-delta') {
-                debugSession.logDelta(part.text);
-              } else if (part.type === 'tool-input-start') {
-                debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
+            } else if (part.type === 'tool-call') {
+              debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
+              const detail = summarizeToolInput(part.toolName, part.input);
+              if (detail) {
                 sendEvent({
                   type: 'tool-activity',
                   filename: page.filename,
-                  toolCallId: part.id,
+                  toolCallId: part.toolCallId,
                   toolName: part.toolName,
                   status: 'running',
                   label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                });
-              } else if (part.type === 'tool-call') {
-                debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
-                const detail = summarizeToolInput(part.toolName, part.input);
-                if (detail) {
-                  sendEvent({
-                    type: 'tool-activity',
-                    filename: page.filename,
-                    toolCallId: part.toolCallId,
-                    toolName: part.toolName,
-                    status: 'running',
-                    label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                    detail,
-                  });
-                }
-              } else if (part.type === 'tool-result') {
-                debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, output: part.output });
-                sendEvent({
-                  type: 'tool-activity',
-                  filename: page.filename,
-                  toolCallId: part.toolCallId,
-                  toolName: part.toolName,
-                  status: 'done',
-                  label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                  detail: summarizeToolOutput(part.toolName, part.output),
-                });
-              } else if (part.type === 'tool-error') {
-                const rawErr = (part as { error?: unknown }).error;
-                const errMsg = rawErr instanceof Error ? rawErr.message.slice(0, 100) : typeof rawErr === 'string' ? rawErr.slice(0, 100) : 'Tool error';
-                debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, error: errMsg });
-                sendEvent({
-                  type: 'tool-activity',
-                  filename: page.filename,
-                  toolCallId: part.toolCallId,
-                  toolName: part.toolName,
-                  status: 'error',
-                  label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                  detail: errMsg,
+                  detail,
                 });
               }
+            } else if (part.type === 'tool-result') {
+              debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, output: part.output });
+              sendEvent({
+                type: 'tool-activity',
+                filename: page.filename,
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                status: 'done',
+                label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                detail: summarizeToolOutput(part.toolName, part.output),
+              });
+            } else if (part.type === 'tool-error') {
+              const rawErr = (part as { error?: unknown }).error;
+              const errMsg = rawErr instanceof Error ? rawErr.message.slice(0, 100) : typeof rawErr === 'string' ? rawErr.slice(0, 100) : 'Tool error';
+              debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, error: errMsg });
+              sendEvent({
+                type: 'tool-activity',
+                filename: page.filename,
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                status: 'error',
+                label: TOOL_LABELS[part.toolName] ?? part.toolName,
+                detail: errMsg,
+              });
             }
-            debugSession.finish('complete');
-
-            // Collect full response messages (includes tool calls + results)
-            const response = await result.response;
-            const responseMessages = response.messages;
-            if (segment === 0) {
-              prevMessages = [
-                { role: 'user' as const, content: pagePrompt },
-                ...responseMessages,
-              ];
-            } else {
-              prevMessages = [
-                ...prevMessages,
-                { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
-                ...responseMessages,
-              ];
-            }
-
-            const finishReason = await result.finishReason;
-            debugSession.logFullResponse(finishReason);
-
-            // writeFiles succeeded — page is complete, no continuation needed
-            if (workingFiles[page.filename]) break;
-
-            // Not truncated, just didn't produce output
-            if (finishReason !== 'length') break;
           }
+          debugSession.finish('complete');
 
-          // Extract HTML from workingFiles
-          const pageHtml = workingFiles[page.filename]
-            // Fallback: check for any file that looks like the page
-            ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
-
-          if (pageHtml) {
-            completedPages += 1;
-            sendEvent({
-              type: 'page-status',
-              filename: page.filename,
-              status: 'complete',
-              html: pageHtml,
-              totalPages,
-              completedPages,
-            });
-            completedPagesMap[page.filename] = pageHtml;
-            await prisma.generationState.update({
-              where: { conversationId },
-              data: { completedPages: completedPagesMap },
-            }).catch(() => {});
+          // Collect full response messages (includes tool calls + results)
+          const response = await result.response;
+          const responseMessages = response.messages;
+          if (segment === 0) {
+            prevMessages = [
+              { role: 'user' as const, content: pagePrompt },
+              ...responseMessages,
+            ];
           } else {
-            hasErrors = true;
-            sendEvent({
-              type: 'page-status',
-              filename: page.filename,
-              status: 'error',
-              error: 'Model did not produce file output via writeFiles',
-              totalPages,
-              completedPages,
-            });
+            prevMessages = [
+              ...prevMessages,
+              { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
+              ...responseMessages,
+            ];
           }
-        } catch (err: unknown) {
-          if (err instanceof Error && err.name === 'AbortError') break;
+
+          const finishReason = await result.finishReason;
+          debugSession.logFullResponse(finishReason);
+
+          // writeFiles succeeded — page is complete, no continuation needed
+          if (workingFiles[page.filename]) break;
+
+          // Not truncated, just didn't produce output
+          if (finishReason !== 'length') break;
+        }
+
+        // Extract HTML from workingFiles
+        const pageHtml = workingFiles[page.filename]
+          // Fallback: check for any file that looks like the page
+          ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
+
+        if (pageHtml) {
+          completedPages += 1;
+          sendEvent({
+            type: 'page-status',
+            filename: page.filename,
+            status: 'complete',
+            html: pageHtml,
+            totalPages,
+            completedPages,
+          });
+          completedPagesMap[page.filename] = pageHtml;
+          await prisma.generationState.update({
+            where: { conversationId },
+            data: { completedPages: completedPagesMap },
+          }).catch(() => {});
+        } else {
           hasErrors = true;
           sendEvent({
             type: 'page-status',
             filename: page.filename,
             status: 'error',
-            error: err instanceof Error ? err.message : 'Generation failed',
+            error: 'Model did not produce file output via writeFiles',
             totalPages,
             completedPages,
           });
+        }
+      }
+
+      // Semaphore for concurrency limiting
+      let running = 0;
+      const waitQueue: (() => void)[] = [];
+
+      async function acquireSlot() {
+        if (running >= MAX_CONCURRENT_PAGES) {
+          await new Promise<void>(resolve => { waitQueue.push(resolve); });
+        }
+        running++;
+      }
+
+      function releaseSlot() {
+        running--;
+        if (waitQueue.length > 0) {
+          const next = waitQueue.shift()!;
+          next();
+        }
+      }
+
+      const results = await Promise.allSettled(
+        pages.map(async (page) => {
+          await acquireSlot();
+          try {
+            await generateSinglePage(page);
+          } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') return;
+            hasErrors = true;
+            sendEvent({
+              type: 'page-status',
+              filename: page.filename,
+              status: 'error',
+              error: err instanceof Error ? err.message : 'Generation failed',
+              totalPages,
+              completedPages,
+            });
+          } finally {
+            releaseSlot();
+          }
+        }),
+      );
+
+      // Check for any unhandled rejections
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          hasErrors = true;
         }
       }
 
