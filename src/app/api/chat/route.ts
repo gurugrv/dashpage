@@ -2,7 +2,7 @@ import { convertToModelMessages, createUIMessageStream, createUIMessageStreamRes
 import type { UIMessage } from 'ai';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
-import { createWebsiteTools, createSinglePageTools } from '@/lib/chat/tools';
+import { createWebsiteTools } from '@/lib/chat/tools';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 import type { ToolActivityEvent } from '@/types/build-progress';
@@ -38,10 +38,8 @@ function extractLastSection(segmentText: string): string | null {
   return null;
 }
 
-function buildContinuePrompt(segmentText: string, isSinglePage: boolean): string {
-  const base = isSinglePage
-    ? 'Continue from where you left off. Append the remaining HTML — do NOT restart from <!DOCTYPE html> or <head>.'
-    : 'Continue from where you left off. Append the remaining content — do NOT restart files from the beginning.';
+function buildContinuePrompt(segmentText: string): string {
+  const base = 'Continue from where you left off. Append the remaining content — do NOT restart files from the beginning.';
 
   const lastSection = extractLastSection(segmentText);
   if (lastSection) {
@@ -107,7 +105,7 @@ function sanitizeToolInputs<T extends { role: string; parts: Array<Record<string
 
 const TOOL_LABELS: Record<string, string> = {
   writeFiles: 'Writing files',
-  editDOM: 'Applying edits',
+  editBlock: 'Applying edits',
   editFiles: 'Editing files',
   readFile: 'Reading file',
   searchImages: 'Adding images',
@@ -140,7 +138,7 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
         return names.join(', ');
       }
       return undefined;
-    case 'editDOM':
+    case 'editBlock':
       return typeof inp.file === 'string' ? inp.file : undefined;
     case 'editFiles': {
       const edits = inp.edits as Array<{ file?: string }> | undefined;
@@ -248,12 +246,7 @@ export async function POST(req: Request) {
     const isAnthropicDirect = resolvedProvider === 'anthropic';
 
     const fileCount = Object.keys(currentFiles ?? {}).length;
-    // Single-page mode: only when editing an existing single-page site (exactly 1 file).
-    // First generation (0 files) and multi-page (>1 files) use full tool set.
-    const isSinglePageEdit = fileCount === 1;
-    const { tools } = isSinglePageEdit
-      ? createSinglePageTools(currentFiles ?? {})
-      : createWebsiteTools(currentFiles ?? {});
+    const { tools, workingFiles } = createWebsiteTools(currentFiles ?? {});
     // continuePrompt is built dynamically per segment via buildContinuePrompt()
     const isEditing = fileCount > 0;
     const detector = new BuildProgressDetector();
@@ -287,7 +280,7 @@ export async function POST(req: Request) {
 
         // Track whether file-producing tools were called (for incomplete generation detection)
         let hasFileOutput = false;
-        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editDOM', 'editFiles']);
+        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editBlock', 'editFiles']);
 
         // Tool-aware monotonic progress tracker
         const TOOL_START_PERCENT: Record<string, number> = {
@@ -297,7 +290,7 @@ export async function POST(req: Request) {
           fetchUrl: 18,
           readFile: 28,
           writeFiles: 32,
-          editDOM: 32,
+          editBlock: 32,
           editFiles: 32,
         };
         const TOOL_END_PERCENT: Record<string, number> = {
@@ -307,7 +300,7 @@ export async function POST(req: Request) {
           fetchUrl: 28,
           readFile: 30,
           writeFiles: 92,
-          editDOM: 90,
+          editBlock: 90,
           editFiles: 90,
         };
         let maxPercent = 0;
@@ -392,7 +385,7 @@ export async function POST(req: Request) {
 
                 const progressLabels: Record<string, string> = {
                   writeFiles: 'Generating code...',
-                  editDOM: 'Applying edits...',
+                  editBlock: 'Applying edits...',
                   editFiles: 'Applying edits...',
                   readFile: 'Reading file...',
                   searchImages: 'Adding images...',
@@ -466,7 +459,7 @@ export async function POST(req: Request) {
                   webSearch: 'Search complete',
                   fetchUrl: 'Content fetched',
                   readFile: 'File read',
-                  editDOM: 'Edits applied',
+                  editBlock: 'Edits applied',
                   editFiles: 'Edits applied',
                 };
                 const endLabel = TOOL_END_LABELS[toolName] ?? 'Processing...';
@@ -517,13 +510,10 @@ export async function POST(req: Request) {
             // 1. Output was truncated (finish reason 'length'), OR
             // 2. Model gathered assets (tool activity) but never produced files —
             //    common with models that stop early with finish reason 'other'
-            // For single-page mode: text HTML output counts as file output
             const hadToolActivity = toolCallNames.size > 0;
-            const hasTextHtml = isSinglePageEdit && /<!doctype\s/i.test(segmentText);
-            const effectiveFileOutput = hasFileOutput || hasTextHtml;
             const needsContinuation =
               finalFinishReason === 'length' ||
-              (finalFinishReason !== 'stop' && hadToolActivity && !effectiveFileOutput);
+              (finalFinishReason !== 'stop' && hadToolActivity && !hasFileOutput);
 
             if (!needsContinuation) {
               break;
@@ -548,7 +538,7 @@ export async function POST(req: Request) {
             continuationMessages = [
               ...continuationMessages,
               { role: 'assistant', parts: [{ type: 'text', text: segmentText }] },
-              { role: 'user', parts: [{ type: 'text', text: buildContinuePrompt(segmentText, isSinglePageEdit) }] },
+              { role: 'user', parts: [{ type: 'text', text: buildContinuePrompt(segmentText) }] },
             ] as Array<Omit<UIMessage, 'id'>>;
           }
 

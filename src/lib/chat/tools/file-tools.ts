@@ -1,27 +1,11 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { applyEditOperations } from '@/lib/parser/edit-operations/apply-edit-operations';
-import { applyDomOperations } from '@/lib/parser/edit-operations/apply-dom-operations';
-import type { DomOperation, EditOperation } from '@/lib/parser/edit-operations/types';
+import type { EditOperation } from '@/lib/parser/edit-operations/types';
 import type { ProjectFiles } from '@/types';
 
 // Track consecutive failures per file for escalation
 type MistakeTracker = Map<string, number>;
-
-const domOperationSchema = z.object({
-  selector: z.string().describe('CSS selector targeting the element(s), e.g. "img.hero", "#title", ".cta-button"'),
-  action: z.enum([
-    'setAttribute', 'setText', 'setHTML',
-    'addClass', 'removeClass', 'replaceClass',
-    'remove', 'insertAdjacentHTML',
-  ]).describe('The DOM manipulation to perform'),
-  attr: z.string().optional().describe('Attribute name (for setAttribute)'),
-  value: z.string().optional().describe('New value for the operation'),
-  oldClass: z.string().optional().describe('Class to remove (for replaceClass)'),
-  newClass: z.string().optional().describe('Class to add (for replaceClass)'),
-  position: z.enum(['beforebegin', 'afterbegin', 'beforeend', 'afterend']).optional()
-    .describe('Insert position (for insertAdjacentHTML)'),
-});
 
 const replaceOperationSchema = z.object({
   search: z.string().describe('Exact substring to find in the file. Must match precisely including whitespace and indentation.'),
@@ -32,56 +16,6 @@ const replaceOperationSchema = z.object({
 
 function availableFilesList(workingFiles: ProjectFiles): string {
   return Object.keys(workingFiles).join(', ') || 'none';
-}
-
-/**
- * Create only the editDOM tool (for single-page mode where HTML is output as text).
- */
-export function createEditDomTool(workingFiles: ProjectFiles) {
-  return {
-    editDOM: tool({
-      description:
-        'Apply targeted DOM operations to an existing HTML file using CSS selectors. Preferred for small changes: text, images, links, colors, classes, attributes, removing elements, adding elements near existing ones. Returns { success, file, content } on full success. On partial/failure returns details about which operations failed and why.',
-      inputSchema: z.object({
-        file: z.string().describe('The filename to edit, e.g. "index.html" or "about.html"'),
-        operations: z.array(domOperationSchema).describe('Ordered list of DOM operations to apply'),
-      }),
-      execute: async ({ file: rawFile, operations }) => {
-        const file = rawFile.replace(/^['"](.+)['"]$/, '$1');
-        const source = workingFiles[file];
-        if (!source) {
-          return {
-            success: false as const,
-            error: `File "${file}" not found. Available files: ${availableFilesList(workingFiles)}`,
-          };
-        }
-
-        const { html, results } = applyDomOperations(source, operations as DomOperation[]);
-        const failures = results.filter((r) => !r.success);
-
-        if (failures.length === 0) {
-          workingFiles[file] = html;
-          return { success: true as const, file, content: html };
-        }
-
-        if (failures.length < operations.length) {
-          workingFiles[file] = html;
-          return {
-            success: 'partial' as const,
-            file,
-            content: html,
-            appliedCount: operations.length - failures.length,
-            errors: failures.map((f) => `Operation ${f.index + 1}: ${'error' in f ? f.error : 'unknown error'}`),
-          };
-        }
-
-        return {
-          success: false as const,
-          error: `All ${operations.length} DOM operations failed:\n${failures.map((f) => `  Operation ${f.index + 1}: ${'error' in f ? f.error : 'unknown error'}`).join('\n')}`,
-        };
-      },
-    }),
-  };
 }
 
 /**
@@ -247,18 +181,14 @@ export function createFileTools(workingFiles: ProjectFiles) {
       },
     }),
 
-    ...createEditDomTool(workingFiles),
-
     editFiles: tool({
       description:
-        'Edit one or more files in a single call. Each file can use DOM operations (CSS selectors) and/or search/replace operations. Uses 5-tier matching for replace: exact → whitespace-tolerant → token-based → fuzzy (≥85%) → auto-correct (≥75%). All operations are attempted even if some fail — successful edits are kept. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
+        'Edit one or more files using search/replace operations. Uses 5-tier matching: exact → whitespace-tolerant → token-based → fuzzy (≥85%) → auto-correct (≥75%). All operations are attempted even if some fail — successful edits are kept. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
       inputSchema: z.object({
         edits: z.array(z.object({
           file: z.string().describe('The filename to edit'),
-          domOperations: z.array(domOperationSchema).optional()
-            .describe('DOM operations to apply first (CSS selector-based)'),
-          replaceOperations: z.array(replaceOperationSchema).optional()
-            .describe('Search/replace operations to apply after DOM operations'),
+          replaceOperations: z.array(replaceOperationSchema)
+            .describe('Search/replace operations to apply'),
         })).describe('Array of per-file edit specifications'),
       }),
       execute: async ({ edits }) => {
@@ -289,22 +219,11 @@ export function createFileTools(workingFiles: ProjectFiles) {
           let fileSuccess: true | 'partial' | false = true;
           let fileError: string | undefined;
 
-          // Phase 1: DOM operations
-          if (edit.domOperations && edit.domOperations.length > 0) {
-            const domResult = applyDomOperations(currentHtml, edit.domOperations as DomOperation[]);
-            const failures = domResult.results.filter((r) => !r.success);
-            currentHtml = domResult.html;
-            if (failures.length > 0) {
-              fileSuccess = failures.length < edit.domOperations.length ? 'partial' : false;
-              fileError = failures.map((f) => `DOM op ${f.index + 1}: ${'error' in f ? f.error : 'unknown'}`).join('; ');
-            }
-          }
-
-          // Phase 2: Search/replace operations (only if DOM phase didn't fully fail)
+          // Search/replace operations
           let matchTiers: string[] | undefined;
           let bestMatch: unknown;
           let failedOperations: unknown;
-          if (fileSuccess !== false && edit.replaceOperations && edit.replaceOperations.length > 0) {
+          if (edit.replaceOperations && edit.replaceOperations.length > 0) {
             const replaceResult = applyEditOperations(currentHtml, edit.replaceOperations as EditOperation[]);
             currentHtml = replaceResult.html;
             if (replaceResult.success === true || replaceResult.success === 'partial') {
@@ -318,7 +237,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
               fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
               failedOperations = replaceResult.failedOperations;
             } else if (replaceResult.success === false) {
-              fileSuccess = edit.domOperations?.length ? 'partial' : false;
+              fileSuccess = false;
               fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
             }
           }
