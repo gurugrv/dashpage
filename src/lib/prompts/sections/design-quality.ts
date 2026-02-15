@@ -42,7 +42,7 @@ Apply colors to :root CSS custom properties (all in HSL):
 
 Gradient rules: prefer solid colors; use gradients only to reinforce mood. Analogous colors in the same temperature family. Maximum 2 stops.
 
-Anti-convergence: You tend to gravitate toward the same few palettes (teal/coral, navy/gold, sage/cream). Actively resist familiar combinations. If your first instinct feels "safe" or "seen before", push further into the design seed's hue zone.
+Push into the design seed's hue zone and find unexpected color stories. A bakery doesn't need warm browns — try dusty sage with terracotta accents. A law firm doesn't need navy — try warm charcoal with aged brass. The best palettes feel inevitable in hindsight but surprising at first glance.
 </color_system>
 
 <typography>
@@ -100,6 +100,32 @@ Micro-details:
 - Badge/pill elements for tags and status indicators
 - Dividers or spacing (not both) to separate content sections
 </visual_polish>
+
+<motion_design>
+Bring the page to life with purposeful animation:
+
+Entrance animations:
+- Fade-up and slide-in for content sections using CSS @keyframes + Intersection Observer
+- Staggered reveals for card grids and lists (increment delay by 100-150ms per item)
+- Smooth scroll behavior: html { scroll-behavior: smooth }
+
+Scroll effects:
+- Parallax-lite: subtle CSS transform: translateY() on scroll for hero backgrounds or decorative elements
+- Hero section kinetic typography or animated gradient backgrounds (CSS @keyframes on background-position)
+- Progress indicators or scroll-triggered counters for stats sections
+
+Micro-interactions:
+- Button press feedback: active:scale-95 with transition
+- Toggle switches, expanding cards, accordion animations
+- Hover reveals: content that slides or fades in on card hover
+- Form focus effects: border color transitions, floating labels
+
+Performance rules:
+- ONLY animate transform and opacity (composited properties) for 60fps
+- Use will-change sparingly — only on elements actively animating
+- ALWAYS respect prefers-reduced-motion: wrap animations in @media (prefers-reduced-motion: no-preference)
+- Keep durations 150-400ms for UI, up to 800ms for decorative entrance animations
+</motion_design>
 
 <creative_framework>
 Match your creative approach to the request:

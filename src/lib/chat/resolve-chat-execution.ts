@@ -12,6 +12,7 @@ interface ResolveChatExecutionInput {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   currentFiles?: Record<string, string>;
+  userPrompt?: string;
 }
 
 interface ResolvedChatExecution {
@@ -29,6 +30,7 @@ export async function resolveChatExecution({
   savedTimeZone,
   browserTimeZone,
   currentFiles,
+  userPrompt,
 }: ResolveChatExecutionInput): Promise<ResolvedChatExecution> {
   const apiKey = await resolveApiKey(provider);
   if (!apiKey) {
@@ -45,7 +47,7 @@ export async function resolveChatExecution({
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext);
+  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, userPrompt);
   const systemPrompt = systemPromptParts.stable + '\n' + systemPromptParts.dynamic;
   const modelInstance = providerConfig.createModel(apiKey, model);
 

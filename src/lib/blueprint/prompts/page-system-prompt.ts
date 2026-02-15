@@ -27,6 +27,14 @@ export function getPageSystemPrompt(
   const hasSharedFooter = !!sharedHtml?.footerHtml;
   const isSinglePage = blueprint.pages.length === 1;
 
+  // Page position and sibling context for multi-page sites
+  const pageIndex = blueprint.pages.findIndex(p => p.filename === page.filename);
+  const totalPages = blueprint.pages.length;
+  const siblingContext = blueprint.pages
+    .filter(p => p.filename !== page.filename)
+    .map(p => `- ${p.filename}: ${p.purpose}`)
+    .join('\n');
+
   const headerSection = hasSharedHeader
     ? `<shared_header>
 Embed this header HTML VERBATIM at the start of <body> (do NOT modify it):
@@ -142,7 +150,15 @@ ${blueprint.pages.length === 1
     : 'This page is PART OF A MULTI-PAGE SITE. It must feel like it belongs to the same site as every other page — consistent color usage, typography, spacing rhythm, and visual personality across all pages.'}
 </design_token_usage>
 
-<page_spec>
+${totalPages > 1 ? `<site_context>
+This is page ${pageIndex + 1} of ${totalPages} in the site.
+Other pages in this site:
+${siblingContext}
+
+Ensure this page's visual weight and content depth matches its role. The homepage should feel like the front door; inner pages should reward the click.
+</site_context>
+
+` : ''}<page_spec>
 Filename: ${page.filename}
 Title: ${page.title}
 Meta Description: ${page.description}

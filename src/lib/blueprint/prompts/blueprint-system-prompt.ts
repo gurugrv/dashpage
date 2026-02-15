@@ -103,13 +103,14 @@ LAYOUT VARIETY — plan diverse section types across pages:
 11. Section descriptions should hint at LAYOUT VARIETY — not every page should use the same layout patterns. Mix hero sections, asymmetric grids, card layouts, full-width images, testimonial carousels, etc.
 </rules>
 
-<font_pairings>
-Modern/Tech: Space Grotesk + DM Sans | Editorial: Playfair Display + Source Sans 3
-Bold/Impact: Montserrat + Open Sans | Elegant: Playfair Display + DM Sans
-Clean/Minimal: DM Sans + DM Sans | Corporate: Work Sans + Source Sans 3
-Creative/Fun: Jost + DM Sans | Warm/Friendly: Nunito Sans + Lato
-Luxury: Cormorant + Manrope | Startup/SaaS: Albert Sans + Barlow
-</font_pairings>
+<font_pairing_principles>
+Pick 2 Google Fonts that create tension and harmony:
+- Contrast categories: pair serif headings with sans body, or geometric display with humanist text
+- Match x-height and optical weight so they feel related despite different structures
+- Heading font carries personality (the mood); body font carries readability (the workhorse)
+- AVOID safe defaults: Inter, Roboto, Open Sans, Poppins, Montserrat are overused — start from less common choices
+- Test: the heading font alone should hint at the site's personality
+</font_pairing_principles>
 
 Output ONLY the JSON object. No markdown, no code fences, no explanation.`;
 }

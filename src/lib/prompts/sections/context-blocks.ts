@@ -109,10 +109,85 @@ export function getRandomStyleSeed(): StyleSeed {
   return STYLE_SEEDS[Math.floor(Math.random() * STYLE_SEEDS.length)];
 }
 
-export function buildFirstGenerationBlock(isFirstGeneration: boolean): string {
+const KEYWORD_STRATEGY_MAP: Record<string, StyleSeed['strategy'][]> = {
+  // Food & hospitality
+  restaurant: ['MUTED', 'BOLD'],
+  bakery: ['MUTED', 'BOLD'],
+  cafe: ['MUTED', 'LIGHT'],
+  coffee: ['MUTED', 'LIGHT'],
+  food: ['MUTED', 'BOLD'],
+  bar: ['BOLD', 'MUTED'],
+  hotel: ['MUTED', 'LIGHT'],
+  // Tech & SaaS
+  tech: ['LIGHT', 'HIGH-CONTRAST'],
+  saas: ['LIGHT', 'HIGH-CONTRAST'],
+  software: ['LIGHT', 'HIGH-CONTRAST'],
+  app: ['LIGHT', 'BOLD'],
+  startup: ['BOLD', 'LIGHT'],
+  ai: ['BOLD', 'HIGH-CONTRAST'],
+  // Luxury & premium
+  luxury: ['BOLD', 'MUTED'],
+  premium: ['BOLD', 'MUTED'],
+  jewelry: ['BOLD', 'MUTED'],
+  fashion: ['BOLD', 'HIGH-CONTRAST'],
+  boutique: ['MUTED', 'BOLD'],
+  // Professional services
+  law: ['HIGH-CONTRAST', 'MUTED'],
+  legal: ['HIGH-CONTRAST', 'MUTED'],
+  consulting: ['HIGH-CONTRAST', 'LIGHT'],
+  finance: ['HIGH-CONTRAST', 'MUTED'],
+  accounting: ['HIGH-CONTRAST', 'LIGHT'],
+  // Creative & personal
+  portfolio: ['HIGH-CONTRAST', 'BOLD'],
+  photography: ['HIGH-CONTRAST', 'MUTED'],
+  art: ['BOLD', 'HIGH-CONTRAST'],
+  design: ['BOLD', 'LIGHT'],
+  agency: ['BOLD', 'HIGH-CONTRAST'],
+  // Health & wellness
+  health: ['LIGHT', 'MUTED'],
+  wellness: ['LIGHT', 'MUTED'],
+  spa: ['MUTED', 'LIGHT'],
+  yoga: ['MUTED', 'LIGHT'],
+  fitness: ['BOLD', 'LIGHT'],
+  gym: ['BOLD', 'HIGH-CONTRAST'],
+  // Education & nonprofit
+  education: ['LIGHT', 'MUTED'],
+  school: ['LIGHT', 'BOLD'],
+  nonprofit: ['MUTED', 'LIGHT'],
+  charity: ['MUTED', 'BOLD'],
+  // Real estate & construction
+  'real estate': ['LIGHT', 'HIGH-CONTRAST'],
+  construction: ['MUTED', 'HIGH-CONTRAST'],
+  architecture: ['HIGH-CONTRAST', 'MUTED'],
+};
+
+export function getWeightedStyleSeed(userPrompt: string): StyleSeed {
+  const lower = userPrompt.toLowerCase();
+  const matchedStrategies: StyleSeed['strategy'][] = [];
+
+  for (const [keyword, strategies] of Object.entries(KEYWORD_STRATEGY_MAP)) {
+    if (lower.includes(keyword)) {
+      matchedStrategies.push(...strategies);
+    }
+  }
+
+  if (matchedStrategies.length === 0) {
+    return getRandomStyleSeed();
+  }
+
+  // Filter seeds by compatible strategies
+  const compatibleSeeds = STYLE_SEEDS.filter(s => matchedStrategies.includes(s.strategy));
+  if (compatibleSeeds.length === 0) {
+    return getRandomStyleSeed();
+  }
+
+  return compatibleSeeds[Math.floor(Math.random() * compatibleSeeds.length)];
+}
+
+export function buildFirstGenerationBlock(isFirstGeneration: boolean, userPrompt?: string): string {
   if (!isFirstGeneration) return '';
 
-  const seed = getRandomStyleSeed();
+  const seed = userPrompt ? getWeightedStyleSeed(userPrompt) : getRandomStyleSeed();
 
   return `\n<first_generation>
 This is a NEW website. Your design seed for this project:
@@ -124,9 +199,9 @@ A "${seed.mood}" law firm, a "${seed.mood}" bakery, a "${seed.mood}" SaaS dashbo
 
 Steps:
 1. State what you'll build and how the design seed influences your approach
-2. Generate your color palette: start from the seed's hue zone (${seed.hueRange}°), apply the ${seed.strategy} palette strategy ranges from color_system, then adjust to fit the subject
-3. Pick a font pairing that reinforces the mood
-4. Use the writeFiles tool to generate HTML with the design system defined FIRST in <style>, using your generated palette values in :root {} custom properties
+2. Declare your exact palette: list all 7 HSL color values you'll use (primary, secondary, accent, bg, surface, text, text-muted) and explain why each fits the mood. Start from the seed's hue zone (${seed.hueRange}°), apply the ${seed.strategy} strategy ranges from color_system, then adjust to fit the subject
+3. Pick a font pairing that reinforces the mood — explain the contrast principle (e.g., geometric + humanist, display + workhorse)
+4. Use the writeFiles tool with your design system defined FIRST in <style>, using your declared palette values in :root {} custom properties
 
 If the user's request explicitly names multiple pages, include all requested pages in a single writeFiles call. Each page must be a complete standalone HTML document. Otherwise, generate a single index.html.
 

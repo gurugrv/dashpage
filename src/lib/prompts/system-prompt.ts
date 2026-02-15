@@ -28,6 +28,7 @@ const CLOSING_LINE = `IMPORTANT: Be concise in your explanation. Focus on delive
 export function getSystemPromptParts(
   currentFiles?: ProjectFiles,
   temporalContext?: TemporalContext,
+  userPrompt?: string,
 ): SystemPromptParts {
   const isFirstGeneration = !currentFiles?.['index.html'];
   const fileCount = Object.keys(currentFiles ?? {}).length;
@@ -37,10 +38,10 @@ export function getSystemPromptParts(
   const stable = `${IDENTITY_LINE}
 
 ${getBaseRulesSection(isFirstGeneration)}
-${isFirstGeneration ? '\n' + UI_UX_GUIDELINES_SECTION + '\n' : ''}
+${UI_UX_GUIDELINES_SECTION}
 ${toolSection}`;
 
-  const dynamic = `${buildTemporalBlock(temporalContext)}${buildFirstGenerationBlock(isFirstGeneration)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
+  const dynamic = `${buildTemporalBlock(temporalContext)}${buildFirstGenerationBlock(isFirstGeneration, userPrompt)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
 
 ${CLOSING_LINE}`;
 
@@ -50,7 +51,8 @@ ${CLOSING_LINE}`;
 export function getSystemPrompt(
   currentFiles?: ProjectFiles,
   temporalContext?: TemporalContext,
+  userPrompt?: string,
 ): string {
-  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext);
+  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext, userPrompt);
   return stable + '\n' + dynamic;
 }

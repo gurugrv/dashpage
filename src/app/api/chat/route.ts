@@ -20,8 +20,35 @@ interface ChatRequestBody {
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
-const CONTINUE_PROMPT_MULTIPAGE = 'Continue from where you left off. Append the remaining content — do NOT restart files from the beginning.';
-const CONTINUE_PROMPT_SINGLEPAGE = 'Continue from where you left off. Append the remaining HTML — do NOT restart from <!DOCTYPE html> or <head>.';
+
+function extractLastSection(segmentText: string): string | null {
+  // Look for the last id="..." or <!-- ... Section --> pattern
+  const idMatches = segmentText.match(/id=["']([^"']+)["']/g);
+  if (idMatches && idMatches.length > 0) {
+    const last = idMatches[idMatches.length - 1];
+    const match = last.match(/id=["']([^"']+)["']/);
+    if (match) return match[1];
+  }
+  const commentMatches = segmentText.match(/<!--\s*(.+?)\s*(?:Section|section)\s*-->/g);
+  if (commentMatches && commentMatches.length > 0) {
+    const last = commentMatches[commentMatches.length - 1];
+    const match = last.match(/<!--\s*(.+?)\s*(?:Section|section)\s*-->/);
+    if (match) return match[1].trim();
+  }
+  return null;
+}
+
+function buildContinuePrompt(segmentText: string, isSinglePage: boolean): string {
+  const base = isSinglePage
+    ? 'Continue from where you left off. Append the remaining HTML — do NOT restart from <!DOCTYPE html> or <head>.'
+    : 'Continue from where you left off. Append the remaining content — do NOT restart files from the beginning.';
+
+  const lastSection = extractLastSection(segmentText);
+  if (lastSection) {
+    return `${base} You were generating the "${lastSection}" section. Continue from there and complete all remaining sections.`;
+  }
+  return base;
+}
 
 function isStreamPart(part: unknown): part is { type: string; [key: string]: unknown } {
   return typeof part === 'object' && part !== null && 'type' in part;
@@ -144,6 +171,13 @@ export async function POST(req: Request) {
   } = body;
 
   try {
+    // Extract the last user message text for weighted style seed selection
+    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserText = lastUserMessage?.parts
+      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text)
+      .join(' ') ?? '';
+
     const {
       modelInstance,
       maxOutputTokens: resolvedMaxOutputTokens,
@@ -157,6 +191,7 @@ export async function POST(req: Request) {
       savedTimeZone,
       browserTimeZone,
       currentFiles,
+      userPrompt: lastUserText,
     });
 
     const isAnthropicDirect = resolvedProvider === 'anthropic';
@@ -168,7 +203,7 @@ export async function POST(req: Request) {
     const { tools, workingFiles: _workingFiles } = isSinglePageEdit
       ? createSinglePageTools(currentFiles ?? {})
       : createWebsiteTools(currentFiles ?? {});
-    const continuePrompt = isSinglePageEdit ? CONTINUE_PROMPT_SINGLEPAGE : CONTINUE_PROMPT_MULTIPAGE;
+    // continuePrompt is built dynamically per segment via buildContinuePrompt()
     const isEditing = fileCount > 0;
     const detector = new BuildProgressDetector();
     const debugSession = createDebugSession({
@@ -453,13 +488,18 @@ export async function POST(req: Request) {
             continuationMessages = [
               ...continuationMessages,
               { role: 'assistant', parts: [{ type: 'text', text: segmentText }] },
-              { role: 'user', parts: [{ type: 'text', text: continuePrompt }] },
+              { role: 'user', parts: [{ type: 'text', text: buildContinuePrompt(segmentText, isSinglePageEdit) }] },
             ] as Array<Omit<UIMessage, 'id'>>;
           }
 
           writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });
           debugSession.finish('complete');
           debugSession.logFullResponse(finalFinishReason);
+          debugSession.logGenerationSummary?.({
+            finishReason: finalFinishReason,
+            hasFileOutput,
+            toolCallCount: toolCallNames.size,
+          });
 
           // Send finish immediately so client can update UI without waiting for DB cleanup
           writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
@@ -474,6 +514,11 @@ export async function POST(req: Request) {
           if (err instanceof Error && err.name === 'AbortError') {
             debugSession.finish('aborted');
             debugSession.logFullResponse('aborted');
+            debugSession.logGenerationSummary?.({
+              finishReason: 'aborted',
+              hasFileOutput,
+              toolCallCount: toolCallNames.size,
+            });
             return;
           }
           throw err;

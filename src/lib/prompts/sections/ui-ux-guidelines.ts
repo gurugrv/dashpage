@@ -22,17 +22,17 @@ Industry tonal guidance — adjust the temperature and energy of your palette, n
 - Images: meaningful alt text. Keyboard navigation: all features via Tab/Enter.
 </accessibility_rules>
 
-<layout_patterns>
-Landing page structures (choose based on goal):
-- Hero-Centric: Full viewport hero + compelling headline + CTA above fold
-- Social Proof-Focused: Testimonials prominently placed before final CTA
-- Feature Showcase: Grid layout (3-4 columns) with icon cards
-- Minimal Direct: Single column, generous whitespace, one clear CTA
-- Conversion-Optimized: Form above fold, minimal fields (3 max), trust badges
+<layout_principles>
+Create visual impact through:
+- Asymmetric layouts that break grid monotony — offset hero images, overlapping sections, diagonal divides
+- Scale contrast: pair oversized typography with intimate body text, large hero images with tight detail grids
+- Rhythm variation: alternate between full-bleed sections and contained content, dense grids and breathing whitespace
+- Depth layers: overlapping elements, negative margins, z-index stacking for dimensional feel
+- Viewport-aware sections: at least one section should command the full viewport height for dramatic impact
 
-Responsive breakpoints: 375px, 768px, 1024px, 1440px
+Responsive: 375px, 768px, 1024px, 1440px breakpoints
 Content max-width: max-w-3xl for text (65-75ch readable length)
-</layout_patterns>
+</layout_principles>
 
 <interaction_standards>
 - Use the searchIcons tool for UI icons — real SVG icons look professional, emojis don't.
