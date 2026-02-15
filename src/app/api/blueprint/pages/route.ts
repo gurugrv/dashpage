@@ -14,6 +14,32 @@ const MAX_PAGE_CONTINUATIONS = 2;
 const MAX_CONCURRENT_PAGES = 3;
 
 /**
+ * Extract HTML from model text output. Handles:
+ * - Raw HTML (<!DOCTYPE html>...</html>)
+ * - Markdown code blocks (```html ... ```)
+ * Known issue: Gemini models get MALFORMED_FUNCTION_CALL with large tool arguments,
+ * outputting HTML as text instead of calling writeFiles.
+ */
+function extractHtmlFromText(text: string): string | null {
+  // Try raw HTML first
+  const rawMatch = text.match(/<!DOCTYPE html>[\s\S]*<\/html>/i);
+  if (rawMatch) return rawMatch[0];
+
+  // Try markdown code block: ```html ... ```
+  const codeBlockMatch = text.match(/```html\s*\n([\s\S]*?)```/i);
+  if (codeBlockMatch) {
+    const content = codeBlockMatch[1].trim();
+    if (content.includes('<html') || content.includes('<!DOCTYPE')) return content;
+  }
+
+  // Try any code block that looks like HTML
+  const anyBlockMatch = text.match(/```\s*\n(<!DOCTYPE html>[\s\S]*?<\/html>)\s*\n?```/i);
+  if (anyBlockMatch) return anyBlockMatch[1];
+
+  return null;
+}
+
+/**
  * Extract a compact summary of resources (images/icons) from previous response messages.
  * Walks tool-call/tool-result pairs and pulls out just the useful URLs and SVGs,
  * discarding verbose metadata that bloats continuation context.
@@ -82,15 +108,15 @@ function buildLightweightContinuePrompt(
   const resources = extractResourceSummary(prevMessages);
 
   const instruction = writeFilesAttempted
-    ? `Your previous writeFiles call was cut off due to output length limits. Call writeFiles again with the COMPLETE HTML.`
-    : `You gathered resources but did not call writeFiles. Call it now with the complete HTML.`;
+    ? `Your previous file write call was cut off due to output length limits. Call writeFile again with the COMPLETE HTML.`
+    : `You gathered resources but did not write the file. Call writeFile now with the complete HTML.`;
 
   return [
     instruction,
     '',
-    `writeFiles({ files: { "${filename}": "<!DOCTYPE html>..." } })`,
+    `writeFile({ filename: "${filename}", content: "<!DOCTYPE html>..." })`,
     '',
-    `The "files" value must be a simple object: one key "${filename}", one value which is the complete HTML string starting with <!DOCTYPE html>. Generate the full page content — no placeholders or abbreviated content.`,
+    `The "content" must be the complete HTML string starting with <!DOCTYPE html>. Generate the full page content — no placeholders or abbreviated content.`,
     '',
     resources,
   ].filter(Boolean).join('\n');
@@ -262,6 +288,7 @@ export async function POST(req: Request) {
         let prevSegmentToolInputs = '';  // Degenerate loop detection
         let writeFilesAttempted = false;
         let segmentsWithoutWriteFiles = 0;
+        let allTextOutput = '';  // Accumulate text across all segments for fallback
 
         for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
           if (abortSignal.aborted) break;
@@ -316,10 +343,12 @@ export async function POST(req: Request) {
           let writeFilesToolId: string | null = null;
           let writeFilesJsonBuffer = '';
           let writeFilesContentStarted = false;
+          let segmentTextBuffer = '';  // Accumulate text output for fallback extraction
 
           for await (const part of result.fullStream) {
             if (part.type === 'text-delta') {
               debugSession.logDelta(part.text);
+              segmentTextBuffer += part.text;
             } else if (part.type === 'tool-input-delta' && part.id !== writeFilesToolId) {
               debugSession.logToolInputDelta({ toolCallId: part.id, delta: part.delta });
             } else if (part.type === 'tool-input-start') {
@@ -332,8 +361,8 @@ export async function POST(req: Request) {
                 status: 'running',
                 label: TOOL_LABELS[part.toolName] ?? part.toolName,
               });
-              // Track writeFiles tool for streaming code deltas
-              if (part.toolName === 'writeFiles') {
+              // Track writeFile/writeFiles tool for streaming code deltas
+              if (part.toolName === 'writeFiles' || part.toolName === 'writeFile') {
                 writeFilesToolId = part.id;
                 writeFilesJsonBuffer = '';
                 writeFilesContentStarted = false;
@@ -342,8 +371,11 @@ export async function POST(req: Request) {
             } else if (part.type === 'tool-input-delta' && writeFilesToolId && part.id === writeFilesToolId) {
               writeFilesJsonBuffer += part.delta;
               if (!writeFilesContentStarted) {
-                // Look for the opening of the first string value: {"files":{"filename.html":"
-                const match = writeFilesJsonBuffer.match(/"files"\s*:\s*\{\s*"[^"]+"\s*:\s*"/);
+                // Match writeFiles format: {"files":{"filename.html":"
+                // OR writeFile format: {"filename":"...","content":"
+                const multiMatch = writeFilesJsonBuffer.match(/"files"\s*:\s*\{\s*"[^"]+"\s*:\s*"/);
+                const singleMatch = !multiMatch && writeFilesJsonBuffer.match(/"content"\s*:\s*"/);
+                const match = multiMatch ?? singleMatch;
                 if (match) {
                   writeFilesContentStarted = true;
                   const contentStart = writeFilesJsonBuffer.indexOf(match[0]) + match[0].length;
@@ -421,8 +453,31 @@ export async function POST(req: Request) {
           const finishReason = await result.finishReason;
           debugSession.logFullResponse(finishReason);
 
+          // Normalize filenames: models sometimes hallucinate prefixes like _about.html
+          for (const key of Object.keys(workingFiles)) {
+            const normalized = key.replace(/^_/, '').toLowerCase();
+            if (normalized !== key && !workingFiles[normalized]) {
+              workingFiles[normalized] = workingFiles[key];
+            }
+          }
+
           // writeFiles succeeded — page is complete, no continuation needed
           if (workingFiles[page.filename]) break;
+
+          // Accumulate text across segments for fallback extraction
+          allTextOutput += segmentTextBuffer;
+
+          // If model output HTML as text (not via writeFiles), extract and use it.
+          // Known issue: Gemini models get MALFORMED_FUNCTION_CALL with large tool arguments
+          // and fall back to outputting HTML as text instead of calling writeFiles.
+          if (allTextOutput) {
+            const extracted = extractHtmlFromText(allTextOutput);
+            if (extracted) {
+              workingFiles[page.filename] = extracted;
+              console.warn(`[blueprint-page:${page.filename}] Extracted HTML from text output (model did not use writeFiles)`);
+              break;
+            }
+          }
 
           // Not truncated, just didn't produce output
           if (finishReason !== 'length') break;
@@ -449,20 +504,36 @@ export async function POST(req: Request) {
         }
 
         // Extract HTML from workingFiles
-        let pageHtml = workingFiles[page.filename]
+        let pageHtml: string | undefined = workingFiles[page.filename]
           // Fallback: check for any file that looks like the page
           ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
 
-        // Text fallback: if writeFiles didn't produce output, try extracting from text response
+        // Text fallback: if writeFiles didn't produce output, try extracting from accumulated text
+        if (!pageHtml && allTextOutput) {
+          pageHtml = extractHtmlFromText(allTextOutput) ?? undefined;
+          if (pageHtml) {
+            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from accumulated text output (writeFiles fallback)`);
+          }
+        }
+
+        // Last resort: extract text from AI SDK response messages
         if (!pageHtml) {
           const responseText = prevMessages
-            .filter(m => m.role === 'assistant' && typeof m.content === 'string')
-            .map(m => m.content as string)
+            .filter(m => m.role === 'assistant')
+            .map(m => {
+              if (typeof m.content === 'string') return m.content;
+              if (Array.isArray(m.content)) {
+                return (m.content as Array<{ type: string; text?: string }>)
+                  .filter(p => p.type === 'text' && p.text)
+                  .map(p => p.text)
+                  .join('');
+              }
+              return '';
+            })
             .join('\n');
-          const docMatch = responseText.match(/<!DOCTYPE html>[\s\S]*<\/html>/i);
-          if (docMatch) {
-            pageHtml = docMatch[0];
-            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from text response (writeFiles fallback)`);
+          pageHtml = extractHtmlFromText(responseText) ?? undefined;
+          if (pageHtml) {
+            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from response messages (writeFiles fallback)`);
           }
         }
 

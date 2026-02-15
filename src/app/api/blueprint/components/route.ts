@@ -102,6 +102,8 @@ export async function POST(req: Request) {
         for await (const part of result.fullStream) {
           if (part.type === 'text-delta') {
             debugSession.logDelta(part.text);
+          } else if (part.type === 'tool-input-delta') {
+            debugSession.logToolInputDelta({ toolCallId: part.id, delta: part.delta });
           } else if (part.type === 'tool-input-start') {
             debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
             sendEvent({
@@ -153,15 +155,35 @@ export async function POST(req: Request) {
         const responseText = debugSession.getFullResponse();
         debugSession.logFullResponse(await result.finishReason);
 
-        const resolvedHeader = workingFiles['header.html'];
-        const resolvedFooter = workingFiles['footer.html'];
+        // Normalize filenames: models sometimes hallucinate prefixes like _footer.html
+        const normalizedFiles: Record<string, string> = {};
+        for (const [key, value] of Object.entries(workingFiles)) {
+          const normalized = key.replace(/^_/, '').toLowerCase();
+          normalizedFiles[normalized] = value;
+        }
+        let resolvedHeader = normalizedFiles['header.html'];
+        let resolvedFooter = normalizedFiles['footer.html'];
+
+        // Fallback: if writeFiles didn't produce output, try extracting from text response
+        if ((!resolvedHeader || !resolvedFooter) && responseText.length > 0) {
+          const headerMatch = responseText.match(/<header[\s>][\s\S]*?<\/header>/i);
+          const footerMatch = responseText.match(/<footer[\s>][\s\S]*?<\/footer>/i);
+          if (headerMatch && !resolvedHeader) {
+            resolvedHeader = headerMatch[0];
+            console.warn('[blueprint-components] Extracted header from text response (writeFiles fallback)');
+          }
+          if (footerMatch && !resolvedFooter) {
+            resolvedFooter = footerMatch[0];
+            console.warn('[blueprint-components] Extracted footer from text response (writeFiles fallback)');
+          }
+        }
 
         if (!resolvedHeader || !resolvedFooter) {
-          console.error('Model did not produce header.html and/or footer.html via writeFiles. Available files:', Object.keys(workingFiles), 'Raw response:', responseText.slice(0, 2000));
+          console.error('Model did not produce header.html and/or footer.html via writeFiles or text. Available files:', Object.keys(workingFiles), 'Raw response:', responseText.slice(0, 2000));
           sendEvent({
             type: 'component-status',
             status: 'error',
-            error: 'Failed to generate header/footer — model did not call writeFiles',
+            error: 'Failed to generate header/footer — model did not produce valid HTML',
           });
         } else {
           if (conversationId) {
