@@ -12,12 +12,88 @@ import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
 const MAX_CONCURRENT_PAGES = 3;
-function buildPageContinuePrompt(filename: string): string {
-  return `The page was not completed. Call writeFiles to output the full page:
 
-writeFiles({ files: { "${filename}": "<!DOCTYPE html>..." } })
+/**
+ * Extract a compact summary of resources (images/icons) from previous response messages.
+ * Walks tool-call/tool-result pairs and pulls out just the useful URLs and SVGs,
+ * discarding verbose metadata that bloats continuation context.
+ */
+function extractResourceSummary(messages: ModelMessage[]): string {
+  const images: string[] = [];
+  const icons: string[] = [];
 
-The "files" value must be a simple object: one key "${filename}", one value which is the complete HTML string starting with <!DOCTYPE html>. Generate the full page content — no placeholders or abbreviated content.`;
+  for (const msg of messages) {
+    const parts = Array.isArray(msg.content) ? msg.content : [];
+    for (const part of parts) {
+      if (!('type' in part) || part.type !== 'tool-result') continue;
+      const toolResult = part as { type: 'tool-result'; toolName?: string; output?: unknown };
+      if (typeof toolResult.output !== 'object' || !toolResult.output) continue;
+      const result = toolResult.output as Record<string, unknown>;
+      const toolName = toolResult.toolName;
+
+      // searchImages results: { results: [{ query, images: [{ url, alt }] }] }
+      if (toolName === 'searchImages') {
+        const results = (result.results ?? result.queries) as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(results)) {
+          for (const group of results) {
+            const imgs = group.images as Array<Record<string, string>> | undefined;
+            if (Array.isArray(imgs)) {
+              for (const img of imgs) {
+                if (img.url) images.push(`[${img.alt || group.query || 'image'}] ${img.url}`);
+              }
+            }
+          }
+        }
+      }
+
+      // searchIcons results: { results: [{ query, icons: [{ name, svg }] }] }
+      if (toolName === 'searchIcons') {
+        const results = result.results as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(results)) {
+          for (const group of results) {
+            const svgs = group.icons as Array<Record<string, string>> | undefined;
+            if (Array.isArray(svgs)) {
+              for (const icon of svgs) {
+                if (icon.svg) icons.push(`[${icon.name || group.query || 'icon'}] ${icon.svg}`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const sections: string[] = [];
+  if (images.length > 0) sections.push(`Available images:\n${images.join('\n')}`);
+  if (icons.length > 0) sections.push(`Available icons:\n${icons.join('\n')}`);
+  return sections.join('\n\n');
+}
+
+/**
+ * Build a lightweight continuation prompt that avoids passing full message history.
+ * Instead of cumulative messages (which grow with each retry), we extract just the
+ * useful resources and send a fresh prompt with clear instructions.
+ */
+function buildLightweightContinuePrompt(
+  filename: string,
+  prevMessages: ModelMessage[],
+  writeFilesAttempted: boolean,
+): string {
+  const resources = extractResourceSummary(prevMessages);
+
+  const instruction = writeFilesAttempted
+    ? `Your previous writeFiles call was cut off due to output length limits. Call writeFiles again with the COMPLETE HTML.`
+    : `You gathered resources but did not call writeFiles. Call it now with the complete HTML.`;
+
+  return [
+    instruction,
+    '',
+    `writeFiles({ files: { "${filename}": "<!DOCTYPE html>..." } })`,
+    '',
+    `The "files" value must be a simple object: one key "${filename}", one value which is the complete HTML string starting with <!DOCTYPE html>. Generate the full page content — no placeholders or abbreviated content.`,
+    '',
+    resources,
+  ].filter(Boolean).join('\n');
 }
 
 interface PagesRequestBody {
@@ -184,6 +260,8 @@ export async function POST(req: Request) {
 
         let prevMessages: ModelMessage[] = [];
         let prevSegmentToolInputs = '';  // Degenerate loop detection
+        let writeFilesAttempted = false;
+        let segmentsWithoutWriteFiles = 0;
 
         for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
           if (abortSignal.aborted) break;
@@ -212,19 +290,21 @@ export async function POST(req: Request) {
               abortSignal,
             });
           } else {
-            const continuationMessages: ModelMessage[] = [
-              ...prevMessages,
-              { role: 'user' as const, content: buildPageContinuePrompt(page.filename) },
-            ];
+            // Lightweight continuation: extract resources, discard full message history
+            const continuationPrompt = buildLightweightContinuePrompt(
+              page.filename,
+              prevMessages,
+              writeFilesAttempted,
+            );
             debugSession.logPrompt({
               systemPrompt,
-              messages: [{ role: 'system', content: `[continuation: ${continuationMessages.length} messages including tool call history]` }],
+              messages: [{ role: 'system', content: `[lightweight continuation seg=${segment}, writeFilesAttempted=${writeFilesAttempted}]` }],
               maxOutputTokens,
             });
             result = streamText({
               model: modelInstance,
               system: systemPrompt,
-              messages: continuationMessages,
+              prompt: continuationPrompt,
               maxOutputTokens,
               tools: pageTools,
               stopWhen: stepCountIs(8),
@@ -240,6 +320,8 @@ export async function POST(req: Request) {
           for await (const part of result.fullStream) {
             if (part.type === 'text-delta') {
               debugSession.logDelta(part.text);
+            } else if (part.type === 'tool-input-delta' && part.id !== writeFilesToolId) {
+              debugSession.logToolInputDelta({ toolCallId: part.id, delta: part.delta });
             } else if (part.type === 'tool-input-start') {
               debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
               sendEvent({
@@ -255,6 +337,7 @@ export async function POST(req: Request) {
                 writeFilesToolId = part.id;
                 writeFilesJsonBuffer = '';
                 writeFilesContentStarted = false;
+                writeFilesAttempted = true;
               }
             } else if (part.type === 'tool-input-delta' && writeFilesToolId && part.id === writeFilesToolId) {
               writeFilesJsonBuffer += part.delta;
@@ -322,7 +405,7 @@ export async function POST(req: Request) {
           }
           debugSession.finish('complete');
 
-          // Collect full response messages (includes tool calls + results)
+          // Collect response messages for resource extraction (used by lightweight continuation)
           const response = await result.response;
           const responseMessages = response.messages;
           if (segment === 0) {
@@ -331,11 +414,8 @@ export async function POST(req: Request) {
               ...responseMessages,
             ];
           } else {
-            prevMessages = [
-              ...prevMessages,
-              { role: 'user' as const, content: buildPageContinuePrompt(page.filename) },
-              ...responseMessages,
-            ];
+            // Only keep latest segment's messages — we extract resources, not replay history
+            prevMessages = responseMessages;
           }
 
           const finishReason = await result.finishReason;
@@ -347,20 +427,44 @@ export async function POST(req: Request) {
           // Not truncated, just didn't produce output
           if (finishReason !== 'length') break;
 
-          // Detect degenerate loops: if this segment's tool inputs are identical
-          // to the previous segment (model stuck repeating garbage), stop
+          // Track segments where writeFiles was never even attempted
+          if (!writeFilesJsonBuffer) {
+            segmentsWithoutWriteFiles++;
+          } else {
+            segmentsWithoutWriteFiles = 0;
+          }
+
+          // Detect degenerate loops
           const currentToolInputs = writeFilesJsonBuffer;
           if (prevSegmentToolInputs && currentToolInputs === prevSegmentToolInputs) {
             debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'Degenerate loop detected — stopping page continuation' });
+            break;
+          }
+          // If writeFiles was never attempted for 2 segments, model is confused — stop
+          if (segmentsWithoutWriteFiles >= 2) {
+            debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'writeFiles never attempted across 2 segments — stopping' });
             break;
           }
           prevSegmentToolInputs = currentToolInputs;
         }
 
         // Extract HTML from workingFiles
-        const pageHtml = workingFiles[page.filename]
+        let pageHtml = workingFiles[page.filename]
           // Fallback: check for any file that looks like the page
           ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
+
+        // Text fallback: if writeFiles didn't produce output, try extracting from text response
+        if (!pageHtml) {
+          const responseText = prevMessages
+            .filter(m => m.role === 'assistant' && typeof m.content === 'string')
+            .map(m => m.content as string)
+            .join('\n');
+          const docMatch = responseText.match(/<!DOCTYPE html>[\s\S]*<\/html>/i);
+          if (docMatch) {
+            pageHtml = docMatch[0];
+            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from text response (writeFiles fallback)`);
+          }
+        }
 
         if (pageHtml) {
           completedPages += 1;
