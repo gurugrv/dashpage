@@ -7,33 +7,33 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
 
   const isMultiPage = Object.keys(currentFiles).length > 1;
 
-  if (isMultiPage) {
-    return `\n<edit_guidance>
-Modify the existing HTML based on the user's request.
-Build on the existing design — preserve what works, change what's requested.
-Only add new pages when the user explicitly asks for them.
-When adding a page: use editDOM or editFiles to add nav links to existing pages, then writeFiles for the new page only.
-For small changes (text, images, colors, classes): prefer editDOM — use CSS selectors from the manifest above.
-For structural changes (new sections, rearranging layout): call readFile FIRST to get exact content, then editFiles with search/replace.
-For cross-page changes (nav, header, branding): use editFiles to batch all file edits in one call.
-IMPORTANT: Before using editFiles, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFiles needs precise text matches.
-</edit_guidance>`;
-  }
+  const crossPageBlock = isMultiPage
+    ? `\nCross-page awareness:
+- Nav and footer appear on ALL pages. Changing them requires editing every file.
+- New pages must use the same design_system tokens and font imports from site_overview.
+- Use editFiles to batch cross-page changes in one call.
+Only add new pages when the user explicitly asks for them.`
+    : '';
 
   return `\n<edit_guidance>
 Modify the existing HTML based on the user's request.
 Build on the existing design — preserve what works, change what's requested.
-For small changes (text, images, colors, classes): use editDOM — use CSS selectors from the manifest above.
-For structural changes or when you need exact content: call readFile FIRST, then use editFiles.
-For major changes or redesigns: use writeFiles with complete HTML.
-IMPORTANT: Before using editFiles, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFiles needs precise text matches.
+
+BEFORE EDITING: Check the manifest above. It contains the site's design system, page structure, and CSS selectors. Use this context FIRST — do not call readFile unless you need exact content for editFiles search strings.
+
+Tool selection:
+- editDOM: text, images, colors, classes, attributes. Use CSS selectors from the manifest sections.
+- editFiles: structural changes, new sections. MUST call readFile first for precise search string matches.
+- writeFiles: new pages only, or full rewrites. Match the design system from the manifest.${crossPageBlock}
+
+IMPORTANT: Before using editFiles, you MUST call readFile to inspect the exact file content. The manifest is a structural summary — editFiles needs precise text matches.
 </edit_guidance>`;
 }
 
 export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
-  const manifest = generateManifest(currentFiles);
+  const { perFile, siteOverview } = generateManifest(currentFiles);
   const fileCount = Object.keys(currentFiles).length;
   const isMultiPage = fileCount > 1;
 
@@ -45,10 +45,12 @@ export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
     ? 'Use readFile to inspect exact content before making editFiles changes.\nMaintain design consistency across ALL files.\nUnchanged files are preserved automatically — only include new or fully rewritten files in writeFiles.'
     : 'Use readFile to inspect exact content before making editFiles changes.\nWhen editing, consider the ENTIRE page context — maintain design consistency across all sections.';
 
+  const overviewBlock = siteOverview ? `\n${siteOverview}\n` : '';
+
   return `\n<current_website>
 ${preamble}
-
-${manifest}
+${overviewBlock}
+${perFile}
 
 ${instructions}
 </current_website>`;
