@@ -38,7 +38,7 @@ export interface PaletteColors {
 export interface ToolActivityEvent {
   toolCallId: string
   toolName: string
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done'
   label: string
   detail?: string
   timestamp: number

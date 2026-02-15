@@ -2,7 +2,7 @@ import type { SearchResult } from './types';
 
 const BRAVE_API_URL = 'https://api.search.brave.com/res/v1/web/search';
 const BRAVE_TIMEOUT_MS = 5_000;
-const MAX_SNIPPET_LENGTH = 500;
+const MAX_SNIPPET_LENGTH = 1500;
 
 export async function searchBrave(
   query: string,

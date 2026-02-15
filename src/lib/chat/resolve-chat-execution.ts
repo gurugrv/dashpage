@@ -47,7 +47,7 @@ export async function resolveChatExecution({
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, userPrompt);
+  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, userPrompt, provider, model);
   const systemPrompt = systemPromptParts.stable + '\n' + systemPromptParts.dynamic;
   const modelInstance = providerConfig.createModel(apiKey, model);
 

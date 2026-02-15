@@ -2,7 +2,7 @@ import type { SearchResult } from './types';
 
 const TAVILY_API_URL = 'https://api.tavily.com/search';
 const TAVILY_TIMEOUT_MS = 5_000;
-const MAX_SNIPPET_LENGTH = 500;
+const MAX_SNIPPET_LENGTH = 1500;
 
 export async function searchTavily(
   query: string,
