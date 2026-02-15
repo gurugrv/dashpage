@@ -1,6 +1,8 @@
 import { anthropicProvider } from '@/lib/providers/configs/anthropic';
 import { deepinfraProvider } from '@/lib/providers/configs/deepinfra';
 import { googleProvider } from '@/lib/providers/configs/google';
+import { minimaxProvider } from '@/lib/providers/configs/minimax';
+import { moonshotProvider } from '@/lib/providers/configs/moonshot';
 import { openAIProvider } from '@/lib/providers/configs/openai';
 import { openRouterProvider } from '@/lib/providers/configs/openrouter';
 import { zaiProvider } from '@/lib/providers/configs/zai';
@@ -14,5 +16,7 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
   Google: googleProvider,
   OpenAI: openAIProvider,
   DeepInfra: deepinfraProvider,
+  MiniMax: minimaxProvider,
+  Moonshot: moonshotProvider,
   'Z.ai': zaiProvider,
 };
