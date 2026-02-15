@@ -510,7 +510,10 @@ export function Builder() {
     const convId = activeConversationId;
     if (!convId || isLoading) return;
 
-    const continuePrompt = 'Continue from where you left off. Use the writeFiles tool to output the complete website files.';
+    const isMultiPage = Object.keys(currentFilesRef.current).length > 1;
+    const continuePrompt = isMultiPage
+      ? 'Continue from where you left off. Use the writeFiles tool to output the complete website files.'
+      : 'Continue from where you left off. Output the complete HTML starting from <!DOCTYPE html>.';
 
     await fetch(`/api/conversations/${convId}/messages`, {
       method: 'POST',
