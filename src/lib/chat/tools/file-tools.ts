@@ -119,7 +119,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
 
     editFiles: tool({
       description:
-        'Edit one or more files in a single call. Each file can use DOM operations (CSS selectors) and/or search/replace operations. Uses multi-tier matching for replace: exact → whitespace-tolerant → token-based → fuzzy. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
+        'Edit one or more files in a single call. Each file can use DOM operations (CSS selectors) and/or search/replace operations. Uses 5-tier matching for replace: exact → whitespace-tolerant → token-based → fuzzy (≥85%) → auto-correct (≥75%). All operations are attempted even if some fail — successful edits are kept. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
       inputSchema: z.object({
         edits: z.array(z.object({
           file: z.string().describe('The filename to edit'),
@@ -136,7 +136,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
           content?: string;
           error?: string;
           appliedCount?: number;
-          failedIndex?: number;
+          failedOperations?: unknown;
           matchTiers?: string[];
           bestMatch?: unknown;
         }> = [];
@@ -170,6 +170,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
           // Phase 2: Search/replace operations (only if DOM phase didn't fully fail)
           let matchTiers: string[] | undefined;
           let bestMatch: unknown;
+          let failedOperations: unknown;
           if (fileSuccess !== false && edit.replaceOperations && edit.replaceOperations.length > 0) {
             const replaceResult = applyEditOperations(currentHtml, edit.replaceOperations as EditOperation[]);
             currentHtml = replaceResult.html;
@@ -182,6 +183,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
             if (replaceResult.success === 'partial') {
               fileSuccess = 'partial';
               fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
+              failedOperations = replaceResult.failedOperations;
             } else if (replaceResult.success === false) {
               fileSuccess = edit.domOperations?.length ? 'partial' : false;
               fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
@@ -208,6 +210,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
             success: fileSuccess,
             content: fileSuccess !== false ? currentHtml : undefined,
             error: fileError,
+            failedOperations,
             matchTiers,
             bestMatch,
           });

@@ -98,8 +98,8 @@ If a tool returns success: false, use these fallbacks:
 - searchImages failed → use https://placehold.co/800x400/eee/999?text=Image placeholder, continue generating
 - searchIcons failed → use a simple inline SVG or Unicode symbol instead
 - editDOM failed (selector not found) → check the error for similar element suggestions, retry with corrected selector. If still fails, try editFiles with search/replace instead.
-- editFiles failed (search text not found) → check bestMatch in error for closest match. If partial success, retry just the failed operations. After 2 failures on same file, use writeFiles.
-- editFiles partially failed → check per-file results, retry failed files individually
+- editFiles failed (search text not found) → check bestMatch in error for closest match. Operations with ≥75% match are auto-corrected. Retry only the truly failed operations listed in failedOperations. After 2 failures on same file, use writeFiles.
+- editFiles partially succeeded → successful operations are already applied. Check failedOperations for details on what failed, retry only those specific operations.
 - webSearch failed → proceed using your own knowledge
 - fetchUrl failed → use the search result snippets instead
 Always have a fallback path — tool failures should not halt generation.

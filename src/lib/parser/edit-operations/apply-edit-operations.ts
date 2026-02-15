@@ -5,9 +5,11 @@ import type {
   EditOperation,
   MatchTier,
   BestMatch,
+  FailedOperation,
 } from '@/lib/parser/edit-operations/types';
 
 const FUZZY_THRESHOLD = 0.85;
+const AUTO_CORRECT_THRESHOLD = 0.75;
 
 /**
  * Find the line number (1-indexed) for a character position in a string.
@@ -93,12 +95,14 @@ function tryTokenMatch(
 }
 
 /**
- * Tier 4: Fuzzy Levenshtein sliding window match.
+ * Tier 4/5: Fuzzy Levenshtein sliding window match.
  * Slides a window across the source, scores each position by similarity.
+ * Returns the best match with its similarity score so callers can apply thresholds.
  */
 function tryFuzzyMatch(
   source: string,
   search: string,
+  threshold: number,
 ): { index: number; length: number; similarity: number } | null {
   const searchLen = search.length;
   if (searchLen === 0 || source.length === 0) return null;
@@ -125,7 +129,7 @@ function tryFuzzyMatch(
     }
   }
 
-  if (bestScore >= FUZZY_THRESHOLD) {
+  if (bestScore >= threshold) {
     return { index: bestIndex, length: bestLength, similarity: bestScore };
   }
   return null;
@@ -187,34 +191,25 @@ function applyReplacement(
 }
 
 /**
- * Apply a sequence of edit operations with 4-tier matching and partial success.
+ * Apply a sequence of edit operations with 5-tier matching.
+ * Continues through ALL operations even when some fail, maximizing applied changes.
  */
 export function applyEditOperations(html: string, operations: EditOperation[]): ApplyResult {
   let result = html;
   const matchTiers: MatchTier[] = [];
+  const failedOps: FailedOperation[] = [];
 
   for (let index = 0; index < operations.length; index++) {
     const { search, replace, expectedReplacements } = operations[index];
     const expected = expectedReplacements ?? 1;
 
     if (!search) {
-      if (index === 0) {
-        return {
-          success: false,
-          html: result,
-          error: `Operation ${index + 1}/${operations.length} failed: empty search string`,
-          bestMatch: null,
-        };
-      }
-      return {
-        success: 'partial',
-        html: result,
-        appliedCount: index,
-        failedIndex: index,
+      failedOps.push({
+        index,
         error: `Operation ${index + 1}/${operations.length} failed: empty search string`,
         bestMatch: null,
-        matchTiers,
-      };
+      });
+      continue;
     }
 
     // Tier 1: Exact match
@@ -245,39 +240,50 @@ export function applyEditOperations(html: string, operations: EditOperation[]): 
       }
     }
 
-    // Tier 4: Fuzzy Levenshtein
+    // Tier 4+5: Fuzzy Levenshtein — single scan, two thresholds
     if (expected === 1) {
-      const fuzzyResult = tryFuzzyMatch(result, search);
+      const fuzzyResult = tryFuzzyMatch(result, search, AUTO_CORRECT_THRESHOLD);
       if (fuzzyResult) {
         result = result.slice(0, fuzzyResult.index) + replace + result.slice(fuzzyResult.index + fuzzyResult.length);
-        matchTiers.push('fuzzy');
+        matchTiers.push(fuzzyResult.similarity >= FUZZY_THRESHOLD ? 'fuzzy' : 'auto-correct');
         continue;
       }
     }
 
-    // All tiers failed
+    // All tiers failed — record failure and continue with remaining operations
     const bestMatch = findBestMatchForError(result, search);
     const similarity = bestMatch ? ` (best match: ${Math.round(bestMatch.similarity * 100)}% similar at line ${bestMatch.line})` : '';
-
-    if (index === 0) {
-      return {
-        success: false,
-        html: result,
-        error: `Operation ${index + 1}/${operations.length} failed: search text not found${similarity}`,
-        bestMatch,
-      };
-    }
-
-    return {
-      success: 'partial',
-      html: result,
-      appliedCount: index,
-      failedIndex: index,
+    failedOps.push({
+      index,
       error: `Operation ${index + 1}/${operations.length} failed: search text not found${similarity}`,
       bestMatch,
-      matchTiers,
+    });
+  }
+
+  if (failedOps.length === 0) {
+    return { success: true, html: result, matchTiers };
+  }
+
+  const appliedCount = operations.length - failedOps.length;
+  const errorSummary = failedOps.map((f) => f.error).join('; ');
+
+  if (appliedCount === 0) {
+    return {
+      success: false,
+      html: result,
+      error: errorSummary,
+      bestMatch: failedOps[0].bestMatch,
     };
   }
 
-  return { success: true, html: result, matchTiers };
+  return {
+    success: 'partial',
+    html: result,
+    appliedCount,
+    failedCount: failedOps.length,
+    failedOperations: failedOps,
+    error: errorSummary,
+    bestMatch: failedOps[0].bestMatch,
+    matchTiers,
+  };
 }

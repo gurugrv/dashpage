@@ -6,7 +6,7 @@ export interface EditOperation {
   expectedReplacements?: number;
 }
 
-export type MatchTier = 'exact' | 'whitespace' | 'token' | 'fuzzy';
+export type MatchTier = 'exact' | 'whitespace' | 'token' | 'fuzzy' | 'auto-correct';
 
 export interface BestMatch {
   text: string;
@@ -20,11 +20,18 @@ export interface ApplySuccess {
   matchTiers: MatchTier[];
 }
 
+export interface FailedOperation {
+  index: number;
+  error: string;
+  bestMatch: BestMatch | null;
+}
+
 export interface ApplyPartial {
   success: 'partial';
   html: string;
   appliedCount: number;
-  failedIndex: number;
+  failedCount: number;
+  failedOperations: FailedOperation[];
   error: string;
   bestMatch: BestMatch | null;
   matchTiers: MatchTier[];
