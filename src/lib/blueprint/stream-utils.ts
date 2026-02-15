@@ -4,7 +4,7 @@ export const TOOL_LABELS: Record<string, string> = {
   fetchUrl: 'Loading content',
   webSearch: 'Researching content',
   writeFiles: 'Writing page',
-  editDOM: 'Fixing issues',
+  editBlock: 'Fixing issues',
   editFiles: 'Fixing issues',
   readFile: 'Reading file',
 };
@@ -31,7 +31,7 @@ export function summarizeToolInput(toolName: string, input: unknown): string | u
       const files = inp.files as Record<string, unknown> | undefined;
       return files ? Object.keys(files).join(', ') : undefined;
     }
-    case 'editDOM':
+    case 'editBlock':
     case 'readFile':
     default:
       return undefined;
@@ -67,7 +67,7 @@ export function summarizeToolOutput(toolName: string, output: unknown): string |
       const fileNames = out.fileNames as string[] | undefined;
       return fileNames ? `Wrote ${fileNames.join(', ')}` : 'Files written';
     }
-    case 'editDOM':
+    case 'editBlock':
       return out.success === true ? 'Edits applied' : out.success === 'partial' ? 'Partial edits applied' : undefined;
     case 'editFiles': {
       const results = out.results as Array<Record<string, unknown>> | undefined;

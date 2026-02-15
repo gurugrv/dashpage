@@ -115,6 +115,7 @@ WORKFLOW: Call searchIcons with ALL icon queries in one call (e.g. queries: [{qu
 <rules>
 1. Use ONLY Tailwind utility classes and CSS custom properties (var(--color-*), var(--font-*), etc.).
 2. Do NOT output <!DOCTYPE>, <html>, <head>, or <body> tags — just the raw <header> and <footer> elements.
+2b. The shared <header> MUST have a data-block attribute (e.g. data-block="main-nav") and the <footer> MUST have a data-block attribute (e.g. data-block="site-footer").
 3. The header MUST include inline <script> for mobile hamburger toggle functionality.
 4. Use real SVG icons from the searchIcons tool for the hamburger icon, close icon, and any social icons.
 5. Make sure all navigation links use the exact href values from the navigation spec.

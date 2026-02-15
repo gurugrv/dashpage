@@ -8,6 +8,7 @@ import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
+import { validateBlocks } from '@/lib/blocks/validate-blocks';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
@@ -538,6 +539,11 @@ export async function POST(req: Request) {
         }
 
         if (pageHtml) {
+          // Post-process: ensure all semantic elements have data-block attributes
+          const singleFileMap = { [page.filename]: pageHtml };
+          validateBlocks(singleFileMap);
+          pageHtml = singleFileMap[page.filename];
+
           completedPages += 1;
           sendEvent({
             type: 'page-status',

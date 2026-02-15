@@ -235,7 +235,8 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: writeFile, editDOM, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
+6b. EVERY semantic section (nav, header, main, section, footer, aside) MUST have a data-block attribute with a unique, descriptive, kebab-case name (e.g. data-block="hero", data-block="main-nav", data-block="site-footer").
+7. Available tools: writeFile, editBlock, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
 8. You MUST call writeFile to output the page — do NOT output raw HTML as text.
 </requirements>`;
 }
