@@ -117,63 +117,9 @@ export function createFileTools(workingFiles: ProjectFiles) {
 
     ...createEditDomTool(workingFiles),
 
-    editFile: tool({
-      description:
-        'Apply targeted search/replace edits to an existing file. Uses multi-tier matching: exact → whitespace-tolerant → token-based → fuzzy. Batch multiple changes into one call using the operations array. Returns { success, file, content, matchTiers } on success. On partial failure returns applied changes + error details with the closest match found. If editFile fails twice on the same file, use writeFiles instead.',
-      inputSchema: z.object({
-        file: z.string().describe('The filename to edit, e.g. "index.html" or "about.html"'),
-        operations: z.array(replaceOperationSchema)
-          .describe('Ordered list of search/replace operations to apply sequentially'),
-      }),
-      execute: async ({ file, operations }) => {
-        const source = workingFiles[file];
-        if (!source) {
-          return {
-            success: false as const,
-            error: `File "${file}" not found. Available files: ${availableFilesList(workingFiles)}. Use writeFiles to create it.`,
-          };
-        }
-
-        const result = applyEditOperations(source, operations as EditOperation[]);
-
-        if (result.success === true) {
-          workingFiles[file] = result.html;
-          editFileMistakes.delete(file);
-          return { success: true as const, file, content: result.html, matchTiers: result.matchTiers };
-        }
-
-        if (result.success === 'partial') {
-          workingFiles[file] = result.html;
-          const count = (editFileMistakes.get(file) ?? 0) + 1;
-          editFileMistakes.set(file, count);
-          const escalation = count >= 2 ? ' This is the 2nd consecutive failure on this file — consider using writeFiles for a complete replacement.' : '';
-          return {
-            success: 'partial' as const,
-            file,
-            content: result.html,
-            appliedCount: result.appliedCount,
-            failedIndex: result.failedIndex,
-            matchTiers: result.matchTiers,
-            error: `${result.error}${escalation}`,
-            bestMatch: result.bestMatch,
-          };
-        }
-
-        // Full failure
-        const count = (editFileMistakes.get(file) ?? 0) + 1;
-        editFileMistakes.set(file, count);
-        const escalation = count >= 2 ? ' This is the 2nd consecutive failure on this file — consider using writeFiles for a complete replacement.' : '';
-        return {
-          success: false as const,
-          error: `${result.error}${escalation}`,
-          bestMatch: result.bestMatch,
-        };
-      },
-    }),
-
     editFiles: tool({
       description:
-        'Batch edit multiple files in a single call. Each file can use DOM operations (CSS selectors) and/or search/replace operations. Use when the same or similar change applies to 2+ files (nav links, headers, branding). Atomicity is per-file: a failed file does not block successful ones.',
+        'Edit one or more files in a single call. Each file can use DOM operations (CSS selectors) and/or search/replace operations. Uses multi-tier matching for replace: exact → whitespace-tolerant → token-based → fuzzy. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
       inputSchema: z.object({
         edits: z.array(z.object({
           file: z.string().describe('The filename to edit'),
@@ -191,6 +137,8 @@ export function createFileTools(workingFiles: ProjectFiles) {
           error?: string;
           appliedCount?: number;
           failedIndex?: number;
+          matchTiers?: string[];
+          bestMatch?: unknown;
         }> = [];
 
         for (const edit of edits) {
@@ -220,15 +168,34 @@ export function createFileTools(workingFiles: ProjectFiles) {
           }
 
           // Phase 2: Search/replace operations (only if DOM phase didn't fully fail)
+          let matchTiers: string[] | undefined;
+          let bestMatch: unknown;
           if (fileSuccess !== false && edit.replaceOperations && edit.replaceOperations.length > 0) {
             const replaceResult = applyEditOperations(currentHtml, edit.replaceOperations as EditOperation[]);
             currentHtml = replaceResult.html;
+            if (replaceResult.success === true || replaceResult.success === 'partial') {
+              matchTiers = replaceResult.matchTiers;
+            }
+            if (replaceResult.success === 'partial' || replaceResult.success === false) {
+              bestMatch = replaceResult.bestMatch ?? undefined;
+            }
             if (replaceResult.success === 'partial') {
               fileSuccess = 'partial';
               fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
             } else if (replaceResult.success === false) {
               fileSuccess = edit.domOperations?.length ? 'partial' : false;
               fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
+            }
+          }
+
+          // Mistake tracking for escalation
+          if (fileSuccess === true) {
+            editFileMistakes.delete(edit.file);
+          } else if (fileSuccess === 'partial' || fileSuccess === false) {
+            const count = (editFileMistakes.get(edit.file) ?? 0) + 1;
+            editFileMistakes.set(edit.file, count);
+            if (count >= 2) {
+              fileError = (fileError ?? '') + ' This is the 2nd consecutive failure on this file — consider using writeFiles for a complete replacement.';
             }
           }
 
@@ -241,6 +208,8 @@ export function createFileTools(workingFiles: ProjectFiles) {
             success: fileSuccess,
             content: fileSuccess !== false ? currentHtml : undefined,
             error: fileError,
+            matchTiers,
+            bestMatch,
           });
         }
 
@@ -256,7 +225,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
 
     readFile: tool({
       description:
-        'Read the current contents of a file. Returns { success, file, content, length }. Use before editFile to see exact whitespace/indentation for accurate search strings, or after edits to verify changes.',
+        'Read the current contents of a file. Returns { success, file, content, length }. Use before editFiles to see exact whitespace/indentation for accurate search strings, or after edits to verify changes.',
       inputSchema: z.object({
         file: z.string().describe('The filename to read, e.g. "index.html" or "about.html"'),
       }),

@@ -35,7 +35,7 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
   searchImages: Image,
   searchIcons: Search,
   writeFiles: Code,
-  editFile: Pencil,
+  editFiles: Pencil,
   readFile: FileText,
 }
 

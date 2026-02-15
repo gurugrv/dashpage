@@ -194,7 +194,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: writeFiles, editDOM, editFile, readFile, searchImages, searchIcons, webSearch, fetchUrl.
+7. Available tools: writeFiles, editDOM, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
 8. You MUST call writeFiles to output the page — do NOT output raw HTML as text.
 </requirements>`;
 }

@@ -29,7 +29,6 @@ function isStreamPart(part: unknown): part is { type: string; [key: string]: unk
 
 const TOOL_LABELS: Record<string, string> = {
   writeFiles: 'Writing files',
-  editFile: 'Editing file',
   editDOM: 'Applying edits',
   editFiles: 'Editing files',
   readFile: 'Reading file',
@@ -57,9 +56,12 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
         return names.join(', ');
       }
       return undefined;
-    case 'editFile':
     case 'editDOM':
       return typeof inp.file === 'string' ? inp.file : undefined;
+    case 'editFiles': {
+      const edits = inp.edits as Array<{ file?: string }> | undefined;
+      return edits ? edits.map(e => e.file).filter(Boolean).join(', ') : undefined;
+    }
     case 'readFile':
       return typeof inp.file === 'string' ? inp.file : undefined;
     default:
@@ -97,8 +99,14 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       if (fileNames) return `${fileNames.length} file${fileNames.length !== 1 ? 's' : ''} written`;
       return undefined;
     }
-    case 'editFile':
+    case 'editFiles': {
+      const results = out.results as Array<Record<string, unknown>> | undefined;
+      if (results) {
+        const ok = results.filter(r => r.success !== false).length;
+        return `${ok}/${results.length} file${results.length !== 1 ? 's' : ''} edited`;
+      }
       return 'Edits applied';
+    }
     case 'readFile':
       return typeof out.length === 'number' ? `${out.length} chars` : 'File read';
     default:
@@ -182,7 +190,7 @@ export async function POST(req: Request) {
 
         // Track whether file-producing tools were called (for incomplete generation detection)
         let hasFileOutput = false;
-        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editFile', 'editDOM', 'editFiles']);
+        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editDOM', 'editFiles']);
 
         // Tool-aware monotonic progress tracker
         const TOOL_START_PERCENT: Record<string, number> = {
@@ -192,7 +200,6 @@ export async function POST(req: Request) {
           fetchUrl: 18,
           readFile: 28,
           writeFiles: 32,
-          editFile: 32,
           editDOM: 32,
           editFiles: 32,
         };
@@ -203,7 +210,6 @@ export async function POST(req: Request) {
           fetchUrl: 28,
           readFile: 30,
           writeFiles: 92,
-          editFile: 90,
           editDOM: 90,
           editFiles: 90,
         };
@@ -282,7 +288,6 @@ export async function POST(req: Request) {
 
                 const progressLabels: Record<string, string> = {
                   writeFiles: 'Generating code...',
-                  editFile: 'Applying edits...',
                   editDOM: 'Applying edits...',
                   editFiles: 'Applying edits...',
                   readFile: 'Reading file...',
@@ -357,7 +362,6 @@ export async function POST(req: Request) {
                   webSearch: 'Search complete',
                   fetchUrl: 'Content fetched',
                   readFile: 'File read',
-                  editFile: 'Edits applied',
                   editDOM: 'Edits applied',
                   editFiles: 'Edits applied',
                 };

@@ -85,7 +85,7 @@ function extractHtmlFromTextParts(parts: UIMessage['parts']): string | null {
   return null;
 }
 
-/** Check if tool parts produced any file content (writeFiles, editDOM, editFile, etc.) */
+/** Check if tool parts produced any file content (writeFiles, editDOM, editFiles, etc.) */
 function toolPartsProducedFiles(parts: UIMessage['parts']): boolean {
   for (const part of parts) {
     if (!isToolPart(part)) continue;
@@ -95,7 +95,7 @@ function toolPartsProducedFiles(parts: UIMessage['parts']): boolean {
     // writeFiles input has files map
     const input = part.input as Record<string, unknown> | undefined;
     if (input && 'files' in input) return true;
-    // editDOM/editFile output has file + content
+    // editDOM output has file + content
     if ('file' in output && 'content' in output) return true;
     // editFiles output has results array
     if ('results' in output && Array.isArray(output.results)) return true;
@@ -146,7 +146,7 @@ function extractFilesFromToolParts(
         files[normalizedKey] = normalizedKey.endsWith('.html') ? stripHtmlPreamble(value) : value;
       }
     }
-    // editFile/editDOM output: { success: true|"partial", file: string, content: string }
+    // editDOM output: { success: true|"partial", file: string, content: string }
     else if ('file' in output && 'content' in output) {
       const fileName = output.file as string;
       const content = output.content as string;
@@ -192,7 +192,7 @@ export function useHtmlParser() {
       lastValidFilesRef.current,
     );
 
-    // If tools produced file content (writeFiles, editDOM, editFile), use that
+    // If tools produced file content (writeFiles, editDOM, editFiles), use that
     if (toolFiles !== null && toolPartsProducedFiles(lastMessage.parts)) {
       setCurrentFiles(toolFiles);
       if (!isLoading && isPersistableArtifact(toolFiles)) {

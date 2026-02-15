@@ -27,7 +27,6 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       return files ? Object.keys(files).join(', ') : undefined;
     }
     case 'editDOM':
-    case 'editFile':
     case 'readFile':
     default:
       return undefined;
@@ -60,8 +59,15 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       return fileNames ? `Wrote ${fileNames.join(', ')}` : 'Files written';
     }
     case 'editDOM':
-    case 'editFile':
       return out.success === true ? 'Edits applied' : out.success === 'partial' ? 'Partial edits applied' : undefined;
+    case 'editFiles': {
+      const results = out.results as Array<Record<string, unknown>> | undefined;
+      if (results) {
+        const ok = results.filter(r => r.success !== false).length;
+        return `${ok}/${results.length} file${results.length !== 1 ? 's' : ''} edited`;
+      }
+      return 'Edits applied';
+    }
     case 'readFile':
       return 'File read';
     default:
@@ -204,7 +210,6 @@ export async function POST(req: Request) {
         webSearch: 'Researching content',
         writeFiles: 'Writing page',
         editDOM: 'Fixing issues',
-        editFile: 'Fixing issues',
         editFiles: 'Fixing issues',
         readFile: 'Reading file',
       };
