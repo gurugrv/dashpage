@@ -7,73 +7,11 @@ import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createWebsiteTools } from '@/lib/chat/tools';
+import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
 const PAGE_CONTINUE_PROMPT = 'The page was not completed. Call writeFiles to append the remaining HTML — do NOT restart from the beginning.';
-
-function summarizeToolInput(toolName: string, input: unknown): string | undefined {
-  if (!input || typeof input !== 'object') return undefined;
-  const inp = input as Record<string, unknown>;
-  switch (toolName) {
-    case 'searchImages':
-    case 'searchIcons':
-    case 'webSearch':
-      return typeof inp.query === 'string' ? inp.query : undefined;
-    case 'fetchUrl':
-      return typeof inp.url === 'string' ? inp.url : undefined;
-    case 'writeFiles': {
-      const files = inp.files as Record<string, unknown> | undefined;
-      return files ? Object.keys(files).join(', ') : undefined;
-    }
-    case 'editDOM':
-    case 'readFile':
-    default:
-      return undefined;
-  }
-}
-
-function summarizeToolOutput(toolName: string, output: unknown): string | undefined {
-  if (!output || typeof output !== 'object') return undefined;
-  const out = output as Record<string, unknown>;
-  if (out.success === false) {
-    return typeof out.error === 'string' ? out.error.slice(0, 80) : 'Failed';
-  }
-  switch (toolName) {
-    case 'searchImages': {
-      const images = out.images as unknown[] | undefined;
-      return images ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : undefined;
-    }
-    case 'searchIcons': {
-      const icons = out.icons as unknown[] | undefined;
-      return icons ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : undefined;
-    }
-    case 'webSearch': {
-      const results = out.results as unknown[] | undefined;
-      return results ? `${results.length} result${results.length !== 1 ? 's' : ''} found` : undefined;
-    }
-    case 'fetchUrl':
-      return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
-    case 'writeFiles': {
-      const fileNames = out.fileNames as string[] | undefined;
-      return fileNames ? `Wrote ${fileNames.join(', ')}` : 'Files written';
-    }
-    case 'editDOM':
-      return out.success === true ? 'Edits applied' : out.success === 'partial' ? 'Partial edits applied' : undefined;
-    case 'editFiles': {
-      const results = out.results as Array<Record<string, unknown>> | undefined;
-      if (results) {
-        const ok = results.filter(r => r.success !== false).length;
-        return `${ok}/${results.length} file${results.length !== 1 ? 's' : ''} edited`;
-      }
-      return 'Edits applied';
-    }
-    case 'readFile':
-      return 'File read';
-    default:
-      return undefined;
-  }
-}
 
 interface PagesRequestBody {
   conversationId: string;
@@ -202,17 +140,6 @@ export async function POST(req: Request) {
         totalPages,
         completedPages,
       });
-
-      const TOOL_LABELS: Record<string, string> = {
-        searchImages: 'Adding images',
-        searchIcons: 'Adding icons',
-        fetchUrl: 'Loading content',
-        webSearch: 'Researching content',
-        writeFiles: 'Writing page',
-        editDOM: 'Fixing issues',
-        editFiles: 'Fixing issues',
-        readFile: 'Reading file',
-      };
 
       let hasErrors = false;
       const completedPagesMap: Record<string, string> = {};
