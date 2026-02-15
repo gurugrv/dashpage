@@ -2,7 +2,27 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { searchPhotos } from '@/lib/images/pexels';
 
+function wordSet(query: string): Set<string> {
+  return new Set(query.toLowerCase().trim().split(/\s+/).filter(Boolean));
+}
+
+function jaccardSimilarity(a: string, b: string): number {
+  const setA = wordSet(a);
+  const setB = wordSet(b);
+  let intersection = 0;
+  for (const word of setA) {
+    if (setB.has(word)) intersection++;
+  }
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 1 : intersection / union;
+}
+
+const SIMILARITY_THRESHOLD = 0.6;
+
 export function createImageTools() {
+  const usedQueries: string[] = [];
+  const usedPhotoIds = new Set<number>();
+
   return {
     searchImages: tool({
       description:
@@ -25,12 +45,35 @@ export function createImageTools() {
       }),
       execute: async ({ query, count, orientation }) => {
         try {
+          // Reject queries too similar to previous ones in this session
+          const normalized = query.toLowerCase().trim();
+          for (const prev of usedQueries) {
+            if (jaccardSimilarity(normalized, prev) >= SIMILARITY_THRESHOLD) {
+              return {
+                success: false as const,
+                error: `Query "${query}" is too similar to previous search "${prev}". Use a distinctly different subject or angle.`,
+              };
+            }
+          }
+
+          // Request extra results to compensate for cross-query dedup
+          const requestCount = Math.min(count + usedPhotoIds.size, 15);
           const photos = await searchPhotos(query, {
             orientation,
-            perPage: count,
+            perPage: requestCount,
           });
 
-          if (photos.length === 0) {
+          // Filter out photos already returned in this session
+          const fresh = photos.filter((p) => !usedPhotoIds.has(p.id));
+          const selected = fresh.slice(0, count);
+
+          // Track query and photo IDs for future dedup
+          usedQueries.push(normalized);
+          for (const photo of selected) {
+            usedPhotoIds.add(photo.id);
+          }
+
+          if (selected.length === 0) {
             return {
               success: true as const,
               images: [],
@@ -40,7 +83,7 @@ export function createImageTools() {
 
           return {
             success: true as const,
-            images: photos.map((photo) => ({
+            images: selected.map((photo) => ({
               url: photo.src.large2x,
               alt: photo.alt || query,
               photographer: photo.photographer,
