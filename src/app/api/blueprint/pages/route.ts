@@ -10,7 +10,7 @@ import { createWebsiteTools } from '@/lib/chat/tools';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
-const PAGE_CONTINUE_PROMPT = 'The page was not completed. Call writeFiles with the complete HTML page.';
+const PAGE_CONTINUE_PROMPT = 'The page was not completed. Call writeFiles to append the remaining HTML — do NOT restart from the beginning.';
 
 function summarizeToolInput(toolName: string, input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined;

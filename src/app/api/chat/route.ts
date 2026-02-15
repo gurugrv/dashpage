@@ -41,8 +41,8 @@ interface ChatRequestBody {
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
-const CONTINUE_PROMPT_MULTIPAGE = 'Continue from where you left off. Use the writeFiles tool to output the complete website files.';
-const CONTINUE_PROMPT_SINGLEPAGE = 'Continue from where you left off. Output the complete HTML starting from <!DOCTYPE html>.';
+const CONTINUE_PROMPT_MULTIPAGE = 'Continue from where you left off. Append the remaining content — do NOT restart files from the beginning.';
+const CONTINUE_PROMPT_SINGLEPAGE = 'Continue from where you left off. Append the remaining HTML — do NOT restart from <!DOCTYPE html> or <head>.';
 
 function isStreamPart(part: unknown): part is { type: string; [key: string]: unknown } {
   return typeof part === 'object' && part !== null && 'type' in part;

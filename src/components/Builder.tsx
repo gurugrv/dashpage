@@ -512,8 +512,8 @@ export function Builder() {
 
     const isMultiPage = Object.keys(currentFilesRef.current).length > 1;
     const continuePrompt = isMultiPage
-      ? 'Continue from where you left off. Use the writeFiles tool to output the complete website files.'
-      : 'Continue from where you left off. Output the complete HTML starting from <!DOCTYPE html>.';
+      ? 'Continue from where you left off. Append the remaining content — do NOT restart files from the beginning.'
+      : 'Continue from where you left off. Append the remaining HTML — do NOT restart from <!DOCTYPE html> or <head>.';
 
     await fetch(`/api/conversations/${convId}/messages`, {
       method: 'POST',
