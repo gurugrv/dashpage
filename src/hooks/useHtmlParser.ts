@@ -44,6 +44,66 @@ function stripHtmlPreamble(content: string): string {
 }
 
 /**
+ * Strip markdown code fences wrapping HTML content.
+ * Models sometimes output ```html\n...\n``` around HTML.
+ */
+function stripCodeFences(content: string): string {
+  const trimmed = content.trim();
+  // Match ```html or ``` at start, ``` at end
+  const fenceStart = /^```(?:html)?\s*\n/i;
+  const fenceEnd = /\n```\s*$/;
+  if (fenceStart.test(trimmed) && fenceEnd.test(trimmed)) {
+    return trimmed.replace(fenceStart, '').replace(fenceEnd, '');
+  }
+  return content;
+}
+
+/**
+ * Extract HTML from text parts of a message.
+ * Returns the HTML string if found, or null.
+ */
+function extractHtmlFromTextParts(parts: UIMessage['parts']): string | null {
+  let textContent = '';
+  for (const part of parts) {
+    if (typeof part === 'object' && part !== null && 'type' in part && part.type === 'text' && 'text' in part) {
+      textContent += (part as { text: string }).text;
+    }
+  }
+  if (!textContent) return null;
+
+  // Strip code fences first
+  const defenced = stripCodeFences(textContent);
+
+  // Strip preamble text before HTML
+  const stripped = stripHtmlPreamble(defenced);
+
+  // Check if we actually have HTML content (need at least <html or <!doctype)
+  if (/^<!doctype\s/i.test(stripped) || /^<html[\s>]/i.test(stripped)) {
+    return stripped;
+  }
+
+  return null;
+}
+
+/** Check if tool parts produced any file content (writeFiles, editDOM, editFile, etc.) */
+function toolPartsProducedFiles(parts: UIMessage['parts']): boolean {
+  for (const part of parts) {
+    if (!isToolPart(part)) continue;
+    if (part.state !== 'output-available' || !part.output) continue;
+    const output = part.output as Record<string, unknown>;
+    if (output.success === false) continue;
+    // writeFiles input has files map
+    const input = part.input as Record<string, unknown> | undefined;
+    if (input && 'files' in input) return true;
+    // editDOM/editFile output has file + content
+    if ('file' in output && 'content' in output) return true;
+    // editFiles output has results array
+    if ('results' in output && Array.isArray(output.results)) return true;
+  }
+  return false;
+}
+
+/**
  * Extract files from tool output parts in a message.
  * Returns merged files from all completed tool outputs, or null if no tool outputs found.
  *
@@ -132,19 +192,32 @@ export function useHtmlParser() {
       lastValidFilesRef.current,
     );
 
-    if (hasToolActivity) {
-      if (toolFiles !== null) {
-        // Tool results available — update preview
-        setCurrentFiles(toolFiles);
-        if (!isLoading && isPersistableArtifact(toolFiles)) {
-          updateLastValid(toolFiles);
-        }
+    // If tools produced file content (writeFiles, editDOM, editFile), use that
+    if (toolFiles !== null && toolPartsProducedFiles(lastMessage.parts)) {
+      setCurrentFiles(toolFiles);
+      if (!isLoading && isPersistableArtifact(toolFiles)) {
+        updateLastValid(toolFiles);
       }
-      // If tool activity but no results yet (streaming/executing), don't update preview
       return;
     }
 
-    // No tool activity — nothing to extract for preview
+    // Text-based HTML extraction (single-page text output mode)
+    // Also handles: tool activity (searchImages etc) + text HTML output
+    const textHtml = extractHtmlFromTextParts(lastMessage.parts);
+    if (textHtml) {
+      const baseFiles = toolFiles ?? lastValidFilesRef.current;
+      const files = { ...baseFiles, 'index.html': textHtml };
+      setCurrentFiles(files);
+      if (!isLoading && isPersistableArtifact(files)) {
+        updateLastValid(files);
+      }
+      return;
+    }
+
+    // Tool activity but no file output yet (streaming/executing) — don't update preview
+    if (hasToolActivity) return;
+
+    // No tool activity, no text HTML — nothing to extract for preview
   }, [updateLastValid]);
 
   const setFiles = useCallback((files: ProjectFiles) => {
