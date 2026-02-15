@@ -113,18 +113,29 @@ function extractFilesFromToolParts(
     // Skip complete failures (no content to extract)
     if (output.success === false) continue;
 
+    // writeFile (singular): flat filename + content params
+    const input = part.input as Record<string, unknown> | undefined;
+    if (input && 'filename' in input && 'content' in input && typeof input.content === 'string') {
+      if (!files) files = { ...baseFiles };
+      producedFiles = true;
+      let key = (input.filename as string).toLowerCase();
+      if (!key.includes('.')) {
+        const underscored = key.replace(/_([a-z]+)$/, '.$1');
+        key = underscored !== key ? underscored : `${key}.html`;
+      }
+      files[key] = key.endsWith('.html') ? stripHtmlPreamble(input.content) : input.content;
+    }
     // writeFiles: read file content from tool input (lean output only has fileNames)
     // Normalize keys: AI may send "index_html" or bare "index" instead of "index.html"
-    const input = part.input as Record<string, unknown> | undefined;
-    if (input && 'files' in input && typeof input.files === 'object' && input.files !== null) {
+    else if (input && 'files' in input && typeof input.files === 'object' && input.files !== null) {
       if (!files) files = { ...baseFiles };
       producedFiles = true;
       const rawFiles = input.files as Record<string, string>;
       for (const [key, value] of Object.entries(rawFiles)) {
-        let normalizedKey = key;
-        if (!key.includes('.')) {
-          const underscored = key.replace(/_([a-z]+)$/, '.$1');
-          normalizedKey = underscored !== key ? underscored : `${key}.html`;
+        let normalizedKey = key.toLowerCase();
+        if (!normalizedKey.includes('.')) {
+          const underscored = normalizedKey.replace(/_([a-z]+)$/, '.$1');
+          normalizedKey = underscored !== normalizedKey ? underscored : `${normalizedKey}.html`;
         }
         // Strip AI preamble from HTML files
         files[normalizedKey] = normalizedKey.endsWith('.html') ? stripHtmlPreamble(value) : value;
@@ -156,25 +167,49 @@ function extractFilesFromToolParts(
 }
 
 /**
- * Extract streaming HTML from in-progress writeFiles tool parts.
- * Returns the accumulated partial HTML string, or null if no streaming tool input.
+ * Extract streaming code from in-progress tool parts or text deltas.
+ * Priority: writeFiles tool streaming (actual HTML) > text content (visual feedback).
+ * Returns the accumulated partial string, or null if nothing is streaming yet.
  */
 function extractStreamingCode(parts: UIMessage['parts']): string | null {
+  let textContent = '';
+  let hasToolActivity = false;
+
   for (const part of parts) {
-    if (!isToolPart(part)) continue;
-    if (part.state !== 'input-streaming') continue;
-    if (part.toolName !== 'writeFiles') continue;
+    if (isToolPart(part)) {
+      hasToolActivity = true;
 
-    const input = part.input as Record<string, unknown> | undefined;
-    if (!input || !('files' in input) || typeof input.files !== 'object' || input.files === null) continue;
+      // Highest priority: actual HTML from writeFile/writeFiles tool streaming
+      if (part.state === 'input-streaming' && part.toolName === 'writeFile') {
+        const input = part.input as Record<string, unknown> | undefined;
+        if (input && typeof input.content === 'string') {
+          return input.content;
+        }
+      }
+      if (part.state === 'input-streaming' && part.toolName === 'writeFiles') {
+        const input = part.input as Record<string, unknown> | undefined;
+        if (!input || !('files' in input) || typeof input.files !== 'object' || input.files === null) continue;
 
-    // Extract the first file's content (partial HTML)
-    const files = input.files as Record<string, string>;
-    const values = Object.values(files);
-    if (values.length > 0 && typeof values[0] === 'string') {
-      return values[0];
+        const files = input.files as Record<string, string>;
+        const values = Object.values(files);
+        if (values.length > 0 && typeof values[0] === 'string') {
+          return values[0];
+        }
+      }
+      continue;
+    }
+
+    // Accumulate text parts for fallback
+    if (typeof part === 'object' && part !== null && 'type' in part && part.type === 'text' && 'text' in part) {
+      textContent += (part as { text: string }).text;
     }
   }
+
+  // Fallback: show text content as streaming code before any tool starts
+  if (!hasToolActivity && textContent.length > 0) {
+    return textContent;
+  }
+
   return null;
 }
 

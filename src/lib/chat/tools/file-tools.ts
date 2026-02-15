@@ -47,7 +47,7 @@ export function createEditDomTool(workingFiles: ProjectFiles) {
         operations: z.array(domOperationSchema).describe('Ordered list of DOM operations to apply'),
       }),
       execute: async ({ file: rawFile, operations }) => {
-        const file = rawFile.replace(/^['"](.+)['"]$/, '$1');
+        const file = rawFile.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
         const source = workingFiles[file];
         if (!source) {
           return {
@@ -103,7 +103,7 @@ function normalizeFilesInput(val: unknown): unknown {
         const name = obj.name ?? obj.filename ?? obj.file ?? obj.path;
         const content = obj.content ?? obj.html ?? obj.body ?? obj.source ?? obj.code;
         if (typeof name === 'string' && typeof content === 'string') {
-          result[name.replace(/^['"](.+)['"]$/, '$1')] = content;
+          result[name.replace(/^['"](.+)['"]$/, '$1').toLowerCase()] = content;
         }
       }
     }
@@ -176,11 +176,11 @@ export function createFileTools(workingFiles: ProjectFiles) {
         // Reset empty counter on non-empty call
         writeFilesEmptyCount = 0;
 
-        // Normalize keys: strip wrapping quotes, convert underscores to dots for extension
+        // Normalize keys: strip wrapping quotes, lowercase, convert underscores to dots for extension
         const normalized: Record<string, string> = {};
         for (const [key, value] of Object.entries(files)) {
           // Strip wrapping single/double quotes (hallucinated by some models)
-          let fixedKey = key.replace(/^['"](.+)['"]$/, '$1');
+          let fixedKey = key.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
           if (!fixedKey.includes('.')) {
             // Try underscore convention first: "index_html" -> "index.html"
             const underscored = fixedKey.replace(/_([a-z]+)$/, '.$1');
@@ -227,8 +227,8 @@ export function createFileTools(workingFiles: ProjectFiles) {
         content: z.string().describe('Complete HTML document starting with <!DOCTYPE html>. Must include <head> with Tailwind CDN, fonts, design system, and a full <body>. Never use placeholders or abbreviated content.'),
       }),
       execute: async ({ filename, content }) => {
-        // Strip wrapping quotes hallucinated by some models
-        let fixedName = filename.replace(/^['"](.+)['"]$/, '$1');
+        // Strip wrapping quotes hallucinated by some models, lowercase
+        let fixedName = filename.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
         if (!fixedName.includes('.')) {
           const underscored = fixedName.replace(/_([a-z]+)$/, '.$1');
           fixedName = underscored !== fixedName ? underscored : `${fixedName}.html`;
@@ -274,7 +274,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         }> = [];
 
         for (const rawEdit of edits) {
-          const edit = { ...rawEdit, file: rawEdit.file.replace(/^['"](.+)['"]$/, '$1') };
+          const edit = { ...rawEdit, file: rawEdit.file.replace(/^['"](.+)['"]$/, '$1').toLowerCase() };
           const source = workingFiles[edit.file];
           if (!source) {
             results.push({
@@ -366,7 +366,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         file: z.string().describe('The filename to read, e.g. "index.html" or "about.html"'),
       }),
       execute: async ({ file: rawFile }) => {
-        const file = rawFile.replace(/^['"](.+)['"]$/, '$1');
+        const file = rawFile.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
         const content = workingFiles[file];
         if (content === undefined) {
           return {
