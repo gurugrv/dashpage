@@ -4,6 +4,7 @@ import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { getComponentsSystemPrompt } from '@/lib/blueprint/prompts/components-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
+import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
     const providerConfig = PROVIDERS[provider];
     if (!providerConfig) throw new ChatRequestError(`Unknown provider: ${provider}`);
 
+    const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model);
     const systemPrompt = getComponentsSystemPrompt(blueprint);
     const modelInstance = providerConfig.createModel(apiKey, model);
     const userPrompt = `Generate the shared header and footer HTML components for the "${blueprint.siteName}" website.`;
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
     debugSession.logPrompt({
       systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
-      maxOutputTokens: 16000,
+      maxOutputTokens,
     });
 
     const { tools, workingFiles } = createWebsiteTools({});
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
       model: modelInstance,
       system: systemPrompt,
       prompt: userPrompt,
-      maxOutputTokens: 16000,
+      maxOutputTokens,
       tools,
       stopWhen: stepCountIs(8),
     });

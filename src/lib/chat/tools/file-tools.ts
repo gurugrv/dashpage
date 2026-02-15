@@ -34,6 +34,55 @@ function availableFilesList(workingFiles: ProjectFiles): string {
   return Object.keys(workingFiles).join(', ') || 'none';
 }
 
+/**
+ * Create only the editDOM tool (for single-page mode where HTML is output as text).
+ */
+export function createEditDomTool(workingFiles: ProjectFiles) {
+  return {
+    editDOM: tool({
+      description:
+        'Apply targeted DOM operations to an existing HTML file using CSS selectors. Preferred for small changes: text, images, links, colors, classes, attributes, removing elements, adding elements near existing ones. Returns { success, file, content } on full success. On partial/failure returns details about which operations failed and why.',
+      inputSchema: z.object({
+        file: z.string().describe('The filename to edit, e.g. "index.html" or "about.html"'),
+        operations: z.array(domOperationSchema).describe('Ordered list of DOM operations to apply'),
+      }),
+      execute: async ({ file, operations }) => {
+        const source = workingFiles[file];
+        if (!source) {
+          return {
+            success: false as const,
+            error: `File "${file}" not found. Available files: ${availableFilesList(workingFiles)}`,
+          };
+        }
+
+        const { html, results } = applyDomOperations(source, operations as DomOperation[]);
+        const failures = results.filter((r) => !r.success);
+
+        if (failures.length === 0) {
+          workingFiles[file] = html;
+          return { success: true as const, file, content: html };
+        }
+
+        if (failures.length < operations.length) {
+          workingFiles[file] = html;
+          return {
+            success: 'partial' as const,
+            file,
+            content: html,
+            appliedCount: operations.length - failures.length,
+            errors: failures.map((f) => `Operation ${f.index + 1}: ${'error' in f ? f.error : 'unknown error'}`),
+          };
+        }
+
+        return {
+          success: false as const,
+          error: `All ${operations.length} DOM operations failed:\n${failures.map((f) => `  Operation ${f.index + 1}: ${'error' in f ? f.error : 'unknown error'}`).join('\n')}`,
+        };
+      },
+    }),
+  };
+}
+
 export function createFileTools(workingFiles: ProjectFiles) {
   const editFileMistakes: MistakeTracker = new Map();
 
@@ -66,48 +115,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
       },
     }),
 
-    editDOM: tool({
-      description:
-        'Apply targeted DOM operations to an existing HTML file using CSS selectors. Preferred for small changes: text, images, links, colors, classes, attributes, removing elements, adding elements near existing ones. Returns { success, file, content } on full success. On partial/failure returns details about which operations failed and why.',
-      inputSchema: z.object({
-        file: z.string().describe('The filename to edit, e.g. "index.html" or "about.html"'),
-        operations: z.array(domOperationSchema).describe('Ordered list of DOM operations to apply'),
-      }),
-      execute: async ({ file, operations }) => {
-        const source = workingFiles[file];
-        if (!source) {
-          return {
-            success: false as const,
-            error: `File "${file}" not found. Available files: ${availableFilesList(workingFiles)}. Use writeFiles to create it.`,
-          };
-        }
-
-        const { html, results } = applyDomOperations(source, operations as DomOperation[]);
-        const failures = results.filter((r) => !r.success);
-
-        if (failures.length === 0) {
-          workingFiles[file] = html;
-          return { success: true as const, file, content: html };
-        }
-
-        if (failures.length < operations.length) {
-          // Partial success — DOM operations that succeeded are already in html
-          workingFiles[file] = html;
-          return {
-            success: 'partial' as const,
-            file,
-            content: html,
-            appliedCount: operations.length - failures.length,
-            errors: failures.map((f) => `Operation ${f.index + 1}: ${'error' in f ? f.error : 'unknown error'}`),
-          };
-        }
-
-        return {
-          success: false as const,
-          error: `All ${operations.length} DOM operations failed:\n${failures.map((f) => `  Operation ${f.index + 1}: ${'error' in f ? f.error : 'unknown error'}`).join('\n')}`,
-        };
-      },
-    }),
+    ...createEditDomTool(workingFiles),
 
     editFile: tool({
       description:
