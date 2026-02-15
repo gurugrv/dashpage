@@ -8,6 +8,7 @@ import { sanitizeFont } from '@/lib/fonts';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
+import { researchSiteFacts } from '@/lib/blueprint/research';
 
 interface BlueprintRequestBody {
   prompt: string;
@@ -120,6 +121,23 @@ export async function POST(req: Request) {
 
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');
+
+    // Research site facts if the AI flagged this as a real business
+    if (blueprint.needsResearch) {
+      try {
+        const siteFacts = await researchSiteFacts(
+          modelInstance,
+          blueprint.siteName,
+          blueprint.siteDescription,
+        );
+        if (siteFacts) {
+          blueprint.siteFacts = siteFacts;
+        }
+      } catch (err) {
+        // Non-fatal: proceed without facts
+        console.warn('[blueprint-generate] Site facts research failed:', err instanceof Error ? err.message : err);
+      }
+    }
 
     const dbBlueprint = await prisma.blueprint.upsert({
       where: { conversationId },
