@@ -9,24 +9,34 @@ Method:
 1. Choose a BASE HUE (0-360) inspired by the subject — but avoid the obvious choice.
    A bakery doesn't have to be orange. A law firm doesn't have to be navy. Surprise yourself.
 2. Select a HARMONY RULE (complementary, split-complementary, triadic, or analogous)
-3. Derive 7 semantic colors:
-   - primary: Dominant brand color — saturated, mid-lightness, carries the identity
-   - secondary: Harmonically related to primary — slightly muted or shifted
-   - accent: High-contrast pop for CTAs/highlights — must stand out from primary
-   - background: Very light tint of the base hue (NOT pure white, NOT #f5f5f5)
-   - surface: Near-white with subtle warm/cool cast matching the palette mood
-   - text: Very dark shade tinted toward the base hue (NOT pure #000000)
-   - textMuted: Mid-gray tinted toward the base hue for secondary text
+3. Express ALL colors in HSL format — hsl(H, S%, L%). HSL is easier to reason about and tweak
+   (shift hue by 10°, bump saturation, adjust lightness) without recalculating hex codes.
+4. Derive 7 semantic color PAIRS (each surface gets a foreground). HSL lightness ranges are mandatory:
+   - background (L 94-98%): Light tint of the base hue. NOT pure white — add a subtle warm/cool cast.
+   - text (L 5-15%): Very dark shade tinted toward the base hue. NOT pure black.
+   - surface (L 96-99%): Slightly lighter/different from background for cards and elevated elements.
+   - surfaceFg (L 5-15%): Text color on surface — must contrast >= 4.5:1 against surface.
+   - primary (S 50-85%, L 40-55%): Dominant brand color — saturated, mid-lightness.
+   - primaryFg (L 95-100%): Text on primary backgrounds — almost always near-white.
+   - secondary (S 30-60%, L 40-55%): Harmonically related to primary — slightly muted or shifted.
+   - secondaryFg (L 95-100%): Text on secondary backgrounds.
+   - accent (S 60-90%, L 45-60%): High-contrast pop for CTAs/highlights — must stand out from primary.
+   - accentFg (L 95-100%): Text on accent backgrounds.
+   - textMuted (L 35-50%): Mid-gray tinted toward the base hue for secondary text.
+
+   DEFAULT IS LIGHT THEME. Background must be light (L >= 94%). Only use dark backgrounds if user explicitly requests dark mode.
 
 Constraints:
-- WCAG AA: text on background >= 4.5:1, large text >= 3:1
+- WCAG AA: Every foreground/surface pair must meet >= 4.5:1 contrast ratio, large text >= 3:1
 - primary and accent must differ in hue OR saturation (not just lightness)
-- background should have a visible color cast — subtle cream, blue-gray, warm ivory, etc.
-- NEVER use default Tailwind colors (indigo-600, gray-100, etc.) — generate custom hex values
+- background color cast should be subtle — just enough to avoid sterile white (2-8% saturation)
+- NEVER use default Tailwind colors (indigo-600, gray-100, etc.) — generate custom HSL values
 - NEVER default to purple/blue gradients — this is the #1 AI-generated design tell
 
-Apply colors to :root CSS custom properties:
---color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
+Apply colors to :root CSS custom properties (all in HSL):
+--color-primary, --color-primary-fg, --color-secondary, --color-secondary-fg,
+--color-accent, --color-accent-fg, --color-bg, --color-surface, --color-surface-fg,
+--color-text, --color-text-muted
 
 Gradient rules:
 - DEFAULT: Use solid colors. Avoid gradients unless they serve a purpose.
@@ -38,12 +48,19 @@ Gradient rules:
 <typography>
 Use EXACTLY 2 font families maximum. Load via Google Fonts CDN.
 
-Required structure:
-- ONE font for headings (can vary weights: 400-700)
-- ONE font for body text (typically 400 and 500)
+Step 1 — Read the brief's tone ("minimal," "bold," "editorial," "playful," etc.) to narrow the typographic universe.
 
-Approved Google Fonts (ONLY use fonts from this list — never guess font names).
-Pick fonts that match the project mood. Use the pairings below as guidance, or create your own combinations from the approved list:
+Step 2 — Pick the HEADING font first. This carries the personality of the design.
+Choose from the approved list below based on the mood. Be distinctive — don't default to safe choices.
+
+Step 3 — Pair with a complementary BODY font. The body font must be highly legible at 14-18px and contrast with the heading font without clashing.
+
+Pairing principles:
+- Contrast, not conflict — mix geometric + humanist, serif + sans, or display + workhorse. Never two similar fonts.
+- Shared x-height — so they feel cohesive at the same size
+- Weight range — each font needs at least 3 weights (300/400/700) for proper hierarchy
+
+Approved Google Fonts (ONLY use fonts from this list — never guess font names):
 
 Sans-serif (body/UI): Inter, DM Sans, Work Sans, Lato, Open Sans, Source Sans 3, Nunito Sans, Manrope, Barlow, Karla, IBM Plex Sans, Public Sans, Figtree, Albert Sans, Mulish, Sora, Hanken Grotesk
 Geometric sans (headings): Montserrat, Poppins, Raleway, Space Grotesk, Outfit, Syne, Libre Franklin, Archivo, Jost, Exo 2, Quicksand, Urbanist, Red Hat Display, Epilogue
@@ -52,20 +69,8 @@ Slab serif: Roboto Slab, Arvo, Aleo, Bitter, Zilla Slab
 Display (hero only): Oswald, Anton, Bebas Neue, Abril Fatface, Bricolage Grotesque
 Monospace: Space Mono, JetBrains Mono, Fira Code, IBM Plex Mono, Azeret Mono
 
-Recommended pairings (pick based on mood — vary your choices, don't repeat the same pair):
-
-Modern/SaaS: Manrope + Inter | Space Grotesk + DM Sans
-Elegant/Luxury: Playfair Display + DM Sans | Cormorant + Manrope
-Editorial/Blog: DM Serif Display + DM Sans | Lora + Source Sans 3
-Corporate/Trust: Work Sans + Source Sans 3 | IBM Plex Sans + IBM Plex Serif
-Bold/Impact: Montserrat + Open Sans | Syne + Inter
-Warm/Friendly: Nunito Sans + Lato | Poppins + Merriweather
-Creative/Fun: Jost + DM Sans | Outfit + Karla | Raleway + Lora
-Clean/Minimal: Inter + Inter | Figtree + Figtree
-Tech/Startup: Albert Sans + Barlow | Archivo + Source Sans 3
-Dashboard/Admin: Hanken Grotesk + Archivo | Urbanist + Red Hat Display
-Wellness/Health: Mulish + Karla | Sora + Space Mono
-Publishing/Education: Alegreya + Alegreya Sans | Epilogue + Source Sans 3
+IMPORTANT: Do NOT default to the same fonts. Each project should use a DIFFERENT combination.
+Rotate through the full approved list. Avoid repeating Inter, DM Sans, Manrope, or Poppins as defaults.
 
 Typography rules:
 - Clear size hierarchy: text-sm -> text-base -> text-lg -> text-xl -> text-2xl -> text-4xl+
