@@ -1,6 +1,5 @@
 // Shared design quality guidelines used by both single-page and blueprint generation.
 // Single source of truth — imported by base-rules.ts AND blueprint prompt files.
-// Font names in the prompt below must stay in sync with src/lib/fonts.ts FONT_CATEGORIES.
 
 export const DESIGN_QUALITY_SECTION = `<color_system>
 Generate a UNIQUE color palette for each project — fresh colors every time.
@@ -50,16 +49,7 @@ Choose 2 primary font families (heading + body). Add a monospace font when the p
 
 Pick a HEADING font for personality, pair with a legible BODY font. Mix categories — serif + sans, geometric + humanist, display + workhorse.
 
-VARIETY IS MANDATORY: Do NOT default to Inter, DM Sans, Poppins, or Montserrat. Treat these as last-resort options. Start from less common pairings — Sora + Literata, Epilogue + Source Serif 4, Bricolage Grotesque + Karla, Outfit + Spectral — then branch out from there.
-
-Approved Google Fonts (ONLY use fonts from this list):
-Sans-serif (body/UI): Inter, DM Sans, Work Sans, Lato, Open Sans, Source Sans 3, Nunito Sans, Manrope, Barlow, Karla, IBM Plex Sans, Public Sans, Figtree, Albert Sans, Mulish, Sora, Hanken Grotesk, Rubik, Nunito, Cabin, Noto Sans, PT Sans, Josefin Sans
-Geometric sans (headings): Montserrat, Poppins, Raleway, Space Grotesk, Outfit, Syne, Libre Franklin, Archivo, Jost, Exo 2, Quicksand, Urbanist, Red Hat Display, Epilogue, Plus Jakarta Sans, Lexend
-Serif (editorial): Playfair Display, Lora, Merriweather, EB Garamond, Cormorant, Spectral, DM Serif Display, Literata, Source Serif 4, Alegreya, Crimson Pro, Libre Baskerville, PT Serif, Noto Serif
-Slab serif: Roboto Slab, Arvo, Aleo, Bitter, Zilla Slab
-Display (hero/accent): Oswald, Anton, Bebas Neue, Abril Fatface, Bricolage Grotesque, Righteous, Fredoka, Comfortaa
-Handwritten (creative/personal): Caveat, Dancing Script, Pacifico, Satisfy, Kalam
-Monospace (code/technical): Space Mono, JetBrains Mono, Fira Code, IBM Plex Mono, Azeret Mono, Source Code Pro
+VARIETY IS MANDATORY: Do NOT default to Inter, DM Sans, Poppins, or Montserrat. Treat these as last-resort options. Use any real Google Font from fonts.google.com. Prefer distinctive, lesser-used pairings over common defaults — explore the full catalog.
 
 Rules:
 - Clear size hierarchy: text-sm -> text-base -> text-lg -> text-xl -> text-2xl -> text-4xl+

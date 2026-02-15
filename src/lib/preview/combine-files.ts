@@ -1,4 +1,5 @@
 import type { ProjectFiles } from '@/types';
+import { sanitizeFontsInHtml } from '@/lib/fonts';
 
 /**
  * Returns sorted list of HTML page filenames from a ProjectFiles map.
@@ -22,8 +23,11 @@ export function getHtmlPages(files: ProjectFiles): string[] {
  * - Single-file projects pass through unchanged
  */
 export function combineForPreview(files: ProjectFiles, activePage = 'index.html'): string {
-  const html = files[activePage];
-  if (!html) return '';
+  const raw = files[activePage];
+  if (!raw) return '';
+
+  // Validate font names against the full Google Fonts catalog before rendering
+  const html = sanitizeFontsInHtml(raw);
 
   // Collect asset files
   const cssFiles = Object.keys(files).filter(f => f.endsWith('.css')).sort();

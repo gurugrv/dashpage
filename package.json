@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prefetch-fonts": "npx tsx scripts/fetch-google-fonts.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.42",
