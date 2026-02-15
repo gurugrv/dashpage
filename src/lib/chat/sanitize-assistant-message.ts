@@ -1,12 +1,16 @@
 export const ARTIFACT_COMPLETION_MESSAGE = 'Generation complete. Preview updated.';
 
+/** Strip reasoning/thinking tags emitted by some models (DeepSeek, QwQ, etc.) */
+const THINKING_TAG_RE = /<think>[\s\S]*?<\/think>\s*/g;
+/** Strip unclosed thinking tags (during streaming, closing tag hasn't arrived yet) */
+const THINKING_TAG_UNCLOSED_RE = /<think>[\s\S]*$/;
+
 /**
  * Sanitize assistant message text for persistence/display.
- * With tool calling, text parts are clean (no embedded XML artifact tags),
- * so this simply trims the input.
+ * Strips model reasoning tags (<think>...</think>) and trims whitespace.
  */
 export function sanitizeAssistantMessage(content: string): string {
-  return content.trim();
+  return content.replace(THINKING_TAG_RE, '').replace(THINKING_TAG_UNCLOSED_RE, '').trim();
 }
 
 /**
@@ -14,7 +18,7 @@ export function sanitizeAssistantMessage(content: string): string {
  * but an artifact was generated.
  */
 export function sanitizeAssistantMessageWithFallback(content: string, hasHtmlArtifact = false): string {
-  const sanitized = content.trim();
+  const sanitized = content.replace(THINKING_TAG_RE, '').replace(THINKING_TAG_UNCLOSED_RE, '').trim();
   if (sanitized) return sanitized;
   if (hasHtmlArtifact) return ARTIFACT_COMPLETION_MESSAGE;
   return '';

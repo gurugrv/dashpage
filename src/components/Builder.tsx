@@ -24,7 +24,7 @@ import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
 import { useModels } from '@/hooks/useModels';
-import { ARTIFACT_COMPLETION_MESSAGE } from '@/lib/chat/sanitize-assistant-message';
+import { ARTIFACT_COMPLETION_MESSAGE, sanitizeAssistantMessage } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 import type { BuildProgressData, ToolActivityEvent } from '@/types/build-progress';
@@ -52,7 +52,7 @@ function splitTextAroundTools(parts: UIMessage['parts']): { preface: string; sum
     }
   }
 
-  return { preface: preface.trim(), summary: postToolText.trim(), hasTools };
+  return { preface: sanitizeAssistantMessage(preface), summary: sanitizeAssistantMessage(postToolText), hasTools };
 }
 
 const chatTransport = new DefaultChatTransport({ api: '/api/chat' });
