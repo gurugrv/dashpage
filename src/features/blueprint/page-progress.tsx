@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, AlertTriangle, Check, Clock, Globe, Image, Loader2, Palette, Search } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, Clock, Globe, Image, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 
@@ -14,7 +14,6 @@ interface PageProgressProps {
 const TOOL_ICONS: Record<string, typeof Globe> = {
   searchImages: Image,
   searchIcons: Search,
-  selectColorPalette: Palette,
   fetchUrl: Globe,
 };
 
