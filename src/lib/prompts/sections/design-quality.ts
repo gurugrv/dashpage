@@ -148,6 +148,98 @@ Generate realistic, contextual content for every text element — specificity cr
 - CTAs: Action-specific ("Start Your Free Trial", "View the Menu", "Book a Call") not generic "Learn More"
 </content_rules>`;
 
+// Condensed version for blueprint page/component generation where the design system
+// (colors, fonts, radius) is already defined. Keeps visual quality rules, drops
+// color generation and font selection instructions.
+export const BLUEPRINT_DESIGN_QUALITY_SECTION = `<visual_polish>
+Every page MUST include these details — they separate professional from amateur:
+
+Transitions & Hover:
+- All interactive elements need hover states (opacity, scale, color shift, or shadow change)
+- Use smooth transitions: duration-200 ease-in-out (or duration-300). Prefer specific transition utilities (transition-colors, transition-shadow, transition-transform) or combine them. Use transition-all only when multiple properties change together.
+- Buttons: subtle scale (hover:scale-105) or shadow lift on hover
+- Links: underline animation or color transition
+- Cards: shadow elevation on hover (hover:shadow-lg)
+
+Shadows & Depth:
+- Use layered shadows for cards and elevated elements (not flat)
+- Subtle shadows create hierarchy — use them intentionally
+- Shadow color should complement the design (not pure black)
+
+Spacing & Layout:
+- Generous whitespace between sections (py-16 md:py-24 minimum)
+- Group related elements tightly (gap-2 to gap-4), separate groups widely
+- Container max-width for readability (max-w-7xl mx-auto px-4)
+- Consistent alignment within sections
+
+States:
+- Focus-visible states on interactive elements (for accessibility)
+- Active/pressed states on buttons
+- If relevant: loading indicators, empty states, disabled states
+
+Micro-details:
+- Rounded corners should be consistent (use --radius token)
+- Icon sizing: 16px (sm), 20px (md), 24px (lg) — keep consistent
+- Badge/pill elements for tags and status indicators
+- Dividers or spacing (not both) to separate content sections
+</visual_polish>
+
+<motion_design>
+Bring the page to life with purposeful animation:
+
+Entrance animations:
+- Fade-up and slide-in for content sections using CSS @keyframes + Intersection Observer
+- Staggered reveals for card grids and lists (increment delay by 100-150ms per item)
+- Smooth scroll behavior: html { scroll-behavior: smooth }
+
+Scroll effects:
+- Parallax-lite: subtle CSS transform: translateY() on scroll for hero backgrounds or decorative elements
+- Hero section kinetic typography or animated gradient backgrounds (CSS @keyframes on background-position)
+- Progress indicators or scroll-triggered counters for stats sections
+
+Micro-interactions:
+- Button press feedback: active:scale-95 with transition
+- Toggle switches, expanding cards, accordion animations
+- Hover reveals: content that slides or fades in on card hover
+- Form focus effects: border color transitions, floating labels
+
+Performance rules:
+- ONLY animate transform and opacity (composited properties) for 60fps
+- Use will-change sparingly — only on elements actively animating
+- ALWAYS respect prefers-reduced-motion: wrap animations in @media (prefers-reduced-motion: no-preference)
+- Keep durations 150-400ms for UI, up to 800ms for decorative entrance animations
+</motion_design>
+
+<creative_framework>
+Match your creative approach to the request:
+
+IF the request is vague ("make me a landing page", "build a portfolio"):
+-> BE BOLD: Choose distinctive layouts, strong visual hierarchy. Make creative decisions confidently rather than playing safe.
+
+IF the user provides brand guidelines or specific design direction:
+-> BE RESPECTFUL: Work within their constraints. Add polish through excellent execution, not creative rebellion.
+
+IF building enterprise/professional tools (dashboards, admin panels, SaaS):
+-> BE CONSERVATIVE: Prioritize usability and convention. Clean, functional, well-organized. Creativity through craft, not bold choices.
+
+IF building personal/creative projects (portfolios, art sites, event pages):
+-> BE EXPERIMENTAL: Unconventional layouts, creative typography, unique visual treatments. Take calculated risks.
+
+Final rule: Ship something interesting rather than boring — but never ugly or confusing.
+</creative_framework>
+
+<content_rules>
+Generate realistic, contextual content for every text element — specificity creates believability:
+
+- Headings: Specific and compelling — "Handcrafted Sourdough, Delivered Fresh" not "Welcome to Our Bakery"
+- Body text: Real descriptions with specific details and benefits
+- Names: Realistic names for people, companies, and products
+- Numbers: Believable statistics ("4.9 stars from 2,847 reviews" not "XX reviews")
+- Testimonials: Distinct voices with specific praise, not generic "Great service!"
+- Navigation: Contextually appropriate menu items
+- CTAs: Action-specific ("Start Your Free Trial", "View the Menu", "Book a Call") not generic "Learn More"
+</content_rules>`;
+
 export const EDIT_DESIGN_REMINDER = `<design_reminders>
 Maintain visual consistency with the existing design system:
 - Keep all :root CSS custom properties. Use design tokens, never hardcode colors.

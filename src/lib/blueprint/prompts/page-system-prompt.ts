@@ -1,5 +1,5 @@
 import type { Blueprint, BlueprintPage } from '@/lib/blueprint/types';
-import { DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
+import { BLUEPRINT_DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
 import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 interface SharedHtml {
@@ -153,7 +153,7 @@ Mood: ${designSystem.mood}
 
 ${designSystemSection}
 
-${DESIGN_QUALITY_SECTION}
+${BLUEPRINT_DESIGN_QUALITY_SECTION}
 
 ${UI_UX_GUIDELINES_SECTION}
 

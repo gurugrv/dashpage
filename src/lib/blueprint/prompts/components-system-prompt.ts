@@ -1,5 +1,5 @@
 import type { Blueprint } from '@/lib/blueprint/types';
-import { DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
+import { BLUEPRINT_DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
 import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 export function getComponentsSystemPrompt(blueprint: Blueprint): string {
@@ -50,7 +50,7 @@ CSS Custom Properties (defined in shared styles.css):
 Mood: ${designSystem.mood}
 </design_system>
 
-${DESIGN_QUALITY_SECTION}
+${BLUEPRINT_DESIGN_QUALITY_SECTION}
 
 ${UI_UX_GUIDELINES_SECTION}
 
