@@ -35,7 +35,8 @@ Given the user's website description, produce a JSON object with this structure:
   "contentStrategy": {
     "tone": "writing tone", "targetAudience": "who the site serves",
     "primaryCTA": "main call to action", "brandVoice": "2-3 word personality"
-  }
+  },
+  "needsResearch": true
 }
 </task>
 
@@ -101,6 +102,7 @@ LAYOUT VARIETY — plan diverse section types across pages:
 9. Mood should be descriptive and evocative: "warm rustic charm with artisanal elegance" not just "professional".
 10. Keep descriptions CONCISE — 1-2 sentences max per section description. contentNotes should be a brief phrase, not a paragraph.
 11. Section descriptions should hint at LAYOUT VARIETY — not every page should use the same layout patterns. Mix hero sections, asymmetric grids, card layouts, full-width images, testimonial carousels, etc.
+12. Set "needsResearch": true when the user's prompt references a REAL business, person, place, or organization whose actual details (address, phone, hours, etc.) should be looked up. Set false or omit for fictional/generic sites.
 </rules>
 
 <font_pairing_principles>
