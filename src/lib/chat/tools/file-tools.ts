@@ -94,7 +94,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         files: z
           .record(z.string(), z.string())
           .describe(
-            'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document with its own <head>, Tailwind CDN, fonts, and design system.',
+            'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document starting with <!DOCTYPE html>, containing <head> with Tailwind CDN, fonts, and design system, and a full <body>. Values must be complete HTML — never single words or placeholders.',
           ),
       }),
       execute: async ({ files }) => {
@@ -110,6 +110,29 @@ export function createFileTools(workingFiles: ProjectFiles) {
           }
           normalized[fixedKey] = value;
         }
+
+        // Validate: reject files with trivially small content (likely hallucinated garbage)
+        const MIN_HTML_LENGTH = 50;
+        const tooSmall = Object.entries(normalized).filter(
+          ([name, content]) => name.endsWith('.html') && content.length < MIN_HTML_LENGTH,
+        );
+        if (tooSmall.length > 0 && tooSmall.length === Object.keys(normalized).length) {
+          const names = tooSmall.map(([n, c]) => `"${n}" (${c.length} chars)`).join(', ');
+          return {
+            success: false as const,
+            error: `All files are too small to be valid HTML: ${names}. Each HTML file must be a complete document with <!DOCTYPE html>, <head>, and <body>.`,
+          };
+        }
+
+        // Filter out garbage files but keep valid ones
+        for (const [name] of tooSmall) {
+          delete normalized[name];
+        }
+
+        if (Object.keys(normalized).length === 0) {
+          return { success: false as const, error: 'No valid files to write.' };
+        }
+
         Object.assign(workingFiles, normalized);
         return { success: true as const, fileNames: Object.keys(normalized), notice: 'Files written. Proceed without re-reading.' };
       },

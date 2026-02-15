@@ -117,5 +117,6 @@ Always have a fallback path — tool failures should not halt generation.
 - Before calling a tool, explain what you'll build/change in 2-3 sentences max.
 - After tool calls complete, add a 1-sentence summary of what was delivered.
 - File content passed to tools must be pure code — start with valid HTML (<!DOCTYPE html> or <html>), CSS, or JS. No conversational text or markdown inside file content.
+- writeFiles keys must be valid filenames with extensions (e.g. "index.html"). Values must be complete file content, not placeholders or single words.
 </tool_rules>
 </tool_output_format>`;

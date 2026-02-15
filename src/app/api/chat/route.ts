@@ -232,6 +232,7 @@ export async function POST(req: Request) {
         let continuationMessages = [...messages];
         let finalFinishReason: FinishReason | undefined;
         const toolCallNames = new Map<string, string>();
+        let prevSegmentText = '';  // Track previous segment for degenerate loop detection
 
         // Track whether file-producing tools were called (for incomplete generation detection)
         let hasFileOutput = false;
@@ -441,19 +442,9 @@ export async function POST(req: Request) {
                 const toolName = toolCallNames.get(toolCallId) ?? '';
                 const errorText = (part as { errorText?: string }).errorText || 'Unknown tool error';
                 debugSession.logToolResult({ toolCallId, error: errorText });
-
-                writer.write({
-                  type: 'data-toolActivity',
-                  data: {
-                    toolCallId,
-                    toolName,
-                    status: 'error',
-                    label: TOOL_LABELS[toolName] ?? toolName,
-                    detail: errorText.slice(0, 100),
-                    timestamp: Date.now(),
-                  } satisfies ToolActivityEvent,
-                  transient: true,
-                });
+                // Don't emit tool activity for errors — the SDK sends the error back
+                // to the model which retries, producing a new 'running' event.
+                // Showing validation errors to users is just noise.
               }
             }
 
@@ -480,6 +471,18 @@ export async function POST(req: Request) {
             if (!needsContinuation) {
               break;
             }
+
+            // Detect degenerate loops: if this segment produced nearly identical output
+            // to the previous one (model stuck repeating garbage), stop continuing
+            if (prevSegmentText && segmentText.length > 0) {
+              const similarity = segmentText === prevSegmentText
+                || (segmentText.length < 200 && prevSegmentText.length < 200);
+              if (similarity) {
+                debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'Degenerate loop detected — stopping auto-continue' });
+                break;
+              }
+            }
+            prevSegmentText = segmentText;
 
             if (segment + 1 >= MAX_CONTINUATION_SEGMENTS) {
               break;

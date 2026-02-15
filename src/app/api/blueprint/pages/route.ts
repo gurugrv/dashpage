@@ -12,7 +12,9 @@ import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
 const MAX_CONCURRENT_PAGES = 3;
-const PAGE_CONTINUE_PROMPT = 'The page was not completed. Call writeFiles to append the remaining HTML — do NOT restart from the beginning.';
+function buildPageContinuePrompt(filename: string): string {
+  return `The page was not completed. Call writeFiles with key "${filename}" containing a complete HTML document starting with <!DOCTYPE html>. Generate the full page content — do not use placeholder text or abbreviated content.`;
+}
 
 interface PagesRequestBody {
   conversationId: string;
@@ -177,6 +179,7 @@ export async function POST(req: Request) {
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
         let prevMessages: ModelMessage[] = [];
+        let prevSegmentToolInputs = '';  // Degenerate loop detection
 
         for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
           if (abortSignal.aborted) break;
@@ -207,7 +210,7 @@ export async function POST(req: Request) {
           } else {
             const continuationMessages: ModelMessage[] = [
               ...prevMessages,
-              { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
+              { role: 'user' as const, content: buildPageContinuePrompt(page.filename) },
             ];
             debugSession.logPrompt({
               systemPrompt,
@@ -326,7 +329,7 @@ export async function POST(req: Request) {
           } else {
             prevMessages = [
               ...prevMessages,
-              { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
+              { role: 'user' as const, content: buildPageContinuePrompt(page.filename) },
               ...responseMessages,
             ];
           }
@@ -339,6 +342,15 @@ export async function POST(req: Request) {
 
           // Not truncated, just didn't produce output
           if (finishReason !== 'length') break;
+
+          // Detect degenerate loops: if this segment's tool inputs are identical
+          // to the previous segment (model stuck repeating garbage), stop
+          const currentToolInputs = writeFilesJsonBuffer;
+          if (prevSegmentToolInputs && currentToolInputs === prevSegmentToolInputs) {
+            debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'Degenerate loop detected — stopping page continuation' });
+            break;
+          }
+          prevSegmentToolInputs = currentToolInputs;
         }
 
         // Extract HTML from workingFiles

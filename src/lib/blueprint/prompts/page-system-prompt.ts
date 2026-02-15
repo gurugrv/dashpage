@@ -199,6 +199,7 @@ Call tools BEFORE and AFTER writing the page. Parallel calls save steps:
    - searchIcons: pass ALL queries in one call (e.g. queries: [{query:"hamburger menu"}, {query:"close"}, {query:"arrow right"}]). Use "outline" style for UI chrome, "solid" for emphasis
 2. webSearch + fetchUrl (if needed) — for real business info, embed codes (Google Maps, YouTube), or industry-specific content
 3. writeFiles → generate the complete HTML page as { "${page.filename}": "<!DOCTYPE html>..." }
+   CRITICAL: The file key MUST be exactly "${page.filename}" and the value MUST be a complete HTML document starting with <!DOCTYPE html>. Never use placeholder keys or abbreviated content.
 
 If a tool fails: use https://placehold.co/800x400/eee/999?text=Image for images, inline SVG for icons, your own knowledge for web content. Never let a tool failure halt generation.
 </tool_workflow>
