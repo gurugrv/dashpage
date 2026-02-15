@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, Palette, Pencil, Sparkles, Type, Users, Megaphone } from 'lucide-react';
+import { Building2, FileText, Palette, Pencil, Sparkles, Type, Users, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import type { Blueprint, BlueprintDesignSystem, BlueprintContentStrategy } from '@/lib/blueprint/types';
+import type { Blueprint, BlueprintDesignSystem, BlueprintContentStrategy, SiteFacts } from '@/lib/blueprint/types';
 import { FontPicker } from '@/features/blueprint/font-picker';
 
 interface BlueprintCardProps {
@@ -43,6 +43,15 @@ export function BlueprintCard({
     setDraft((prev) => ({
       ...prev,
       contentStrategy: { ...prev.contentStrategy, [field]: value },
+    }));
+  };
+
+  const factsSource = isEditing ? draft.siteFacts : blueprint.siteFacts;
+
+  const updateFact = (field: keyof SiteFacts, value: string | string[] | Record<string, string>) => {
+    setDraft((prev) => ({
+      ...prev,
+      siteFacts: { ...prev.siteFacts, [field]: value },
     }));
   };
 
@@ -230,6 +239,46 @@ export function BlueprintCard({
             <span className="text-xs text-muted-foreground">{contentStrategy.tone}</span>
           )}
         </div>
+        {/* Business Details (only if siteFacts present) */}
+        {factsSource && Object.values(factsSource).some((v) => v !== undefined && v !== null && v !== '') && (
+          <div className="space-y-2 border-t pt-3">
+            <div className="flex items-center gap-1.5">
+              <Building2 className="size-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Business Details</span>
+              {!isEditing && (
+                <span className="ml-auto text-[10px] text-muted-foreground/60">from web research</span>
+              )}
+            </div>
+            {factsSource.businessName && (
+              <FactRow label="Name" value={factsSource.businessName} field="businessName" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.address && (
+              <FactRow label="Address" value={factsSource.address} field="address" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.phone && (
+              <FactRow label="Phone" value={factsSource.phone} field="phone" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.email && (
+              <FactRow label="Email" value={factsSource.email} field="email" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.hours && (
+              <FactRow label="Hours" value={factsSource.hours} field="hours" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.tagline && (
+              <FactRow label="Tagline" value={factsSource.tagline} field="tagline" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.services && factsSource.services.length > 0 && !isEditing && (
+              <div className="flex items-start gap-2 pl-5">
+                <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Services</span>
+                <div className="flex flex-wrap gap-1">
+                  {factsSource.services.map((s) => (
+                    <span key={s} className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -254,6 +303,36 @@ export function BlueprintCard({
           Cancel
         </Button>
       </div>
+    </div>
+  );
+}
+
+function FactRow({
+  label,
+  value,
+  field,
+  isEditing,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  field: keyof SiteFacts;
+  isEditing: boolean;
+  onChange: (field: keyof SiteFacts, value: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 pl-5">
+      <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
+      {isEditing ? (
+        <input
+          type="text"
+          className="min-w-0 flex-1 border-b border-dashed border-input bg-transparent text-xs text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+          value={value}
+          onChange={(e) => onChange(field, e.target.value)}
+        />
+      ) : (
+        <span className="text-xs text-muted-foreground">{value}</span>
+      )}
     </div>
   );
 }
