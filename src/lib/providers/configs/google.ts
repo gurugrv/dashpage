@@ -9,6 +9,8 @@ export const googleProvider: ProviderConfig = {
     return client(modelId);
   },
   staticModels: [
+    { id: 'gemini-3-pro', name: 'Gemini 3 Pro', provider: 'Google', maxOutputTokens: 65_536 },
+    { id: 'gemini-3-flash', name: 'Gemini 3 Flash', provider: 'Google', maxOutputTokens: 65_536 },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', maxOutputTokens: 8_192 },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Google', maxOutputTokens: 8_192 },
   ],

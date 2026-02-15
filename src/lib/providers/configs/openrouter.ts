@@ -10,8 +10,10 @@ export const openRouterProvider: ProviderConfig = {
     return client.chat(modelId);
   },
   staticModels: [
+    { id: 'anthropic/claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'OpenRouter', maxOutputTokens: 128_000 },
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'OpenRouter', maxOutputTokens: 64_000 },
     { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'OpenRouter', maxOutputTokens: 16_384 },
+    { id: 'google/gemini-3-flash', name: 'Gemini 3 Flash', provider: 'OpenRouter', maxOutputTokens: 65_536 },
     { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'OpenRouter', maxOutputTokens: 8_192 },
   ],
   fetchModels: async (apiKey) => {

@@ -10,6 +10,7 @@ export const openAIProvider: ProviderConfig = {
     return client.chat(modelId);
   },
   staticModels: [
+    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', maxOutputTokens: 32_768 },
     { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', maxOutputTokens: 16_384 },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', maxOutputTokens: 16_384 },
   ],

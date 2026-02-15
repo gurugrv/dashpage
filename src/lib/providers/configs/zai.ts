@@ -11,7 +11,7 @@ export const zaiProvider: ProviderConfig = {
     return client.chat(modelId);
   },
   staticModels: [
-    { id: 'glm-5', name: 'GLM 5', provider: 'Z.ai', maxOutputTokens: 16_384 },
+    { id: 'glm-5', name: 'GLM 5', provider: 'Z.ai', maxOutputTokens: 128_000 },
     { id: 'glm-4.7', name: 'GLM 4.7', provider: 'Z.ai', maxOutputTokens: 16_384 },
     { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash', provider: 'Z.ai', maxOutputTokens: 16_384 },
     { id: 'glm-4.6', name: 'GLM 4.6', provider: 'Z.ai', maxOutputTokens: 16_384 },
