@@ -172,6 +172,7 @@ export function useHtmlParser() {
   const [lastValidFiles, setLastValidFiles] = useState<ProjectFiles>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const lastValidFilesRef = useRef<ProjectFiles>({});
+  const lastProcessedRef = useRef<{ messageId: string; partsLength: number; isLoading: boolean } | null>(null);
 
   const updateLastValid = useCallback((files: ProjectFiles) => {
     setLastValidFiles(files);
@@ -179,12 +180,27 @@ export function useHtmlParser() {
   }, []);
 
   const processMessages = useCallback((messages: UIMessage[], isLoading: boolean) => {
-    setIsGenerating(isLoading);
-
-    if (messages.length === 0) return;
+    if (messages.length === 0) {
+      setIsGenerating(isLoading);
+      return;
+    }
 
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role !== 'assistant') return;
+    if (lastMessage.role !== 'assistant') {
+      setIsGenerating(isLoading);
+      return;
+    }
+
+    // Skip if nothing changed since last call — parts only grow (new tool calls append),
+    // so same length means no new tool output to extract
+    const partsLength = lastMessage.parts.length;
+    const cached = lastProcessedRef.current;
+    if (cached && cached.messageId === lastMessage.id && cached.partsLength === partsLength && cached.isLoading === isLoading) {
+      return;
+    }
+    lastProcessedRef.current = { messageId: lastMessage.id, partsLength, isLoading };
+
+    setIsGenerating(isLoading);
 
     // Extract files from tool result parts
     const { files: toolFiles, hasToolActivity } = extractFilesFromToolParts(
