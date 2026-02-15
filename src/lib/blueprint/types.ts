@@ -46,6 +46,20 @@ export const blueprintSharedComponentsSchema = z.object({
   footerTagline: z.string().min(3).describe('Short tagline or description for the footer'),
 });
 
+export const siteFactsSchema = z.object({
+  businessName: z.string().optional().describe('Official business name'),
+  address: z.string().optional().describe('Physical address'),
+  phone: z.string().optional().describe('Phone number'),
+  email: z.string().optional().describe('Email address'),
+  hours: z.string().optional().describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm")'),
+  services: z.array(z.string()).optional().describe('Key services or offerings'),
+  tagline: z.string().optional().describe('Business tagline or slogan'),
+  socialMedia: z.record(z.string(), z.string()).optional().describe('Social media URLs keyed by platform name'),
+  additionalInfo: z.string().optional().describe('Any other relevant business details'),
+});
+
+export type SiteFacts = z.infer<typeof siteFactsSchema>;
+
 export const blueprintSchema = z.object({
   siteName: z.string().describe('Name of the website'),
   siteDescription: z.string().describe('One-sentence site description'),
@@ -53,6 +67,8 @@ export const blueprintSchema = z.object({
   designSystem: blueprintDesignSystemSchema,
   sharedComponents: blueprintSharedComponentsSchema,
   contentStrategy: blueprintContentStrategySchema,
+  needsResearch: z.boolean().optional().describe('Set to true when the prompt references a real business, place, or person whose details should be looked up'),
+  siteFacts: siteFactsSchema.optional().describe('Verified business details from web research'),
 });
 
 export type BlueprintPageSection = z.infer<typeof blueprintPageSectionSchema>;
