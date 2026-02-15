@@ -130,7 +130,7 @@ function extractFilesFromToolParts(
         files[normalizedKey] = normalizedKey.endsWith('.html') ? stripHtmlPreamble(value) : value;
       }
     }
-    // editDOM output: { success: true|"partial", file: string, content: string }
+    // editBlock output: { success: true, file: string, content: string }
     else if ('file' in output && 'content' in output) {
       if (!files) files = { ...baseFiles };
       producedFiles = true;
@@ -233,7 +233,7 @@ export function useHtmlParser() {
       lastValidFilesRef.current,
     );
 
-    // If tools produced file content (writeFiles, editDOM, editFiles), use that
+    // If tools produced file content (writeFiles, editBlock, editFiles), use that
     if (toolFiles !== null && producedFiles) {
       setCurrentFiles(toolFiles);
       if (!isLoading && isPersistableArtifact(toolFiles)) {
