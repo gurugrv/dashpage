@@ -6,42 +6,41 @@ export const DESIGN_QUALITY_SECTION = `<color_system>
 Generate a UNIQUE color palette for each project — fresh colors every time.
 
 Method:
-1. Choose a BASE HUE (0-360) inspired by the subject — but avoid the obvious choice.
-   A bakery doesn't have to be orange. A law firm doesn't have to be navy. Surprise yourself.
-2. Select a HARMONY RULE (complementary, split-complementary, triadic, or analogous)
-3. Express ALL colors in HSL format — hsl(H, S%, L%). HSL is easier to reason about and tweak
-   (shift hue by 10°, bump saturation, adjust lightness) without recalculating hex codes.
-4. Derive 7 semantic color PAIRS (each surface gets a foreground). HSL lightness ranges are mandatory:
-   - background (L 94-98%): Light tint of the base hue. NOT pure white — add a subtle warm/cool cast.
-   - text (L 5-15%): Very dark shade tinted toward the base hue. NOT pure black.
-   - surface (L 96-99%): Slightly lighter/different from background for cards and elevated elements.
-   - surfaceFg (L 5-15%): Text color on surface — must contrast >= 4.5:1 against surface.
-   - primary (S 50-85%, L 40-55%): Dominant brand color — saturated, mid-lightness.
-   - primaryFg (L 95-100%): Text on primary backgrounds — almost always near-white.
-   - secondary (S 30-60%, L 40-55%): Harmonically related to primary — slightly muted or shifted.
-   - secondaryFg (L 95-100%): Text on secondary backgrounds.
-   - accent (S 60-90%, L 45-60%): High-contrast pop for CTAs/highlights — must stand out from primary.
-   - accentFg (L 95-100%): Text on accent backgrounds.
-   - textMuted (L 35-50%): Mid-gray tinted toward the base hue for secondary text.
+1. Choose a BASE HUE (0-360) inspired by the subject — avoid the obvious choice.
+2. Select a HARMONY RULE (complementary, split-complementary, triadic, or analogous).
+3. Express ALL colors in HSL — hsl(H, S%, L%). Easier to reason about than hex.
+4. Pick a PALETTE STRATEGY, then derive 7 semantic colors within its ranges:
 
-   DEFAULT IS LIGHT THEME. Background must be light (L >= 94%). Only use dark backgrounds if user explicitly requests dark mode.
+LIGHT (default — airy, professional):
+  bg L 94-98% S 2-8% | text L 5-15% | surface L 96-99% | textMuted L 35-50%
+  primary S 50-85% L 40-55% | secondary S 30-60% L 40-55% | accent S 60-90% L 45-60%
 
-Constraints:
-- WCAG AA: Every foreground/surface pair must meet >= 4.5:1 contrast ratio, large text >= 3:1
+MUTED (earthy, artisanal, warm):
+  bg L 90-95% S 5-15% | text L 8-18% | surface L 93-97% S 4-12% | textMuted L 32-48%
+  primary S 30-55% L 35-50% | secondary S 20-45% L 38-52% | accent S 45-70% L 40-55%
+
+BOLD (vibrant, energetic, playful):
+  bg L 94-98% S 3-10% | text L 5-15% | surface L 96-99% | textMuted L 30-45%
+  primary S 70-95% L 42-58% | secondary S 55-80% L 40-55% | accent S 75-95% L 45-60%
+
+DARK (luxury, tech — ONLY when user explicitly requests dark theme):
+  bg L 8-15% S 5-20% | text L 85-95% | surface L 12-20% S 4-15% | textMuted L 55-70%
+  primary S 50-85% L 55-70% | secondary S 30-60% L 50-65% | accent S 65-95% L 55-70%
+
+HIGH-CONTRAST (accessibility-first, editorial):
+  bg L 97-100% S 0-3% | text L 0-10% | surface L 95-98% | textMuted L 25-40%
+  primary S 60-90% L 35-50% | secondary S 40-70% L 35-50% | accent S 70-95% L 40-55%
+
+Hard constraints (apply to ALL strategies):
+- WCAG AA: text on bg/surface >= 4.5:1, large text >= 3:1
 - primary and accent must differ in hue OR saturation (not just lightness)
-- background color cast should be subtle — just enough to avoid sterile white (2-8% saturation)
 - Generate custom HSL values — default Tailwind colors (indigo-600, gray-100) look generic
-- Purple/blue gradients are the #1 AI-generated design tell — choose unexpected color stories instead
+- Purple/blue gradients are the #1 AI-generated design tell — choose unexpected color stories
 
 Apply colors to :root CSS custom properties (all in HSL):
---color-primary, --color-primary-fg, --color-secondary, --color-secondary-fg,
---color-accent, --color-accent-fg, --color-bg, --color-surface, --color-surface-fg,
---color-text, --color-text-muted
+--color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
 
-Gradient rules:
-- Prefer solid colors; use gradients only when they reinforce meaning or mood.
-- Gradients work best with analogous colors in the same temperature family (blue->teal, purple->pink, orange->red).
-- Maximum 2 color stops — keep it clean and intentional.
+Gradient rules: prefer solid colors; use gradients only to reinforce mood. Analogous colors in the same temperature family. Maximum 2 stops.
 </color_system>
 
 <typography>

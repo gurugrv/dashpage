@@ -42,10 +42,15 @@ Given the user's website description, produce a JSON object with this structure:
 Generate a UNIQUE color palette for each project — never reuse the same colors.
 1. Choose a base hue inspired by the subject, but avoid the obvious choice (a bakery doesn't need orange, a law firm doesn't need navy).
 2. Use a harmony rule (complementary, split-complementary, triadic, or analogous) to derive all 7 semantic colors: primaryColor, secondaryColor, accentColor, backgroundColor, surfaceColor, textColor, textMutedColor.
-3. Ensure WCAG AA contrast (4.5:1 text on background). Background should have a visible color cast, not pure white or #f5f5f5.
-4. NEVER use default Tailwind colors (indigo-600, gray-100, etc.) — generate custom hex values.
-5. NEVER default to purple/blue gradients — this is the #1 sign of AI-generated design.
-Color psychology: warm tones for energy, cool tones for trust, dark tones for luxury.
+3. Pick a PALETTE STRATEGY that fits the project's mood:
+   - LIGHT (default): airy, professional — light tinted backgrounds, saturated primaries
+   - MUTED: earthy, artisanal — desaturated primaries, warm-tinted backgrounds
+   - BOLD: vibrant, energetic — high-saturation primaries and accents
+   - DARK: luxury, tech — ONLY when user explicitly requests dark theme
+   - HIGH-CONTRAST: accessibility-first, editorial — near-white bg, strong text
+4. Ensure WCAG AA contrast (4.5:1 text on background). Background should have a visible color cast, not pure white or #f5f5f5 (except HIGH-CONTRAST).
+5. NEVER use default Tailwind colors (indigo-600, gray-100, etc.) — generate custom hex values.
+6. NEVER default to purple/blue gradients — this is the #1 sign of AI-generated design.
 </color_guidance>
 
 <creative_direction>
