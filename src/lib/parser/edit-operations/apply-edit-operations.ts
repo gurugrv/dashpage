@@ -1,3 +1,4 @@
+import search from 'approx-string-match';
 import { distance } from 'fastest-levenshtein';
 import { findOriginalPosition } from '@/lib/parser/edit-operations/find-original-position';
 import type {
@@ -95,44 +96,34 @@ function tryTokenMatch(
 }
 
 /**
- * Tier 4/5: Fuzzy Levenshtein sliding window match.
- * Slides a window across the source, scores each position by similarity.
- * Returns the best match with its similarity score so callers can apply thresholds.
+ * Tier 4/5: Fuzzy match using Myers' bit-parallel algorithm.
+ * Finds approximate substring matches in O((k/w)*n) time.
  */
 function tryFuzzyMatch(
   source: string,
-  search: string,
+  searchStr: string,
   threshold: number,
 ): { index: number; length: number; similarity: number } | null {
-  const searchLen = search.length;
+  const searchLen = searchStr.length;
   if (searchLen === 0 || source.length === 0) return null;
 
-  // Use a window with some tolerance for length differences
-  const minWindow = Math.floor(searchLen * 0.8);
-  const maxWindow = Math.ceil(searchLen * 1.2);
+  const maxErrors = Math.max(1, Math.floor(searchLen * (1 - threshold)));
+  const matches = search(source, searchStr, maxErrors);
+  if (matches.length === 0) return null;
 
-  let bestScore = 0;
-  let bestIndex = -1;
-  let bestLength = 0;
-
-  for (let windowSize = minWindow; windowSize <= maxWindow; windowSize++) {
-    for (let i = 0; i <= source.length - windowSize; i++) {
-      const candidate = source.slice(i, i + windowSize);
-      const maxLen = Math.max(candidate.length, search.length);
-      if (maxLen === 0) continue;
-      const similarity = 1 - distance(candidate, search) / maxLen;
-      if (similarity > bestScore) {
-        bestScore = similarity;
-        bestIndex = i;
-        bestLength = windowSize;
-      }
+  // Pick the best match (lowest error count)
+  let best = matches[0];
+  for (let i = 1; i < matches.length; i++) {
+    if (matches[i].errors < best.errors) {
+      best = matches[i];
     }
   }
 
-  if (bestScore >= threshold) {
-    return { index: bestIndex, length: bestLength, similarity: bestScore };
-  }
-  return null;
+  const matchLength = best.end - best.start;
+  const maxLen = Math.max(matchLength, searchLen);
+  const similarity = 1 - best.errors / maxLen;
+
+  return { index: best.start, length: matchLength, similarity };
 }
 
 /**
