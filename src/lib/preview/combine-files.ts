@@ -29,16 +29,37 @@ export function combineForPreview(files: ProjectFiles, activePage = 'index.html'
   const cssFiles = Object.keys(files).filter(f => f.endsWith('.css')).sort();
   const jsFiles = Object.keys(files).filter(f => f.endsWith('.js')).sort();
 
-  // Link interception script for multi-page navigation via postMessage
+  // Link interception script for navigation inside srcdoc iframe
+  // Handles: #hash (scroll within page), page.html (multi-page nav),
+  // page.html#hash (nav + scroll), external (open in new tab)
   const linkInterceptScript = `<script>
 document.addEventListener('click', function(e) {
   var anchor = e.target.closest('a');
   if (!anchor) return;
   var href = anchor.getAttribute('href');
-  if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('//') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
-  if (href.endsWith('.html')) {
+  if (!href || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+  // External links: open in new tab to avoid navigating the iframe away
+  if (href.startsWith('http') || href.startsWith('//')) {
     e.preventDefault();
-    parent.postMessage({ type: 'page-navigate', page: href }, '*');
+    window.open(anchor.href, '_blank', 'noopener');
+    return;
+  }
+  // Hash-only links: scroll within the current page (srcdoc breaks native # behavior)
+  if (href.startsWith('#')) {
+    e.preventDefault();
+    var id = href.slice(1);
+    var target = id ? document.getElementById(id) : null;
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+    else if (!id) window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  // Multi-page links: page.html or page.html#hash
+  var hashIdx = href.indexOf('#');
+  var page = hashIdx !== -1 ? href.slice(0, hashIdx) : href;
+  var hash = hashIdx !== -1 ? href.slice(hashIdx) : '';
+  if (page.endsWith('.html')) {
+    e.preventDefault();
+    parent.postMessage({ type: 'page-navigate', page: page, hash: hash }, '*');
   }
 });
 </script>`;

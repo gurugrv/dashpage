@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { combineForPreview, getHtmlPages } from '@/lib/preview/combine-files';
 import type { BuildProgressState } from '@/hooks/useBuildProgress';
 import type { ProjectFiles } from '@/types';
+import type { PaletteColors } from '@/types/build-progress';
 import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 import { DEVICE_WIDTHS, type DeviceSize } from '@/features/preview/constants';
 import { PreviewEmptyState } from '@/features/preview/preview-empty-state';
@@ -19,9 +20,10 @@ interface PreviewPanelProps {
   buildProgress?: BuildProgressState;
   blueprintPhase?: BlueprintPhase;
   pageStatuses?: PageGenerationStatus[];
+  blueprintPalette?: PaletteColors;
 }
 
-export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress, blueprintPhase, pageStatuses }: PreviewPanelProps) {
+export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress, blueprintPhase, pageStatuses, blueprintPalette }: PreviewPanelProps) {
   const [device, setDevice] = useState<DeviceSize>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedPage, setSelectedPage] = useState('index.html');
@@ -130,7 +132,20 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
     const handleMessage = (e: MessageEvent) => {
       if (e.data?.type === 'page-navigate' && typeof e.data.page === 'string') {
         if (htmlPages.includes(e.data.page)) {
+          const hash = typeof e.data.hash === 'string' ? e.data.hash : '';
           setSelectedPage(e.data.page);
+          // After page switch, scroll to hash target in the new page
+          if (hash) {
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                const id = hash.slice(1);
+                if (id && iframeRef.current?.contentDocument) {
+                  const target = iframeRef.current.contentDocument.getElementById(id);
+                  if (target) target.scrollIntoView({ behavior: 'smooth' });
+                }
+              }, 100); // small delay for srcdoc to render
+            });
+          }
         }
       }
     };
@@ -167,28 +182,34 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
       />
 
       <div className="relative flex flex-1 items-start justify-center overflow-auto p-4">
-        {hasContent ? (
-          <div
-            className={cn(
-              'h-full overflow-hidden rounded-md bg-white shadow-sm transition-all duration-200',
-              device === 'desktop' && 'w-full',
-              device !== 'desktop' && 'border',
-            )}
-            style={{ width: DEVICE_WIDTHS[device], maxWidth: '100%' }}
-          >
-            <iframe
-              ref={iframeRef}
-              srcDoc={srcDoc}
-              sandbox="allow-scripts allow-forms allow-same-origin"
-              className="h-full w-full border-0"
-              title="Website Preview"
-            />
-          </div>
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-muted-foreground">
-            <PreviewEmptyState isGenerating={isGenerating} buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />
-          </div>
-        )}
+        {/* Wireframe empty state — visible when no content, crossfades out when content arrives */}
+        <div
+          className={cn(
+            'absolute inset-4 flex flex-col items-center justify-center gap-3 text-muted-foreground transition-all duration-500',
+            hasContent ? 'pointer-events-none opacity-0 blur-sm' : 'opacity-100',
+          )}
+        >
+          <PreviewEmptyState isGenerating={isGenerating} buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} device={device} blueprintPalette={blueprintPalette} />
+        </div>
+
+        {/* Iframe content — crossfades in when content arrives */}
+        <div
+          className={cn(
+            'h-full overflow-hidden rounded-md bg-white shadow-sm transition-all duration-500',
+            device === 'desktop' && 'w-full',
+            device !== 'desktop' && 'border',
+            hasContent ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
+          style={{ width: DEVICE_WIDTHS[device], maxWidth: '100%' }}
+        >
+          <iframe
+            ref={iframeRef}
+            srcDoc={srcDoc ?? ''}
+            sandbox="allow-scripts allow-forms allow-same-origin"
+            className="h-full w-full border-0"
+            title="Website Preview"
+          />
+        </div>
 
         {isGenerating && hasContent && <PreviewLoadingOverlay buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />}
       </div>
