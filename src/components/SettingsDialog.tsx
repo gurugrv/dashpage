@@ -46,6 +46,7 @@ interface SettingsDialogProps {
 
 const BLUEPRINT_STEPS: Array<{ key: BlueprintStep; label: string; description: string }> = [
   { key: 'planning', label: 'Planning', description: 'Site structure & design system' },
+  { key: 'research', label: 'Research', description: 'Business facts lookup' },
   { key: 'components', label: 'Components', description: 'Shared header & footer' },
   { key: 'pages', label: 'Pages', description: 'Individual page HTML' },
 ];

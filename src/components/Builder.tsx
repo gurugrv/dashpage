@@ -104,7 +104,7 @@ export function Builder() {
   } = useBlueprintModelConfig(availableProviders);
 
   const resolveBlueprintStepModel = useCallback(
-    (step: 'planning' | 'components' | 'pages') => {
+    (step: 'planning' | 'research' | 'components' | 'pages') => {
       if (!effectiveSelectedProvider || !effectiveSelectedModel) return null;
       return resolveRawStepModel(step, effectiveSelectedProvider, effectiveSelectedModel);
     },

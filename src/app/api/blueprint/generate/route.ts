@@ -9,6 +9,8 @@ import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession } from '@/lib/chat/stream-debug';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
 import { researchSiteFacts } from '@/lib/blueprint/research';
+import { resolveApiKey } from '@/lib/keys/key-manager';
+import { PROVIDERS } from '@/lib/providers/registry';
 
 interface BlueprintRequestBody {
   prompt: string;
@@ -17,6 +19,8 @@ interface BlueprintRequestBody {
   model: string;
   savedTimeZone?: string | null;
   browserTimeZone?: string;
+  researchProvider?: string;
+  researchModel?: string;
 }
 
 export async function POST(req: Request) {
@@ -120,8 +124,10 @@ export async function POST(req: Request) {
     debugSession.logFullResponse(finishReason ?? 'unknown');
     debugSession.logGenerationSummary?.({
       finishReason: finishReason ?? 'unknown',
-      hasFileOutput: false, // Blueprint generate produces JSON, not files
+      hasFileOutput: false,
       toolCallCount: 0,
+      structuredOutput: true,
+      rawTextLength: rawText?.length ?? 0,
     });
 
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
@@ -130,10 +136,28 @@ export async function POST(req: Request) {
     // Research site facts if the AI flagged this as a real business
     if (blueprint.needsResearch) {
       try {
+        // Use research model override if provided, otherwise fall back to planning model
+        let researchModelInstance = modelInstance;
+        let researchDebugProvider = provider;
+        let researchDebugModel = model;
+
+        if (body.researchProvider && body.researchModel) {
+          const researchApiKey = await resolveApiKey(body.researchProvider);
+          if (researchApiKey) {
+            const researchProviderConfig = PROVIDERS[body.researchProvider as keyof typeof PROVIDERS];
+            if (researchProviderConfig) {
+              researchModelInstance = researchProviderConfig.createModel(body.researchModel, researchApiKey);
+              researchDebugProvider = body.researchProvider;
+              researchDebugModel = body.researchModel;
+            }
+          }
+        }
+
         const siteFacts = await researchSiteFacts(
-          modelInstance,
+          researchModelInstance,
           blueprint.siteName,
           blueprint.siteDescription,
+          { conversationId, provider: researchDebugProvider, model: researchDebugModel },
         );
         if (siteFacts) {
           blueprint.siteFacts = siteFacts;

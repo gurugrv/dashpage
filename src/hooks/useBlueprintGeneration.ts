@@ -30,7 +30,7 @@ export interface PageGenerationStatus {
 }
 
 interface UseBlueprintGenerationOptions {
-  resolveStepModel: (step: 'planning' | 'components' | 'pages') => {
+  resolveStepModel: (step: 'planning' | 'research' | 'components' | 'pages') => {
     provider: string;
     model: string;
   } | null;
@@ -208,6 +208,9 @@ export function useBlueprintGeneration({
       return;
     }
 
+    // Resolve optional research model override
+    const researchModel = resolveStepModel('research');
+
     setPhase('generating-blueprint');
     setError(null);
     setBlueprint(null);
@@ -226,6 +229,7 @@ export function useBlueprintGeneration({
           model: stepModel.model,
           savedTimeZone,
           browserTimeZone,
+          ...(researchModel ? { researchProvider: researchModel.provider, researchModel: researchModel.model } : {}),
         }),
         signal: controller.signal,
       });

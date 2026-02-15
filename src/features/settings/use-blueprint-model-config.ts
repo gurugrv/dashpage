@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 // Types
 // ---------------------------------------------------------------------------
 
-export type BlueprintStep = 'planning' | 'components' | 'pages';
+export type BlueprintStep = 'planning' | 'research' | 'components' | 'pages';
 
 export interface StepModelOverride {
   provider: string;
@@ -23,6 +23,7 @@ const STORAGE_KEY = 'ai-builder:blueprint-step-models';
 
 const DEFAULT_CONFIG: BlueprintStepModels = {
   planning: null,
+  research: null,
   components: null,
   pages: null,
 };
@@ -41,6 +42,7 @@ function loadConfig(): BlueprintStepModels {
     const parsed = JSON.parse(raw) as Partial<BlueprintStepModels>;
     return {
       planning: parsed.planning ?? null,
+      research: parsed.research ?? null,
       components: parsed.components ?? null,
       pages: parsed.pages ?? null,
     };
