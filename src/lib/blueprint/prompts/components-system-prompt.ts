@@ -13,6 +13,21 @@ export function getComponentsSystemPrompt(blueprint: Blueprint): string {
     .map((p) => `  - ${p.filename}: "${p.title}"`)
     .join('\n');
 
+  const siteFactsBlock = blueprint.siteFacts
+    ? `\n<site_facts>
+These are verified business details from web research. Use them in the footer (address, phone, social links) and header (if relevant). Do NOT invent or guess details not listed here.
+${blueprint.siteFacts.businessName ? `Business name: ${blueprint.siteFacts.businessName}` : ''}
+${blueprint.siteFacts.address ? `Address: ${blueprint.siteFacts.address}` : ''}
+${blueprint.siteFacts.phone ? `Phone: ${blueprint.siteFacts.phone}` : ''}
+${blueprint.siteFacts.email ? `Email: ${blueprint.siteFacts.email}` : ''}
+${blueprint.siteFacts.hours ? `Hours: ${blueprint.siteFacts.hours}` : ''}
+${blueprint.siteFacts.services?.length ? `Services: ${blueprint.siteFacts.services.join(', ')}` : ''}
+${blueprint.siteFacts.tagline ? `Tagline: ${blueprint.siteFacts.tagline}` : ''}
+${blueprint.siteFacts.socialMedia ? `Social media: ${Object.entries(blueprint.siteFacts.socialMedia).map(([k, v]) => `${k}: ${v}`).join(', ')}` : ''}
+${blueprint.siteFacts.additionalInfo ? `Additional info: ${blueprint.siteFacts.additionalInfo}` : ''}
+</site_facts>\n`
+    : '';
+
   return `You are a web developer generating shared header and footer HTML components for a multi-page website. These components must look professionally designed, not AI-generated. Output ONLY the two HTML blocks described below — no explanation, no markdown fences.
 
 <design_system>
@@ -46,7 +61,7 @@ Tone: ${contentStrategy.tone}
 Brand voice: ${contentStrategy.brandVoice}
 Footer tagline: ${sharedComponents.footerTagline}
 </site_info>
-
+${siteFactsBlock}
 <navigation>
 Links (use in both header and footer):
 ${navLinksSpec}
@@ -79,6 +94,9 @@ Do NOT output raw HTML as text. You MUST use the writeFiles tool.
 <footer_requirements>
 - Site name "${blueprint.siteName}" and footer tagline "${sharedComponents.footerTagline}"
 - Navigation links from the nav spec above
+${blueprint.siteFacts?.address ? `- Business address: "${blueprint.siteFacts.address}"` : ''}
+${blueprint.siteFacts?.phone ? `- Phone number: "${blueprint.siteFacts.phone}"` : ''}
+${blueprint.siteFacts?.socialMedia ? `- Social media links: ${Object.entries(blueprint.siteFacts.socialMedia).map(([k, v]) => `${k} (${v})`).join(', ')}` : ''}
 - Copyright line: "© ${new Date().getFullYear()} ${blueprint.siteName}. All rights reserved."
 - Use design system tokens for colors and fonts
 - Simple, clean layout — responsive grid or flex
