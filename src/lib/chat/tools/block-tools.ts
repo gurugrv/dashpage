@@ -87,7 +87,7 @@ export function createBlockTools(workingFiles: ProjectFiles) {
           };
         }
 
-        const $ = cheerio.load(source, { decodeEntities: false });
+        const $ = cheerio.load(source);
         const cssSelector = blockId ? `[data-block="${blockId}"]` : selector!;
         const matched = $(cssSelector);
 
@@ -124,7 +124,7 @@ export function createBlockTools(workingFiles: ProjectFiles) {
               if (!content) return { success: false as const, error: 'replace action requires "content" parameter.' };
               // If replacing a block, ensure data-block is preserved on new content
               if (blockId) {
-                const $new = cheerio.load(content, { decodeEntities: false });
+                const $new = cheerio.load(content);
                 const newRoot = $new('body').children().first();
                 if (newRoot.length > 0 && !newRoot.attr('data-block')) {
                   newRoot.attr('data-block', blockId);

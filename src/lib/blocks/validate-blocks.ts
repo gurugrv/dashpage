@@ -15,7 +15,7 @@ export function validateBlocks(files: ProjectFiles): string[] {
   for (const [filename, content] of Object.entries(files)) {
     if (!filename.endsWith('.html') || filename.startsWith('_components/')) continue;
 
-    const $ = cheerio.load(content, { decodeEntities: false });
+    const $ = cheerio.load(content);
     const usedIds = new Set<string>();
     let fileChanged = false;
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-AI Builder - a simplified AI-powered website builder where users create websites by prompting. Uses AI tool calls (writeFiles, editDOM, editFiles) to generate self-contained HTML pages (Tailwind CDN, inline CSS/JS) rendered in an interactive iframe. Supports single-page chat mode and multi-page blueprint mode. Core loop: **prompt -> generate -> preview -> iterate**.
+AI Builder - a simplified AI-powered website builder where users create websites by prompting. Uses AI tool calls (writeFiles, editBlock, editFiles) to generate self-contained HTML pages (Tailwind CDN, inline CSS/JS) rendered in an interactive iframe. Supports single-page chat mode and multi-page blueprint mode. Core loop: **prompt -> generate -> preview -> iterate**.
 
 **Design philosophy:** Generated websites must be beautiful, creative, and aesthetically pleasing with a "wow" effect. Avoid generic or template-like output - every site should feel distinctive and polished with thoughtful typography, color, spacing, and visual hierarchy.
 
@@ -44,10 +44,11 @@ No test framework is configured (no Jest/Vitest/Playwright).
 ```
 User prompt -> Builder.handleSubmit() -> useChat.sendMessage()
   -> POST /api/chat -> resolveChatExecution() (resolve provider/model/key + build system prompt)
-  -> Tool set selection: fileCount === 1 ? createSinglePageTools() : createWebsiteTools()
+  -> createWebsiteTools() (unified tool set for all modes)
   -> streamText() with tools -> createUIMessageStream() SSE stream
+  -> Post-generation: validateBlocks() + extractComponents() on workingFiles
   -> Client useHtmlParser extraction priority:
-     1) Tool output parts (writeFiles input, editDOM/editFiles output)
+     1) Tool output parts (writeFiles input, editBlock/editFiles output)
      2) Streaming code detection (live writeFiles input preview)
      3) Text-based HTML extraction (fallback if no tools invoked)
   -> ProjectFiles update -> iframe preview
@@ -58,26 +59,24 @@ User prompt -> Builder.handleSubmit() -> useChat.sendMessage()
 
 ### Tool System
 
-AI generates HTML via tool calls, not raw text output. Two tool sets selected dynamically:
+AI generates HTML via tool calls, not raw text output. One unified tool set (`createWebsiteTools()`) for all modes:
 
-**`createWebsiteTools()`** - Full set for new sites / multi-page:
-- `writeFiles` - Create/rewrite complete HTML files (returns only fileNames for lean output)
-- `editDOM` - CSS selector-based DOM manipulation via Cheerio (setAttribute, setText, setHTML, addClass, removeClass, replaceClass, remove, insertAdjacentHTML)
-- `editFiles` - Combined DOM + search/replace per file with 5-tier matching (exact → whitespace-tolerant → token-based → fuzzy ≥85% → auto-correct ≥75%)
+- `writeFiles` / `writeFile` - Create/rewrite complete HTML files
+- `editBlock` - Block-ID or CSS selector targeting via Cheerio (replace, replaceInner, setText, setAttribute, addClass, removeClass, remove, insertBefore, insertAfter). Primary editing tool.
+- `editFiles` - Search/replace operations with 5-tier matching (exact → whitespace-tolerant → token-based → fuzzy ≥85% → auto-correct ≥75%)
 - `readFile` - Read file contents before editing
 - `searchImages` - Batch photo search (Pexels)
 - `searchIcons` - Batch SVG icon search
 - `fetchUrl` - Fetch/parse web content (blocks localhost/private IPs)
 - `webSearch` - Research via Brave (primary) / Tavily (fallback)
 
-**`createSinglePageTools()`** - Minimal set for single-page edits:
-- `editDOM` + resource tools + web tools (no writeFiles/editFiles/readFile)
-
 Tools defined in `src/lib/chat/tools/` - each file exports a factory function. Combined in `src/lib/chat/tools/index.ts`.
 
 ### Key Patterns
 
-**Tool-based generation** - AI must call tools (writeFiles, editDOM, editFiles) to produce HTML. No fallback for text-only responses (no tool calls = empty preview). Client parser (`useHtmlParser`) extracts files from tool output parts only. System prompt defines tool workflows in `src/lib/prompts/sections/tool-output-format.ts`.
+**Block-based editing** - AI generates `data-block` attributes on all semantic sections (nav, header, section, footer, aside, main). The `editBlock` tool targets blocks by ID (primary) or CSS selector (fallback). Post-generation pipeline (`validateBlocks`) auto-assigns missing block IDs. For multi-page sites, `extractComponents` detects duplicate nav/footer across pages and extracts to `_components/` files with placeholder injection (`<!-- @component:X -->`).
+
+**Tool-based generation** - AI must call tools (writeFiles, editBlock, editFiles) to produce HTML. No fallback for text-only responses (no tool calls = empty preview). Client parser (`useHtmlParser`) extracts files from tool output parts only. System prompt defines tool workflows in `src/lib/prompts/sections/tool-output-format.ts`.
 
 **ProjectFiles type** - `Record<string, string>` used everywhere. V1 single-page uses `{ "index.html": "..." }`. Multi-page blueprint mode uses multiple file keys.
 
@@ -85,11 +84,13 @@ Tools defined in `src/lib/chat/tools/` - each file exports a factory function. C
 
 **Message splitting** - Assistant responses split into "preface" (before artifact) and "summary" (after artifact). Both persisted as separate DB messages. `htmlArtifact` (JSON ProjectFiles snapshot) stored only on artifact-containing messages.
 
-**Edit operations with fallback** - Edit operations applied atomically. If any operation fails (after all 5 tiers), the entire apply fails and `editFailed` flag signals Builder to request a full HTML replacement.
+**Shared components** - For multi-page sites, duplicate nav/footer are extracted to `_components/` files. Preview and download inject components from placeholders. The `editBlock` tool redirects edits on component blocks to the `_components/` file.
+
+**Edit operations with fallback** - editFiles search/replace uses 5-tier matching. If operations fail, `editFailed` flag signals Builder to request a full HTML replacement.
 
 **Auto-continue** - Server-side loop in `/api/chat` appends assistant + continue prompt and re-requests (up to 3 segments). Client-side `useAutoContinue` hook enables manual continue button if needed. Degenerate loop detection tracks previous segment text to avoid repeats.
 
-**System prompt composition** - Modular sections in `src/lib/prompts/sections/`: base-rules, ui-ux-guidelines, design-quality, tool-output-format (two variants: single-page vs full), context-blocks. Assembled dynamically with conditional first-gen vs edit-mode instructions.
+**System prompt composition** - Modular sections in `src/lib/prompts/sections/`: base-rules, ui-ux-guidelines, design-quality, tool-output-format, context-blocks. Assembled dynamically with conditional first-gen vs edit-mode instructions.
 
 **iframe sandboxing** - `sandbox="allow-scripts allow-forms allow-same-origin"`. CSP meta tag (`connect-src https: data: blob:`) injected to block same-origin API requests.
 
@@ -105,13 +106,14 @@ Tools defined in `src/lib/chat/tools/` - each file exports a factory function. C
 - `src/components/PromptPanel.tsx` - Chat messages + input + model selector
 - `src/components/BuildProgress.tsx` - Streaming build progress with tool activity log
 - `src/components/ConversationSidebar.tsx` - Multi-conversation management (drawer on mobile)
-- `src/lib/chat/tools/` - Tool factories: `file-tools.ts`, `image-tools.ts`, `icon-tools.ts`, `web-tools.ts`, `search-tools.ts`, `index.ts`
+- `src/lib/chat/tools/` - Tool factories: `file-tools.ts`, `block-tools.ts`, `image-tools.ts`, `icon-tools.ts`, `web-tools.ts`, `search-tools.ts`, `index.ts`
+- `src/lib/blocks/` - Post-generation pipeline: `validate-blocks.ts` (auto-assign data-block attrs), `extract-components.ts` (shared nav/footer extraction)
 - `src/lib/providers/registry.ts` - Imports all provider configs, exports `PROVIDERS` record
 - `src/lib/providers/configs/` - Individual provider configs (openrouter, anthropic, google, openai, deepinfra, minimax, moonshot, zai)
 - `src/lib/prompts/system-prompt.ts` - Modular system prompt builder
 - `src/lib/prompts/sections/` - Prompt sections: base-rules, ui-ux-guidelines, design-quality, tool-output-format, context-blocks
 - `src/lib/parser/html-extractor.ts` - Streaming `<htmlOutput>` tag parser (legacy fallback)
-- `src/lib/parser/edit-operations/` - `apply-edit-operations.ts` (5-tier search/replace), `apply-dom-operations.ts` (Cheerio-based DOM ops), `edit-stream-extractor.ts`, `types.ts`
+- `src/lib/parser/edit-operations/` - `apply-edit-operations.ts` (5-tier search/replace), `edit-stream-extractor.ts`, `types.ts`
 - `src/lib/parser/validate-artifact.ts` - Validates persistable HTML artifacts
 - `src/lib/stream/build-progress-detector.ts` - HTML landmark detection + percent calculation
 - `src/lib/blueprint/` - Blueprint system: `types.ts`, `detect-multi-page.ts`, `repair-json.ts`, `generate-shared-styles.ts`, `stream-utils.ts`

@@ -59,7 +59,7 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
     const blocksByPage: Array<{ page: string; blockId: string; outerHtml: string; normalized: string }> = [];
 
     for (const page of pageFiles) {
-      const $ = cheerio.load(files[page], { decodeEntities: false });
+      const $ = cheerio.load(files[page]);
       const el = $(tag).first();
       if (el.length === 0) continue;
 
@@ -102,7 +102,7 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
 
     // Replace inline content with placeholder in each page
     for (const entry of blocksByPage) {
-      const $ = cheerio.load(files[entry.page], { decodeEntities: false });
+      const $ = cheerio.load(files[entry.page]);
       const el = $(`[data-block="${entry.blockId}"]`);
       if (el.length > 0) {
         el.replaceWith(`<!-- @component:${blockId} -->`);
