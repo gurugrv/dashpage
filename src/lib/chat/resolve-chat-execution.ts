@@ -1,9 +1,9 @@
 import type { DesignBrief } from '@/lib/design-brief/types';
-import { getSystemPrompt } from '@/lib/prompts/system-prompt';
+import { getSystemPromptParts, type SystemPromptParts } from '@/lib/prompts/system-prompt';
 import { buildTemporalContext, resolvePreferredTimeZone } from '@/lib/prompts/temporal-context';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
-import { MAX_OUTPUT_CAP } from '@/lib/chat/constants';
+import { resolveMaxOutputTokens as resolveMaxTokens } from '@/lib/chat/constants';
 import { ChatRequestError } from '@/lib/chat/errors';
 
 interface DesignBriefInput {
@@ -25,7 +25,9 @@ interface ResolveChatExecutionInput {
 interface ResolvedChatExecution {
   modelInstance: ReturnType<(typeof PROVIDERS)[keyof typeof PROVIDERS]['createModel']>;
   maxOutputTokens: number;
+  systemPromptParts: SystemPromptParts;
   systemPrompt: string;
+  provider: string;
 }
 
 export async function resolveChatExecution({
@@ -47,14 +49,14 @@ export async function resolveChatExecution({
     throw new ChatRequestError(`Unknown provider: ${provider}`);
   }
 
-  const modelConfig = providerConfig.staticModels.find((item) => item.id === model);
-  const rawMax = clientMaxTokens ?? modelConfig?.maxOutputTokens ?? 16_384;
-  const maxOutputTokens = Math.min(rawMax, MAX_OUTPUT_CAP);
+  const resolvedMax = resolveMaxTokens(providerConfig, model);
+  const maxOutputTokens = clientMaxTokens ? Math.min(clientMaxTokens, resolvedMax) : resolvedMax;
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPrompt = getSystemPrompt(currentFiles, temporalContext, designBriefContext);
+  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, designBriefContext);
+  const systemPrompt = systemPromptParts.stable + '\n' + systemPromptParts.dynamic;
   const modelInstance = providerConfig.createModel(apiKey, model);
 
-  return { modelInstance, maxOutputTokens, systemPrompt };
+  return { modelInstance, maxOutputTokens, systemPromptParts, systemPrompt, provider };
 }

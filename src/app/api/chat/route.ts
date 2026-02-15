@@ -148,7 +148,13 @@ export async function POST(req: Request) {
   } = body;
 
   try {
-    const { modelInstance, maxOutputTokens: resolvedMaxOutputTokens, systemPrompt } = await resolveChatExecution({
+    const {
+      modelInstance,
+      maxOutputTokens: resolvedMaxOutputTokens,
+      systemPromptParts,
+      systemPrompt,
+      provider: resolvedProvider,
+    } = await resolveChatExecution({
       provider,
       model,
       clientMaxTokens: maxOutputTokens,
@@ -158,6 +164,8 @@ export async function POST(req: Request) {
       designBriefContext,
     });
 
+    const isAnthropicDirect = resolvedProvider === 'anthropic';
+
     const fileCount = Object.keys(currentFiles ?? {}).length;
     // Single-page mode: only when editing an existing single-page site (exactly 1 file).
     // First generation (0 files) and multi-page (>1 files) use full tool set.
@@ -166,6 +174,7 @@ export async function POST(req: Request) {
       ? createSinglePageTools(currentFiles ?? {})
       : createWebsiteTools(currentFiles ?? {});
     const continuePrompt = isSinglePageEdit ? CONTINUE_PROMPT_SINGLEPAGE : CONTINUE_PROMPT_MULTIPAGE;
+    const isEditing = fileCount > 0;
     const detector = new BuildProgressDetector();
     const debugSession = createDebugSession({
       scope: 'chat',
@@ -231,9 +240,29 @@ export async function POST(req: Request) {
         try {
           for (let segment = 0; segment < MAX_CONTINUATION_SEGMENTS; segment += 1) {
             let segmentText = '';
+            // For Anthropic: pass system prompt as two SystemModelMessages — the stable part
+            // with cacheControl to enable prompt caching (~90% cost reduction on cache hits),
+            // and the dynamic part without. Anthropic concatenates system messages in order.
+            // For all other providers: use system string as before (OpenAI auto-caches >= 1024 tokens).
+            const systemOption = isAnthropicDirect
+              ? [
+                  {
+                    role: 'system' as const,
+                    content: systemPromptParts.stable,
+                    providerOptions: {
+                      anthropic: { cacheControl: { type: 'ephemeral' } },
+                    },
+                  },
+                  {
+                    role: 'system' as const,
+                    content: systemPromptParts.dynamic,
+                  },
+                ]
+              : systemPrompt;
+
             const result = streamText({
               model: modelInstance,
-              system: systemPrompt,
+              system: systemOption,
               messages: await convertToModelMessages(continuationMessages),
               maxOutputTokens: resolvedMaxOutputTokens,
               tools,
@@ -256,7 +285,7 @@ export async function POST(req: Request) {
                   writer.write({
                     type: 'data-buildProgress',
                     data: {
-                      phase: 'generating' as const,
+                      phase: isEditing ? 'edit-applying' as const : 'generating' as const,
                       label: progress.label,
                       file: 'index.html',
                       percent: bumpPercent(Math.max(progress.percent, 5)),
@@ -289,7 +318,7 @@ export async function POST(req: Request) {
                 writer.write({
                   type: 'data-buildProgress',
                   data: {
-                    phase: 'generating' as const,
+                    phase: isEditing ? 'edit-applying' as const : 'generating' as const,
                     label: progressLabels[toolName] ?? 'Processing...',
                     file: 'index.html',
                     percent: bumpPercent(TOOL_START_PERCENT[toolName] ?? maxPercent),
@@ -359,7 +388,7 @@ export async function POST(req: Request) {
                 writer.write({
                   type: 'data-buildProgress',
                   data: {
-                    phase: 'generating' as const,
+                    phase: isEditing ? 'edit-applying' as const : 'generating' as const,
                     label: endLabel,
                     file: 'index.html',
                     percent: bumpPercent(TOOL_END_PERCENT[toolName] ?? maxPercent),
@@ -403,6 +432,12 @@ export async function POST(req: Request) {
             }
 
             finalFinishReason = await result.finishReason;
+
+            // Log Anthropic cache stats if available
+            if (isAnthropicDirect) {
+              const metadata = await result.providerMetadata;
+              debugSession.logCacheStats?.(metadata?.anthropic);
+            }
 
             // Auto-continue when:
             // 1. Output was truncated (finish reason 'length'), OR

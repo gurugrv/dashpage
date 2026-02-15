@@ -64,6 +64,7 @@ export interface DebugSession {
   finish(status?: 'complete' | 'aborted'): void;
   getFullResponse(): string;
   logFullResponse(finishReason?: string): void;
+  logCacheStats?(metadata: Record<string, unknown> | undefined): void;
 }
 
 /**
@@ -231,6 +232,17 @@ export function createDebugSession(params: {
           footer(),
         ];
         writeAtomic(parts.join('\n'));
+      }
+    },
+
+    logCacheStats(metadata: Record<string, unknown> | undefined) {
+      if (!isDebugEnabled() || !metadata) return;
+      const created = metadata.cacheCreationInputTokens;
+      const read = metadata.cacheReadInputTokens;
+      if (created != null || read != null) {
+        writeAtomic(
+          `${prefix}\x1b[36m📦 CACHE: created=${created ?? 0} read=${read ?? 0}${RESET}\n`,
+        );
       }
     },
   };
