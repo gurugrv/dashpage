@@ -34,6 +34,7 @@ interface FontPickerProps {
 
 export function FontPicker({ value, onValueChange, placeholder = 'Pick a font…', className }: FontPickerProps) {
   const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState('');
 
   // Load Google Fonts CSS on first open
   const hasOpened = useRef(false);
@@ -44,6 +45,12 @@ export function FontPicker({ value, onValueChange, placeholder = 'Pick a font…
     }
   }, [open]);
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    // Clear filter when opening so users see the full font list
+    if (nextOpen) setInputValue('');
+  };
+
   return (
     <Combobox
       value={value}
@@ -51,7 +58,9 @@ export function FontPicker({ value, onValueChange, placeholder = 'Pick a font…
         if (val != null) onValueChange(val as string);
       }}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
+      inputValue={inputValue}
+      onInputValueChange={setInputValue}
     >
       <ComboboxInput
         placeholder={placeholder}
