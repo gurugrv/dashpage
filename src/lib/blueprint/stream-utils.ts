@@ -13,7 +13,11 @@ export function summarizeToolInput(toolName: string, input: unknown): string | u
   if (!input || typeof input !== 'object') return undefined;
   const inp = input as Record<string, unknown>;
   switch (toolName) {
-    case 'searchImages':
+    case 'searchImages': {
+      const queries = inp.queries as Array<{ query?: string }> | undefined;
+      if (queries) return queries.map(q => q.query).filter(Boolean).join(', ');
+      return typeof inp.query === 'string' ? inp.query : undefined;
+    }
     case 'searchIcons':
     case 'webSearch':
       return typeof inp.query === 'string' ? inp.query : undefined;
@@ -38,6 +42,8 @@ export function summarizeToolOutput(toolName: string, output: unknown): string |
   }
   switch (toolName) {
     case 'searchImages': {
+      const total = out.totalImages as number | undefined;
+      if (total != null) return `${total} image${total !== 1 ? 's' : ''} found`;
       const images = out.images as unknown[] | undefined;
       return images ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : undefined;
     }

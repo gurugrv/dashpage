@@ -178,8 +178,8 @@ ${footerSection}
 
 <tool_workflow>
 Call tools BEFORE and AFTER writing the page. Parallel calls save steps:
-1. searchImages + searchIcons (parallel) — gather all images and icons for the page sections
-   - Use DIFFERENT queries per image for variety. Choose orientation: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
+1. searchImages({ queries: [...all image needs...] }) + searchIcons (parallel) — gather all images and icons in one step
+   - searchImages: pass ALL queries in one call. Use DIFFERENT queries per image. Choose orientation per query: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
    - searchIcons: use "outline" style for UI chrome, "solid" for emphasis
 2. webSearch + fetchUrl (if needed) — for real business info, embed codes (Google Maps, YouTube), or industry-specific content
 3. writeFiles → generate the complete HTML page as { "${page.filename}": "<!DOCTYPE html>..." }

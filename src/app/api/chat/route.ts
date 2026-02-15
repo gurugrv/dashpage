@@ -44,8 +44,11 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
   switch (toolName) {
     case 'webSearch':
       return typeof inp.query === 'string' ? inp.query : undefined;
-    case 'searchImages':
+    case 'searchImages': {
+      const queries = inp.queries as Array<{ query?: string }> | undefined;
+      if (queries) return queries.map(q => q.query).filter(Boolean).join(', ');
       return typeof inp.query === 'string' ? inp.query : undefined;
+    }
     case 'searchIcons':
       return typeof inp.query === 'string' ? inp.query : undefined;
     case 'fetchUrl':
@@ -83,6 +86,8 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       return undefined;
     }
     case 'searchImages': {
+      const total = out.totalImages as number | undefined;
+      if (total != null) return `${total} image${total !== 1 ? 's' : ''} found`;
       const images = out.images as unknown[] | undefined;
       if (images) return images.length > 0 ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : 'No images found';
       return undefined;

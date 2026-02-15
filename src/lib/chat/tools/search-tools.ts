@@ -13,7 +13,7 @@ export function createSearchTools() {
         query: z
           .string()
           .describe('Short, specific search query (2-10 words). E.g. "bakery website menu examples", "google maps embed code 2025", "modern law firm homepage design"'),
-        count: z
+        count: z.coerce
           .number()
           .int()
           .min(1)
