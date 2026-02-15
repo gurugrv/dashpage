@@ -162,11 +162,11 @@ export function createFileTools(workingFiles: ProjectFiles) {
         // Reject completely empty files map
         if (!files || Object.keys(files).length === 0) {
           writeFilesEmptyCount++;
-          const base = 'The "files" parameter is empty — you must provide at least one file. Example: writeFiles({ files: { "index.html": "<!DOCTYPE html><html>...</html>" } }).';
-          if (writeFilesEmptyCount >= 3) {
+          const base = 'The "files" parameter is empty. Use writeFile (singular) instead — it is simpler: writeFile({ filename: "index.html", content: "<!DOCTYPE html><html>...</html>" }).';
+          if (writeFilesEmptyCount >= 2) {
             return {
               success: false as const,
-              error: `${base} This is attempt #${writeFilesEmptyCount} with empty files. STOP calling writeFiles with empty content. Instead, output the HTML as text in your response — do NOT call writeFiles again.`,
+              error: `${base} This is attempt #${writeFilesEmptyCount} with empty files. You MUST use writeFile (singular) now — do NOT call writeFiles again.`,
               fatal: true as const,
             };
           }

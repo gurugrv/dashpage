@@ -202,7 +202,7 @@ Call tools BEFORE writing the page. Parallel calls save steps:
 4. writeFile → generate the complete HTML page enriched with real data from search:
    writeFile({ filename: "${page.filename}", content: "<!DOCTYPE html>..." })
    The content MUST be a complete HTML document starting with <!DOCTYPE html>. Never use placeholders or abbreviated content.
-   Alternative: writeFiles({ files: { "${page.filename}": "<!DOCTYPE html>..." } }) also works.
+   IMPORTANT: Always use writeFile (singular) for page generation — NOT writeFiles.
 
 If a tool fails: use https://placehold.co/800x400/eee/999?text=Image for images, inline SVG for icons, your own knowledge for web content. Never let a tool failure halt generation.
 </tool_workflow>
@@ -214,7 +214,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: writeFile, writeFiles, editDOM, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
-8. You MUST call writeFile (or writeFiles) to output the page — do NOT output raw HTML as text.
+7. Available tools: writeFile, editDOM, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
+8. You MUST call writeFile to output the page — do NOT output raw HTML as text.
 </requirements>`;
 }
