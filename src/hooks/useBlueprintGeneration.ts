@@ -108,7 +108,7 @@ export function useBlueprintGeneration({
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [componentToolActivities, setComponentToolActivities] = useState<PageToolActivity[]>([]);
   const [blueprintStreamingCode, setBlueprintStreamingCode] = useState<string | null>(null);
-  const blueprintStreamingCodeRef = useRef('');
+  const blueprintStreamingCodeRef = useRef<Record<string, string>>({});
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
@@ -388,8 +388,10 @@ export function useBlueprintGeneration({
             const event = JSON.parse(jsonStr) as SSEEvent;
 
             if (event.type === 'code-delta') {
-              blueprintStreamingCodeRef.current += event.delta;
-              setBlueprintStreamingCode(blueprintStreamingCodeRef.current);
+              const perPage = blueprintStreamingCodeRef.current;
+              perPage[event.filename] = (perPage[event.filename] ?? '') + event.delta;
+              // Show the most recent generating page's code
+              setBlueprintStreamingCode(perPage[event.filename]);
             } else if (event.type === 'tool-activity') {
               setPageStatuses((prev) =>
                 prev.map((ps) => {
@@ -426,10 +428,12 @@ export function useBlueprintGeneration({
                 ),
               );
 
-              // Reset streaming code when page completes or errors
+              // Clear this page's streaming code when it completes or errors
               if (event.status === 'complete' || event.status === 'error') {
-                blueprintStreamingCodeRef.current = '';
-                setBlueprintStreamingCode(null);
+                delete blueprintStreamingCodeRef.current[event.filename];
+                // Show another generating page's code if available, otherwise null
+                const remaining = Object.values(blueprintStreamingCodeRef.current);
+                setBlueprintStreamingCode(remaining.length > 0 ? remaining[remaining.length - 1] : null);
               }
 
               // When a page completes, add it to accumulator (don't push to preview yet)

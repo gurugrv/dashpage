@@ -557,21 +557,25 @@ function BlueprintWireframe({
 
   // Map pages to content sections (max 4 visual blocks)
   const completed = pageStatuses?.filter((p) => p.status === 'complete').length ?? 0;
-  const generating = pageStatuses?.find((p) => p.status === 'generating');
+  const generatingPages = pageStatuses?.filter((p) => p.status === 'generating') ?? [];
   const total = pageStatuses?.length ?? 0;
-  const currentNum = completed + (generating ? 1 : 0);
 
   const contentSections = 4;
   const pagesFilledRatio = total > 0 ? completed / total : 0;
   const sectionsLit = Math.min(Math.floor(pagesFilledRatio * contentSections), contentSections);
-  const activeSectionIdx = isPagesPhase && generating
-    ? Math.min(sectionsLit, contentSections - 1)
-    : -1;
+
+  // Light up one active section per generating page (up to remaining sections)
+  const activeSectionIndices = new Set<number>();
+  if (isPagesPhase) {
+    for (let i = 0; i < generatingPages.length && sectionsLit + i < contentSections; i++) {
+      activeSectionIndices.add(sectionsLit + i);
+    }
+  }
 
   function contentStatusFn(idx: number): BlockStatus {
     if (!isPagesPhase) return 'idle';
     if (idx < sectionsLit) return 'complete';
-    if (idx === activeSectionIdx) return 'active';
+    if (activeSectionIndices.has(idx)) return 'active';
     return 'idle';
   }
 
@@ -591,9 +595,13 @@ function BlueprintWireframe({
   } else if (isComponentsPhase) {
     headline = 'Building shared styles';
     subtitle = 'Generating design system, header & footer...';
-  } else if (isPagesPhase && generating) {
-    headline = `${generating.filename}`;
-    subtitle = `Page ${currentNum} of ${total} — generating content & layout`;
+  } else if (isPagesPhase && generatingPages.length > 1) {
+    const names = generatingPages.map((p) => p.filename.replace('.html', ''));
+    headline = names.join(', ');
+    subtitle = `${completed + generatingPages.length} of ${total} pages — generating in parallel`;
+  } else if (isPagesPhase && generatingPages.length === 1) {
+    headline = generatingPages[0].filename;
+    subtitle = `Page ${completed + 1} of ${total} — generating content & layout`;
   } else if (isPagesPhase) {
     headline = 'Assembling pages';
     subtitle = `${completed} of ${total} pages complete`;

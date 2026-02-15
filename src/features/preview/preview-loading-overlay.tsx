@@ -80,10 +80,16 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
   const label = isComponentsPhase
     ? 'Styles & components'
     : generatingPages.length > 1
-      ? `Generating ${generatingPages.length} pages...`
+      ? generatingPages.map((p) => p.filename.replace('.html', '')).join(', ')
       : generatingPages.length === 1
         ? `${generatingPages[0].filename} (${completed + 1}/${total})`
         : `Pages (${completed}/${total})`;
+
+  const sublabel = isComponentsPhase
+    ? 'Building shared styles & components...'
+    : generatingPages.length > 1
+      ? `Generating ${generatingPages.length} pages in parallel (${completed}/${total} done)`
+      : 'Generating content & layout...';
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-muted-foreground/10 bg-background/90 pl-2 pr-4 py-2 shadow-lg backdrop-blur-sm">
@@ -97,7 +103,7 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
       <div className="flex flex-col gap-0.5">
         <span className="text-sm font-medium text-foreground">{label}</span>
         <span className="text-[11px] text-muted-foreground">
-          {isComponentsPhase ? 'Building shared styles & components...' : 'Generating content & layout...'}
+          {sublabel}
         </span>
       </div>
     </div>
