@@ -54,6 +54,57 @@ function isStreamPart(part: unknown): part is { type: string; [key: string]: unk
   return typeof part === 'object' && part !== null && 'type' in part;
 }
 
+/**
+ * Sanitize UIMessages so tool-invocation parts always have a valid object `input`.
+ * The Anthropic API rejects tool_use blocks whose `input` is not a dictionary.
+ * This can happen when:
+ *  - A tool call was aborted mid-stream (input never fully parsed)
+ *  - The AI SDK falls back to rawInput (a string) for errored tool calls
+ *  - A tool has no parameters and input ends up undefined
+ */
+function sanitizeToolInputs<T extends { role: string; parts: Array<Record<string, unknown>> }>(
+  messages: T[],
+): T[] {
+  return messages.map((msg) => {
+    if (msg.role !== 'assistant') return msg;
+
+    let changed = false;
+    const parts = msg.parts.map((part) => {
+      if (part.type !== 'tool-invocation') return part;
+
+      // Drop incomplete tool invocations (still streaming input)
+      if (part.state === 'input-streaming') {
+        changed = true;
+        return null;
+      }
+
+      const input = part.input;
+      if (input != null && typeof input === 'object' && !Array.isArray(input)) {
+        return part; // Already a valid dictionary
+      }
+
+      changed = true;
+
+      // Try to recover: parse string input (rawInput fallback from AI SDK)
+      if (typeof input === 'string') {
+        try {
+          const parsed = JSON.parse(input);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return { ...part, input: parsed };
+          }
+        } catch {
+          // Fall through to empty object
+        }
+      }
+
+      return { ...part, input: {} };
+    });
+
+    if (!changed) return msg;
+    return { ...msg, parts: parts.filter(Boolean) as Array<Record<string, unknown>> };
+  });
+}
+
 const TOOL_LABELS: Record<string, string> = {
   writeFiles: 'Writing files',
   editDOM: 'Applying edits',
@@ -292,7 +343,7 @@ export async function POST(req: Request) {
             const result = streamText({
               model: modelInstance,
               system: systemOption,
-              messages: await convertToModelMessages(continuationMessages),
+              messages: await convertToModelMessages(sanitizeToolInputs(continuationMessages)),
               maxOutputTokens: resolvedMaxOutputTokens,
               tools,
               stopWhen: stepCountIs(10),
@@ -323,6 +374,13 @@ export async function POST(req: Request) {
                     transient: true,
                   });
                 }
+              }
+
+              // Stream tool input deltas to debug console (shows actual code being generated)
+              if (part.type === 'tool-input-delta') {
+                const toolCallId = part.toolCallId as string;
+                const delta = (part as { inputTextDelta: string }).inputTextDelta;
+                debugSession.logToolInputDelta({ toolCallId, delta });
               }
 
               // Tool lifecycle: debug logging + progress + activity events
