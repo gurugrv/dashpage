@@ -54,16 +54,7 @@ export const siteFactsSchema = z.object({
   hours: z.string().optional().describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm")'),
   services: z.array(z.string()).optional().describe('Key services or offerings'),
   tagline: z.string().optional().describe('Business tagline or slogan'),
-  socialMedia: z.object({
-    facebook: z.string().optional(),
-    instagram: z.string().optional(),
-    twitter: z.string().optional(),
-    linkedin: z.string().optional(),
-    youtube: z.string().optional(),
-    tiktok: z.string().optional(),
-    yelp: z.string().optional(),
-    pinterest: z.string().optional(),
-  }).optional().describe('Social media URLs by platform'),
+  socialMedia: z.string().optional().describe('Social media URLs as comma-separated "platform: url" pairs, e.g. "Facebook: https://facebook.com/biz, Instagram: https://instagram.com/biz"'),
   additionalInfo: z.string().optional().describe('Any other relevant business details'),
 });
 

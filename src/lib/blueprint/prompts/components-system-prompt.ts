@@ -23,7 +23,7 @@ ${blueprint.siteFacts.email ? `Email: ${blueprint.siteFacts.email}` : ''}
 ${blueprint.siteFacts.hours ? `Hours: ${blueprint.siteFacts.hours}` : ''}
 ${blueprint.siteFacts.services?.length ? `Services: ${blueprint.siteFacts.services.join(', ')}` : ''}
 ${blueprint.siteFacts.tagline ? `Tagline: ${blueprint.siteFacts.tagline}` : ''}
-${blueprint.siteFacts.socialMedia ? `Social media: ${Object.entries(blueprint.siteFacts.socialMedia).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ')}` : ''}
+${blueprint.siteFacts.socialMedia ? `Social media: ${blueprint.siteFacts.socialMedia}` : ''}
 ${blueprint.siteFacts.additionalInfo ? `Additional info: ${blueprint.siteFacts.additionalInfo}` : ''}
 </site_facts>\n`
     : '';
@@ -96,7 +96,7 @@ Do NOT output raw HTML as text. You MUST use the writeFiles tool.
 - Navigation links from the nav spec above
 ${blueprint.siteFacts?.address ? `- Business address: "${blueprint.siteFacts.address}"` : ''}
 ${blueprint.siteFacts?.phone ? `- Phone number: "${blueprint.siteFacts.phone}"` : ''}
-${blueprint.siteFacts?.socialMedia ? `- Social media links: ${Object.entries(blueprint.siteFacts.socialMedia).filter(([, v]) => v).map(([k, v]) => `${k} (${v})`).join(', ')}` : ''}
+${blueprint.siteFacts?.socialMedia ? `- Social media links: ${blueprint.siteFacts.socialMedia}` : ''}
 - Copyright line: "© ${new Date().getFullYear()} ${blueprint.siteName}. All rights reserved."
 - Use design system tokens for colors and fonts
 - Simple, clean layout — responsive grid or flex
