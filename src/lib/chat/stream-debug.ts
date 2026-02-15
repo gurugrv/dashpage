@@ -37,14 +37,37 @@ function writeAtomic(text: string) {
 /**
  * Prefix every line of a multi-line string with a colored session tag.
  */
-function prefixLines(lines: string, prefix: string): string {
+function prefixLines(lines: string, pfx: string | (() => string)): string {
   return lines
     .split('\n')
-    .map((line) => `${prefix}${line}`)
+    .map((line) => `${typeof pfx === 'function' ? pfx() : pfx}${line}`)
     .join('\n');
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 // ─── Session-scoped logger ────────────────────────────────────────────────────
+
+/** Tracks timing for a single tool call lifecycle */
+interface ToolTiming {
+  toolName: string;
+  toolCallId: string;
+  startedAt: number;
+  inputReadyAt?: number;
+  outputReadyAt?: number;
+  inputSizeBytes?: number;
+  status: 'running' | 'done' | 'error';
+  error?: string;
+}
 
 export interface DebugSession {
   logPrompt(params: {
@@ -59,12 +82,15 @@ export interface DebugSession {
   }): void;
   logDelta(delta: string): void;
   logToolStarting(params: { toolName: string; toolCallId: string }): void;
+  logToolInputDelta(params: { toolCallId: string; delta: string }): void;
   logToolCall(params: { toolName: string; toolCallId: string; input?: unknown }): void;
   logToolResult(params: { toolName?: string; toolCallId: string; output?: unknown; error?: string }): void;
   finish(status?: 'complete' | 'aborted'): void;
   getFullResponse(): string;
   logFullResponse(finishReason?: string): void;
   logCacheStats?(metadata: Record<string, unknown> | undefined): void;
+  /** Log generation summary with tool timeline and throughput stats */
+  logGenerationSummary?(params: { finishReason?: string; hasFileOutput: boolean; toolCallCount: number }): void;
 }
 
 /**
@@ -82,25 +108,36 @@ export function createDebugSession(params: {
   const color = nextColor();
   const shortId = conversationId?.slice(0, 8) || Math.random().toString(36).slice(2, 8);
   const label = `${scope}:${shortId}`;
-  const prefix = `${color}[${label}]${RESET} `;
-  const dimPrefix = `${color}${DIM}[${label}]${RESET} `;
+  const ts = () => {
+    const d = new Date();
+    return `${DIM}${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}.${String(d.getMilliseconds()).padStart(3, '0')}${RESET}`;
+  };
+  const prefix = () => `${ts()} ${color}[${label}]${RESET} `;
+  const dimPrefix = () => `${ts()} ${color}${DIM}[${label}]${RESET} `;
 
   let hasPrintedStreamHeader = false;
   let fullResponse = '';
   let lineBuffer = '';
+
+  // Diagnostic tracking
+  const sessionStartedAt = Date.now();
+  let firstDeltaAt: number | undefined;
+  let deltaCount = 0;
+  let totalDeltaChars = 0;
+  const toolTimings = new Map<string, ToolTiming>();
 
   function header(title: string): string {
     const sep = '='.repeat(60);
     const parts = [
       '',
       `${color}${sep}${RESET}`,
-      `${prefix}${title}  ${DIM}${new Date().toISOString()}${RESET}`,
+      `${prefix()}${title}`,
     ];
     if (provider || model) {
-      parts.push(`${prefix}Provider: ${provider || '?'} | Model: ${model || '?'}`);
+      parts.push(`${prefix()}Provider: ${provider || '?'} | Model: ${model || '?'}`);
     }
     if (conversationId) {
-      parts.push(`${prefix}Conversation: ${conversationId}`);
+      parts.push(`${prefix()}Conversation: ${conversationId}`);
     }
     parts.push(`${color}${sep}${RESET}`);
     return parts.join('\n') + '\n';
@@ -111,7 +148,7 @@ export function createDebugSession(params: {
   }
 
   function subHeader(title: string): string {
-    return `${dimPrefix}${DIM}${'─'.repeat(40)}${RESET}\n${prefix}${title}\n${dimPrefix}${DIM}${'─'.repeat(40)}${RESET}\n`;
+    return `${dimPrefix()}${DIM}${'─'.repeat(40)}${RESET}\n${prefix()}${title}\n${dimPrefix()}${DIM}${'─'.repeat(40)}${RESET}\n`;
   }
 
   return {
@@ -119,7 +156,7 @@ export function createDebugSession(params: {
       const parts: string[] = [header(`PROMPT [${scope}]`)];
 
       if (maxOutputTokens) {
-        parts.push(`${prefix}Max Output Tokens: ${maxOutputTokens}\n`);
+        parts.push(`${prefix()}Max Output Tokens: ${maxOutputTokens}\n`);
       }
 
       parts.push(subHeader('SYSTEM PROMPT'));
@@ -127,7 +164,7 @@ export function createDebugSession(params: {
 
       parts.push(subHeader('MESSAGES'));
       messages.forEach((msg, idx) => {
-        parts.push(`${prefix}[${idx + 1}] ${msg.role.toUpperCase()}:`);
+        parts.push(`${prefix()}[${idx + 1}] ${msg.role.toUpperCase()}:`);
         parts.push(prefixLines(msg.content, dimPrefix) + '\n');
       });
 
@@ -137,7 +174,7 @@ export function createDebugSession(params: {
 
     logResponse({ response, status, finishReason }) {
       const parts: string[] = [header(`RESPONSE [${scope}]`)];
-      parts.push(`${prefix}Status: ${status}${finishReason ? ` | Finish Reason: ${finishReason}` : ''}\n`);
+      parts.push(`${prefix()}Status: ${status}${finishReason ? ` | Finish Reason: ${finishReason}` : ''}\n`);
 
       if (response) {
         parts.push(subHeader('RESPONSE CONTENT'));
@@ -150,10 +187,15 @@ export function createDebugSession(params: {
 
     logDelta(delta: string) {
       fullResponse += delta;
+      deltaCount += 1;
+      totalDeltaChars += delta.length;
+      if (!firstDeltaAt) firstDeltaAt = Date.now();
 
       if (!hasPrintedStreamHeader) {
         hasPrintedStreamHeader = true;
+        const ttfb = Date.now() - sessionStartedAt;
         writeAtomic(header(`STREAMING [${scope}]`));
+        writeAtomic(`${prefix()}${DIM}Time to first token: ${ttfb}ms${RESET}\n`);
       }
 
       // Buffer and flush complete lines with prefix
@@ -161,42 +203,119 @@ export function createDebugSession(params: {
       const lines = lineBuffer.split('\n');
       lineBuffer = lines.pop()!;
       if (lines.length > 0) {
-        const output = lines.map((line) => `${dimPrefix}${line}`).join('\n') + '\n';
+        const output = lines.map((line) => `${dimPrefix()}${line}`).join('\n') + '\n';
         writeAtomic(output);
       }
 
       // Flush long lines that lack newlines (e.g. compact JSON from streamObject)
       if (lineBuffer.length >= 200) {
-        writeAtomic(`${dimPrefix}${lineBuffer}\n`);
+        writeAtomic(`${dimPrefix()}${lineBuffer}\n`);
         lineBuffer = '';
       }
     },
 
     logToolStarting({ toolName, toolCallId }) {
+      const now = Date.now();
+      const elapsed = now - sessionStartedAt;
+      toolTimings.set(toolCallId, {
+        toolName,
+        toolCallId,
+        startedAt: now,
+        status: 'running',
+      });
       writeAtomic(
-        `${prefix}\x1b[33m⚡ TOOL STARTING: ${toolName}${RESET}  ${DIM}id=${toolCallId}${RESET}\n`,
+        `${prefix()}\x1b[33m⚡ TOOL STARTING: ${toolName}${RESET}  ${DIM}id=${toolCallId} +${elapsed}ms${RESET}\n`,
       );
     },
 
+    logToolInputDelta({ toolCallId, delta }) {
+      const timing = toolTimings.get(toolCallId);
+      if (!timing) return;
+
+      // Track total input size for all tool types
+      if (!timing.inputSizeBytes) timing.inputSizeBytes = 0;
+      timing.inputSizeBytes += delta.length;
+
+      // Stream file-producing tool input to console (the actual HTML/code)
+      if (timing.toolName === 'writeFile' || timing.toolName === 'writeFiles' || timing.toolName === 'editDOM') {
+        lineBuffer += delta;
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop()!;
+        if (lines.length > 0) {
+          const output = lines.map((line) => `${dimPrefix()}${line}`).join('\n') + '\n';
+          writeAtomic(output);
+        }
+        if (lineBuffer.length >= 200) {
+          writeAtomic(`${dimPrefix()}${lineBuffer}\n`);
+          lineBuffer = '';
+        }
+      }
+    },
+
     logToolCall({ toolName, toolCallId, input }) {
+      const now = Date.now();
+      const timing = toolTimings.get(toolCallId);
+      if (timing) timing.inputReadyAt = now;
+
+      // Calculate input size for file-producing tools
+      let inputSizeInfo = '';
+      if (input && typeof input === 'object') {
+        const inp = input as Record<string, unknown>;
+        if ('filename' in inp && 'content' in inp && typeof inp.content === 'string') {
+          // writeFile (singular): flat filename + content
+          const bytes = new TextEncoder().encode(inp.content).length;
+          if (timing) timing.inputSizeBytes = bytes;
+          inputSizeInfo = `\n${dimPrefix()}  File: ${inp.filename} (${formatBytes(bytes)})`;
+        } else if ('files' in inp && typeof inp.files === 'object' && inp.files !== null) {
+          // writeFiles: measure each file's content size
+          const files = inp.files as Record<string, string>;
+          const fileSizes: string[] = [];
+          let totalBytes = 0;
+          for (const [name, content] of Object.entries(files)) {
+            const bytes = typeof content === 'string' ? new TextEncoder().encode(content).length : 0;
+            totalBytes += bytes;
+            fileSizes.push(`${name}: ${formatBytes(bytes)}`);
+          }
+          if (timing) timing.inputSizeBytes = totalBytes;
+          inputSizeInfo = `\n${dimPrefix()}  File sizes: ${fileSizes.join(', ')} (total: ${formatBytes(totalBytes)})`;
+        } else if ('html' in inp && typeof inp.html === 'string') {
+          // editDOM
+          const bytes = new TextEncoder().encode(inp.html).length;
+          if (timing) timing.inputSizeBytes = bytes;
+          inputSizeInfo = `\n${dimPrefix()}  HTML size: ${formatBytes(bytes)}`;
+        }
+      }
+
+      const inputStreamDuration = timing ? `${now - timing.startedAt}ms input-stream` : '';
       const inputPreview = input ? JSON.stringify(input).slice(0, 500) : '(no input)';
       const parts = [
-        `${prefix}\x1b[33m⚡ TOOL CALL: ${toolName}${RESET}  ${DIM}id=${toolCallId}${RESET}`,
-        `${dimPrefix}  Input: ${inputPreview}${inputPreview.length >= 500 ? '…' : ''}`,
-        '',
+        `${prefix()}\x1b[33m⚡ TOOL CALL: ${toolName}${RESET}  ${DIM}id=${toolCallId} (${inputStreamDuration})${RESET}`,
+        `${dimPrefix()}  Input: ${inputPreview}${inputPreview.length >= 500 ? '…' : ''}`,
       ];
-      writeAtomic(parts.join('\n'));
+      writeAtomic(parts.join('\n') + inputSizeInfo + '\n\n');
     },
 
     logToolResult({ toolName, toolCallId, output, error }) {
+      const now = Date.now();
+      const timing = toolTimings.get(toolCallId);
+      if (timing) {
+        timing.outputReadyAt = now;
+        timing.status = error ? 'error' : 'done';
+        if (error) timing.error = error;
+      }
+
+      const executionTime = timing?.inputReadyAt ? `${now - timing.inputReadyAt}ms exec` : '';
+      const totalTime = timing ? `${now - timing.startedAt}ms total` : '';
+      const timeInfo = [executionTime, totalTime].filter(Boolean).join(', ');
+
       if (error) {
-        writeAtomic(`${prefix}\x1b[31m✗ TOOL ERROR: ${toolName || toolCallId}${RESET}  ${error}\n\n`);
+        writeAtomic(`${prefix()}\x1b[31m✗ TOOL ERROR: ${toolName || toolCallId}${RESET}  ${error}  ${DIM}(${timeInfo})${RESET}\n\n`);
         return;
       }
       const outputPreview = output ? JSON.stringify(output).slice(0, 500) : '(no output)';
       const parts = [
-        `${prefix}\x1b[32m✓ TOOL RESULT: ${toolName || toolCallId}${RESET}`,
-        `${dimPrefix}  Output: ${outputPreview}${outputPreview.length >= 500 ? '…' : ''}`,
+        `${prefix()}\x1b[32m✓ TOOL RESULT: ${toolName || toolCallId}${RESET}  ${DIM}(${timeInfo})${RESET}`,
+        `${dimPrefix()}  Output: ${outputPreview}${outputPreview.length >= 500 ? '…' : ''}`,
         '',
       ];
       writeAtomic(parts.join('\n'));
@@ -206,10 +325,10 @@ export function createDebugSession(params: {
       if (hasPrintedStreamHeader) {
         const parts: string[] = [];
         if (lineBuffer) {
-          parts.push(`${dimPrefix}${lineBuffer}`);
+          parts.push(`${dimPrefix()}${lineBuffer}`);
           lineBuffer = '';
         }
-        parts.push(`${prefix}Stream ${status}`);
+        parts.push(`${prefix()}Stream ${status}`);
         writeAtomic(parts.join('\n') + '\n');
       }
     },
@@ -228,7 +347,7 @@ export function createDebugSession(params: {
         });
       } else if (hasPrintedStreamHeader) {
         const parts = [
-          `${prefix}Stream complete | Finish Reason: ${finishReason || 'unknown'} | ${fullResponse.length} chars`,
+          `${prefix()}Stream complete | Finish Reason: ${finishReason || 'unknown'} | ${fullResponse.length} chars`,
           footer(),
         ];
         writeAtomic(parts.join('\n'));
@@ -241,9 +360,69 @@ export function createDebugSession(params: {
       const read = metadata.cacheReadInputTokens;
       if (created != null || read != null) {
         writeAtomic(
-          `${prefix}\x1b[36m📦 CACHE: created=${created ?? 0} read=${read ?? 0}${RESET}\n`,
+          `${prefix()}\x1b[36m📦 CACHE: created=${created ?? 0} read=${read ?? 0}${RESET}\n`,
         );
       }
+    },
+
+    logGenerationSummary({ finishReason, hasFileOutput, toolCallCount }) {
+      const now = Date.now();
+      const totalDuration = now - sessionStartedAt;
+      const parts: string[] = [
+        '',
+        `${color}${'─'.repeat(60)}${RESET}`,
+        `${prefix()}\x1b[1mGENERATION SUMMARY${RESET}`,
+        `${color}${'─'.repeat(60)}${RESET}`,
+        `${prefix()}Duration: ${formatDuration(totalDuration)} | Finish: ${finishReason || 'unknown'}`,
+        `${prefix()}Text: ${totalDeltaChars} chars in ${deltaCount} deltas` +
+          (firstDeltaAt ? ` | TTFT: ${formatDuration(firstDeltaAt - sessionStartedAt)}` : '') +
+          (totalDuration > 0 ? ` | ${Math.round(totalDeltaChars / (totalDuration / 1000))} chars/s` : ''),
+        `${prefix()}Tools: ${toolCallCount} call${toolCallCount !== 1 ? 's' : ''} | File output: ${hasFileOutput ? '\x1b[32mYES' : '\x1b[31mNO'}${RESET}`,
+      ];
+
+      // Tool timeline
+      if (toolTimings.size > 0) {
+        parts.push(`${prefix()}`);
+        parts.push(`${prefix()}\x1b[1mTool Timeline:${RESET}`);
+        const sorted = [...toolTimings.values()].sort((a, b) => a.startedAt - b.startedAt);
+        for (const t of sorted) {
+          const offset = t.startedAt - sessionStartedAt;
+          const inputDur = t.inputReadyAt ? t.inputReadyAt - t.startedAt : undefined;
+          const execDur = t.inputReadyAt && t.outputReadyAt ? t.outputReadyAt - t.inputReadyAt : undefined;
+          const totalDur = t.outputReadyAt ? t.outputReadyAt - t.startedAt : undefined;
+
+          const statusIcon = t.status === 'done' ? '\x1b[32m✓' : t.status === 'error' ? '\x1b[31m✗' : '\x1b[33m?';
+          const sizeInfo = t.inputSizeBytes != null ? ` | input: ${formatBytes(t.inputSizeBytes)}` : '';
+          const timeParts = [
+            inputDur != null ? `input-stream: ${formatDuration(inputDur)}` : null,
+            execDur != null ? `exec: ${formatDuration(execDur)}` : null,
+            totalDur != null ? `total: ${formatDuration(totalDur)}` : null,
+          ].filter(Boolean).join(', ');
+
+          parts.push(
+            `${prefix()}  ${statusIcon} ${t.toolName}${RESET}  ${DIM}+${formatDuration(offset)} | ${timeParts}${sizeInfo}${RESET}` +
+              (t.error ? `\n${dimPrefix()}    Error: ${t.error.slice(0, 120)}` : ''),
+          );
+        }
+      }
+
+      // Warnings
+      if (!hasFileOutput && toolCallCount > 0) {
+        parts.push(`${prefix()}`);
+        parts.push(`${prefix()}\x1b[31m⚠ WARNING: Tools were called but no file output was produced!${RESET}`);
+        parts.push(`${dimPrefix()}  This usually means the model used tools (search, etc.) but never called writeFile/writeFiles/editDOM/editFiles.`);
+      }
+      if (!hasFileOutput && toolCallCount === 0) {
+        parts.push(`${prefix()}`);
+        parts.push(`${prefix()}\x1b[31m⚠ WARNING: No tool calls at all — generation produced only text!${RESET}`);
+        parts.push(`${dimPrefix()}  The model did not call any tools. Check system prompt and model compatibility.`);
+      }
+      if (totalDuration > 60_000 && totalDeltaChars < 1000) {
+        parts.push(`${prefix()}\x1b[33m⚠ SLOW: ${formatDuration(totalDuration)} elapsed but only ${totalDeltaChars} chars generated${RESET}`);
+      }
+
+      parts.push(`${color}${'─'.repeat(60)}${RESET}`, '');
+      writeAtomic(parts.join('\n'));
     },
   };
 }
