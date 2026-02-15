@@ -152,10 +152,18 @@ function findBestMatchForError(source: string, searchStr: string): BestMatch | n
   if (similarity < 0.3) return null;
 
   const matchText = source.slice(best.start, best.end).split('\n').slice(0, 3).join('\n');
+  // Include surrounding lines for context so the AI can construct accurate search strings on retry
+  const lineStart = lineNumberAt(source, best.start);
+  const contextStart = source.lastIndexOf('\n', Math.max(0, best.start - 1));
+  const contextEnd = source.indexOf('\n', best.end);
+  const surroundingStart = Math.max(0, contextStart === -1 ? 0 : contextStart + 1);
+  const surroundingEnd = contextEnd === -1 ? source.length : contextEnd;
+  const surrounding = source.slice(surroundingStart, surroundingEnd).split('\n').slice(0, 5).join('\n');
   return {
     text: matchText.length > 150 ? matchText.slice(0, 150) + '...' : matchText,
+    surrounding: surrounding.length > 300 ? surrounding.slice(0, 300) + '...' : surrounding,
     similarity: Math.round(similarity * 100) / 100,
-    line: lineNumberAt(source, best.start),
+    line: lineStart,
   };
 }
 

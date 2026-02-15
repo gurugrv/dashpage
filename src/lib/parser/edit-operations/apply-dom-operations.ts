@@ -21,15 +21,32 @@ export function applyDomOperations(
       if ($el.length === 0) {
         // Provide helpful suggestions for failed selectors
         const tagName = op.selector.match(/^(\w+)/)?.[1];
-        const similar = tagName
-          ? $(tagName).toArray().map((el) => {
-              const id = $(el).attr('id') ? `#${$(el).attr('id')}` : '';
-              const cls = $(el).attr('class')
-                ? `.${$(el).attr('class')!.split(/\s+/).slice(0, 2).join('.')}`
-                : '';
-              return `${tagName}${id}${cls}`;
-            }).slice(0, 5)
-          : [];
+        const similar: string[] = [];
+        if (tagName) {
+          $(tagName).toArray().slice(0, 8).forEach((el) => {
+            const id = $(el).attr('id') ? `#${$(el).attr('id')}` : '';
+            const cls = $(el).attr('class')
+              ? `.${$(el).attr('class')!.split(/\s+/).slice(0, 3).join('.')}`
+              : '';
+            similar.push(`${tagName}${id}${cls}`);
+          });
+        }
+        // If selector has a class/id, also try broader search
+        if (similar.length === 0) {
+          const idMatch = op.selector.match(/#([\w-]+)/);
+          const classMatch = op.selector.match(/\.([\w-]+)/);
+          if (idMatch) {
+            $(`[id*="${idMatch[1]}"]`).toArray().slice(0, 5).forEach((el) => {
+              similar.push(`${el.tagName}#${$(el).attr('id')}`);
+            });
+          }
+          if (classMatch) {
+            $(`[class*="${classMatch[1]}"]`).toArray().slice(0, 5).forEach((el) => {
+              const cls = $(el).attr('class')!.split(/\s+/).slice(0, 3).join('.');
+              similar.push(`${el.tagName}.${cls}`);
+            });
+          }
+        }
         const suggestion = similar.length > 0
           ? ` Similar elements: ${similar.join(', ')}`
           : '';

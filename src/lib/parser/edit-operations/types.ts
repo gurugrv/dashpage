@@ -10,6 +10,8 @@ export type MatchTier = 'exact' | 'whitespace' | 'token' | 'fuzzy' | 'auto-corre
 
 export interface BestMatch {
   text: string;
+  /** Surrounding lines from the file for retry context */
+  surrounding?: string;
   similarity: number;
   line: number;
 }
