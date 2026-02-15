@@ -193,13 +193,16 @@ ${headerSection}
 ${footerSection}
 
 <tool_workflow>
-Call tools BEFORE and AFTER writing the page. Parallel calls save steps:
-1. searchImages({ queries: [...all image needs...] }) + searchIcons({ queries: [...all icon needs...] }) (parallel) — gather all images and icons in one step
+Call tools BEFORE writing the page. Parallel calls save steps:
+1. webSearch — ALWAYS search when the site involves a real business, location, industry, or topic. Get real details (services, pricing, hours, team info, FAQs, testimonials) to make content authentic. Also search for embed codes (Google Maps, booking widgets, social feeds) when relevant.
+2. searchImages({ queries: [...all image needs...] }) + searchIcons({ queries: [...all icon needs...] }) (parallel) — gather all images and icons in one step
    - searchImages: pass ALL queries in one call. Use DIFFERENT queries per image. Choose orientation per query: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
    - searchIcons: pass ALL queries in one call (e.g. queries: [{query:"hamburger menu"}, {query:"close"}, {query:"arrow right"}]). Use "outline" style for UI chrome, "solid" for emphasis
-2. webSearch + fetchUrl (if needed) — for real business info, embed codes (Google Maps, YouTube), or industry-specific content
-3. writeFiles → generate the complete HTML page as { "${page.filename}": "<!DOCTYPE html>..." }
-   CRITICAL: The file key MUST be exactly "${page.filename}" and the value MUST be a complete HTML document starting with <!DOCTYPE html>. Never use placeholder keys or abbreviated content.
+3. fetchUrl (if webSearch snippets need more detail — get full content from a result URL)
+4. writeFile → generate the complete HTML page enriched with real data from search:
+   writeFile({ filename: "${page.filename}", content: "<!DOCTYPE html>..." })
+   The content MUST be a complete HTML document starting with <!DOCTYPE html>. Never use placeholders or abbreviated content.
+   Alternative: writeFiles({ files: { "${page.filename}": "<!DOCTYPE html>..." } }) also works.
 
 If a tool fails: use https://placehold.co/800x400/eee/999?text=Image for images, inline SVG for icons, your own knowledge for web content. Never let a tool failure halt generation.
 </tool_workflow>
@@ -211,7 +214,7 @@ ${headerRequirement}
 4. Generate ALL sections listed in page_spec with realistic content. No Lorem ipsum.
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
-7. Available tools: writeFiles, editDOM, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
-8. You MUST call writeFiles to output the page — do NOT output raw HTML as text.
+7. Available tools: writeFile, writeFiles, editDOM, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
+8. You MUST call writeFile (or writeFiles) to output the page — do NOT output raw HTML as text.
 </requirements>`;
 }

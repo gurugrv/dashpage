@@ -8,7 +8,7 @@ export function createSearchTools() {
   return {
     webSearch: tool({
       description:
-        'Web search for external reference content. Returns { success, results: [{ title, url, snippet }] }. Chain with fetchUrl if snippets are insufficient. Keep queries short and specific (2-10 words).',
+        'Web search for real-world information. ALWAYS use when the prompt involves a real business, location, industry, or topic — real data makes websites dramatically better. Returns { success, results: [{ title, url, snippet }] }. Chain with fetchUrl if snippets need more detail. Keep queries short and specific (2-10 words).',
       inputSchema: z.object({
         query: z
           .string()
