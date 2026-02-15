@@ -11,13 +11,13 @@ Output raw HTML directly — no code fences. HTML must start with <!DOCTYPE html
 - editDOM: change text, images, links, colors, classes, attributes. Uses CSS selectors. Preferred for small edits.
 - searchImages: batch-search stock photos from Pexels. Pass ALL image needs in one call with queries array. Call once before generating HTML.
 - searchIcons: batch-search SVG icons. Pass ALL icon needs in one call with queries array. Call once before generating HTML.
-- webSearch: research ANY real-world info — business details, industry content, embed codes, addresses, menus, services, pricing patterns, team bios, testimonials, FAQs. ALWAYS search when the prompt mentions a specific business, location, industry, or topic you could enrich with real data.
+- webSearch: look up specific real-world information — a business's details (address, phone, hours, menu, services), a person's bio, location-specific info (businesses in an area, local details), embed codes (Google Maps, YouTube). Do NOT search for generic design inspiration, layout ideas, "examples of X websites", or industry patterns — use your own knowledge for those.
 - fetchUrl: fetch full content from a URL found via webSearch when snippets aren't enough.
 </tool_selection>
 
 <tool_workflows>
 NEW SITE:
-1. webSearch (if prompt mentions a business, location, industry, or topic — get real details first)
+1. webSearch (if prompt references a real business, person, place, or location — look up their actual details)
 2. searchImages + searchIcons (parallel — all image/icon needs in this step)
 3. Output complete HTML as text (NOT in a tool call), enriched with real data from search
 
@@ -26,7 +26,7 @@ EDIT (small change — text, colors, layout tweaks, removing/hiding elements):
 DO NOT call searchImages, searchIcons, or webSearch for small edits. Only use resource/web tools when the user explicitly asks for new images, icons, or real-world data.
 
 EDIT (major rework):
-1. webSearch (if adding new content that benefits from real-world data)
+1. webSearch (only if adding content that requires specific real-world facts — not generic industry content)
 2. searchImages/searchIcons (ONLY if adding NEW images/icons not already on the page)
 3. Output complete HTML as text
 
@@ -67,18 +67,21 @@ File editing — choose the right tool:
 - writeFiles: write multiple files at once — writeFiles({ files: { "index.html": "...", "about.html": "..." } }). Use for multi-page sites or when creating several files. Include ONLY files being created or fully rewritten — unchanged files are preserved automatically.
 - readFile: inspect a file before editing to get exact content for accurate search strings. Use for complex multi-step edits.
 
-When to call webSearch (USE PROACTIVELY — don't skip this):
-- User mentions a specific business, brand, organization, or real-world entity → ALWAYS search for their details, services, location, hours, etc.
-- User mentions a location or address → search for real details about that place
-- Request involves an industry or niche (restaurant, law firm, clinic, gym, etc.) → search for typical content, terminology, services, and pricing patterns for that industry
-- Request requires embed codes (Google Maps, YouTube, social media widgets, booking forms)
-- User asks for realistic/authentic content → search for real-world examples to base content on
-- When in doubt, search — real data makes websites dramatically more convincing than generic placeholder text
+When to call webSearch (for specific real-world information):
+- Prompt references a real business, brand, person, or organization → search for their actual details (address, phone, hours, services, menu, team)
+- Prompt references a specific address, city, or neighborhood → search for real info about that place or businesses there
+- Request requires embed codes or integration details (Google Maps, YouTube, booking widgets)
+- User shares a URL and you need to fetch its content → webSearch + fetchUrl
+
+Do NOT call webSearch for:
+- Generic design inspiration, layout ideas, or "examples of X websites"
+- Typical services, pricing patterns, or FAQs for a type of business (use your own knowledge)
+- Content you can generate from general knowledge (industry terminology, section copy, placeholder bios)
 </tool_selection>
 
 <tool_workflows>
 NEW SITE (first generation):
-1. webSearch (if prompt mentions a business, location, industry, or topic — get real details, services, pricing patterns first)
+1. webSearch (if prompt references a real business, person, place, or location — look up their actual details)
 2. searchImages + searchIcons (parallel — all image/icon needs in this step)
 3. writeFiles → generate HTML using gathered resources + real data from search + generated color palette
 
@@ -88,7 +91,7 @@ DO NOT call searchImages, searchIcons, or webSearch for small edits. Only use re
 
 EDIT (existing site — structural change):
 1. readFile (if unsure about current file state)
-2. webSearch (if adding content that benefits from real-world data)
+2. webSearch (only if adding content that requires specific real-world facts)
 3. searchImages/searchIcons (ONLY if adding NEW images/icons not already on the page)
 4. editFiles → apply changes (batch all operations in one call)
 

@@ -194,7 +194,7 @@ ${footerSection}
 
 <tool_workflow>
 Call tools BEFORE writing the page. Parallel calls save steps:
-1. webSearch — ALWAYS search when the site involves a real business, location, industry, or topic. Get real details (services, pricing, hours, team info, FAQs, testimonials) to make content authentic. Also search for embed codes (Google Maps, booking widgets, social feeds) when relevant.
+1. webSearch — search when the site references a real business, person, place, or location. Look up their actual details (address, phone, hours, services, team, local info). Also search for embed codes or integration details. Do NOT search for generic design inspiration, layout ideas, or "examples of X" — use your own knowledge for those.
 2. searchImages({ queries: [...all image needs...] }) + searchIcons({ queries: [...all icon needs...] }) (parallel) — gather all images and icons in one step
    - searchImages: pass ALL queries in one call. Use DIFFERENT queries per image. Choose orientation per query: landscape (heroes/banners), portrait (people/cards), square (avatars/thumbnails)
    - searchIcons: pass ALL queries in one call (e.g. queries: [{query:"hamburger menu"}, {query:"close"}, {query:"arrow right"}]). Use "outline" style for UI chrome, "solid" for emphasis

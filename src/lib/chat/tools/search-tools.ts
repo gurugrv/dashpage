@@ -8,11 +8,11 @@ export function createSearchTools() {
   return {
     webSearch: tool({
       description:
-        'Web search for real-world information. ALWAYS use when the prompt involves a real business, location, industry, or topic — real data makes websites dramatically better. Returns { success, results: [{ title, url, snippet }] }. Chain with fetchUrl if snippets need more detail. Keep queries short and specific (2-10 words).',
+        'Search for specific real-world information: business/person/place details, addresses, phone numbers, hours, real services/menus, embed codes, or content from a specific URL. Do NOT use for generic design inspiration, layout ideas, or "examples of X websites" — use your own knowledge for those. Returns { success, results: [{ title, url, snippet }] }. Chain with fetchUrl if snippets need more detail.',
       inputSchema: z.object({
         query: z
           .string()
-          .describe('Short, specific search query (2-10 words). E.g. "bakery website menu examples", "google maps embed code 2025", "modern law firm homepage design"'),
+          .describe('Specific factual query. GOOD: "Sunrise Bakery Portland hours menu", "dentists downtown Chicago", "Google Maps embed API", "yoga studios Austin TX". BAD: "bakery website examples", "modern law firm homepage design", "restaurant website layout ideas".'),
         count: z.coerce
           .number()
           .int()
