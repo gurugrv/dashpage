@@ -47,15 +47,15 @@ export const blueprintSharedComponentsSchema = z.object({
 });
 
 export const siteFactsSchema = z.object({
-  businessName: z.string().optional().describe('Official business name'),
-  address: z.string().optional().describe('Physical address'),
-  phone: z.string().optional().describe('Phone number'),
-  email: z.string().optional().describe('Email address'),
-  hours: z.string().optional().describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm")'),
-  services: z.array(z.string()).optional().describe('Key services or offerings'),
-  tagline: z.string().optional().describe('Business tagline or slogan'),
-  socialMedia: z.string().optional().describe('Social media URLs as comma-separated "platform: url" pairs, e.g. "Facebook: https://facebook.com/biz, Instagram: https://instagram.com/biz"'),
-  additionalInfo: z.string().optional().describe('Any other relevant business details'),
+  businessName: z.string().describe('Official business name, or empty string if unknown'),
+  address: z.string().describe('Physical address, or empty string if unknown'),
+  phone: z.string().describe('Phone number, or empty string if unknown'),
+  email: z.string().describe('Email address, or empty string if unknown'),
+  hours: z.string().describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm"), or empty string if unknown'),
+  services: z.array(z.string()).describe('Key services or offerings, or empty array if unknown'),
+  tagline: z.string().describe('Business tagline or slogan, or empty string if unknown'),
+  socialMedia: z.string().describe('Social media URLs as comma-separated "platform: url" pairs, e.g. "Facebook: https://facebook.com/biz, Instagram: https://instagram.com/biz", or empty string if unknown'),
+  additionalInfo: z.string().describe('Any other relevant business details, or empty string if unknown'),
 });
 
 export type SiteFacts = z.infer<typeof siteFactsSchema>;
@@ -67,8 +67,7 @@ export const blueprintSchema = z.object({
   designSystem: blueprintDesignSystemSchema,
   sharedComponents: blueprintSharedComponentsSchema,
   contentStrategy: blueprintContentStrategySchema,
-  needsResearch: z.boolean().optional().describe('Set to true when the prompt references a real business, place, or person whose details should be looked up'),
-  siteFacts: siteFactsSchema.optional().describe('Verified business details from web research'),
+  needsResearch: z.boolean().describe('Set to true when the prompt references a real business, place, or person whose details should be looked up, false otherwise'),
 });
 
 export type BlueprintPageSection = z.infer<typeof blueprintPageSectionSchema>;
@@ -76,4 +75,5 @@ export type BlueprintPage = z.infer<typeof blueprintPageSchema>;
 export type BlueprintDesignSystem = z.infer<typeof blueprintDesignSystemSchema>;
 export type BlueprintContentStrategy = z.infer<typeof blueprintContentStrategySchema>;
 export type BlueprintSharedComponents = z.infer<typeof blueprintSharedComponentsSchema>;
-export type Blueprint = z.infer<typeof blueprintSchema>;
+/** Blueprint type includes siteFacts which is populated by research after generation, not by the AI schema */
+export type Blueprint = z.infer<typeof blueprintSchema> & { siteFacts?: SiteFacts };

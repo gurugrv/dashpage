@@ -48,10 +48,12 @@ export function BlueprintCard({
 
   const factsSource = isEditing ? draft.siteFacts : blueprint.siteFacts;
 
+  const emptySiteFacts: SiteFacts = { businessName: '', address: '', phone: '', email: '', hours: '', services: [], tagline: '', socialMedia: '', additionalInfo: '' };
+
   const updateFact = (field: keyof SiteFacts, value: string | string[] | Record<string, string>) => {
     setDraft((prev) => ({
       ...prev,
-      siteFacts: { ...prev.siteFacts, [field]: value },
+      siteFacts: { ...emptySiteFacts, ...prev.siteFacts, [field]: value },
     }));
   };
 

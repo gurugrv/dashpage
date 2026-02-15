@@ -49,7 +49,7 @@ async function extractFacts(
       model,
       schema: siteFactsSchema,
       maxOutputTokens: 1024,
-      prompt: `Extract verified business details for "${siteName}" (${siteDescription}) from these search results. Only include facts you are confident about from the search results. Leave fields empty/omitted if not found.
+      prompt: `Extract verified business details for "${siteName}" (${siteDescription}) from these search results. Only include facts you are confident about from the search results. Use empty string "" for unknown text fields and empty array [] for unknown list fields.
 
 Search results:
 ${snippets}`,
