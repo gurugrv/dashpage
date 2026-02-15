@@ -1,4 +1,4 @@
-import { stepCountIs, streamText } from 'ai';
+import { stepCountIs, streamText, type ModelMessage } from 'ai';
 import { prisma } from '@/lib/db/prisma';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
@@ -165,7 +165,7 @@ export async function POST(req: Request) {
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
         try {
-          let accumulatedResponse = '';
+          let prevMessages: ModelMessage[] = [];
 
           for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
             if (abortSignal.aborted) break;
@@ -194,14 +194,13 @@ export async function POST(req: Request) {
                 abortSignal,
               });
             } else {
-              const continuationMessages = [
-                { role: 'user' as const, content: pagePrompt },
-                { role: 'assistant' as const, content: accumulatedResponse },
+              const continuationMessages: ModelMessage[] = [
+                ...prevMessages,
                 { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
               ];
               debugSession.logPrompt({
                 systemPrompt,
-                messages: continuationMessages,
+                messages: [{ role: 'system', content: `[continuation: ${continuationMessages.length} messages including tool call history]` }],
                 maxOutputTokens,
               });
               result = streamText({
@@ -269,7 +268,22 @@ export async function POST(req: Request) {
               }
             }
             debugSession.finish('complete');
-            accumulatedResponse += debugSession.getFullResponse();
+
+            // Collect full response messages (includes tool calls + results)
+            const response = await result.response;
+            const responseMessages = response.messages;
+            if (segment === 0) {
+              prevMessages = [
+                { role: 'user' as const, content: pagePrompt },
+                ...responseMessages,
+              ];
+            } else {
+              prevMessages = [
+                ...prevMessages,
+                { role: 'user' as const, content: PAGE_CONTINUE_PROMPT },
+                ...responseMessages,
+              ];
+            }
 
             const finishReason = await result.finishReason;
             debugSession.logFullResponse(finishReason);
