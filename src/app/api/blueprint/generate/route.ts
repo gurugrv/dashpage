@@ -118,6 +118,11 @@ export async function POST(req: Request) {
     });
     debugSession.finish('complete');
     debugSession.logFullResponse(finishReason ?? 'unknown');
+    debugSession.logGenerationSummary?.({
+      finishReason: finishReason ?? 'unknown',
+      hasFileOutput: false, // Blueprint generate produces JSON, not files
+      toolCallCount: 0,
+    });
 
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');

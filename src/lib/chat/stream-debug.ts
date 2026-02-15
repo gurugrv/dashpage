@@ -198,19 +198,41 @@ export function createDebugSession(params: {
         writeAtomic(`${prefix()}${DIM}Time to first token: ${ttfb}ms${RESET}\n`);
       }
 
-      // Buffer and flush complete lines with prefix
-      lineBuffer += delta;
-      const lines = lineBuffer.split('\n');
-      lineBuffer = lines.pop()!;
-      if (lines.length > 0) {
-        const output = lines.map((line) => `${dimPrefix()}${line}`).join('\n') + '\n';
-        writeAtomic(output);
-      }
+      // Show first 500 chars of text deltas, then periodic size progress
+      const TEXT_PREVIEW_LIMIT = 500;
+      const TEXT_PROGRESS_INTERVAL = 4096;
+      const prevChars = totalDeltaChars - delta.length;
 
-      // Flush long lines that lack newlines (e.g. compact JSON from streamObject)
-      if (lineBuffer.length >= 200) {
-        writeAtomic(`${dimPrefix()}${lineBuffer}\n`);
-        lineBuffer = '';
+      if (prevChars < TEXT_PREVIEW_LIMIT) {
+        // Still within preview range — show actual text
+        const remaining = TEXT_PREVIEW_LIMIT - prevChars;
+        const toShow = delta.slice(0, remaining);
+        lineBuffer += toShow;
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop()!;
+        if (lines.length > 0) {
+          const output = lines.map((line) => `${dimPrefix()}${line}`).join('\n') + '\n';
+          writeAtomic(output);
+        }
+        if (lineBuffer.length >= 200) {
+          writeAtomic(`${dimPrefix()}${lineBuffer}\n`);
+          lineBuffer = '';
+        }
+        // Print truncation marker when we cross the limit
+        if (totalDeltaChars >= TEXT_PREVIEW_LIMIT && prevChars < TEXT_PREVIEW_LIMIT) {
+          if (lineBuffer) {
+            writeAtomic(`${dimPrefix()}${lineBuffer}\n`);
+            lineBuffer = '';
+          }
+          writeAtomic(`${prefix()}${DIM}... text output truncated (showing progress every 4KB) ...${RESET}\n`);
+        }
+      } else {
+        // Past preview limit — show periodic size progress
+        const prevBucket = Math.floor(prevChars / TEXT_PROGRESS_INTERVAL);
+        const currBucket = Math.floor(totalDeltaChars / TEXT_PROGRESS_INTERVAL);
+        if (currBucket > prevBucket) {
+          writeAtomic(`${dimPrefix()}${DIM}  ... text streaming: ${formatBytes(totalDeltaChars)}${RESET}\n`);
+        }
       }
     },
 
@@ -236,18 +258,14 @@ export function createDebugSession(params: {
       if (!timing.inputSizeBytes) timing.inputSizeBytes = 0;
       timing.inputSizeBytes += delta.length;
 
-      // Stream file-producing tool input to console (the actual HTML/code)
+      // For file-producing tools, show periodic size progress instead of full code
       if (timing.toolName === 'writeFile' || timing.toolName === 'writeFiles' || timing.toolName === 'editDOM') {
-        lineBuffer += delta;
-        const lines = lineBuffer.split('\n');
-        lineBuffer = lines.pop()!;
-        if (lines.length > 0) {
-          const output = lines.map((line) => `${dimPrefix()}${line}`).join('\n') + '\n';
-          writeAtomic(output);
-        }
-        if (lineBuffer.length >= 200) {
-          writeAtomic(`${dimPrefix()}${lineBuffer}\n`);
-          lineBuffer = '';
+        const prevSize = timing.inputSizeBytes - delta.length;
+        const PROGRESS_INTERVAL = 4096; // Log every 4KB
+        const prevBucket = Math.floor(prevSize / PROGRESS_INTERVAL);
+        const currBucket = Math.floor(timing.inputSizeBytes / PROGRESS_INTERVAL);
+        if (currBucket > prevBucket) {
+          writeAtomic(`${dimPrefix()}${DIM}  ... ${timing.toolName} streaming: ${formatBytes(timing.inputSizeBytes)}${RESET}\n`);
         }
       }
     },

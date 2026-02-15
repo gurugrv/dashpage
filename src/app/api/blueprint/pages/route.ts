@@ -209,433 +209,449 @@ export async function POST(req: Request) {
     }).catch(() => {});
   }
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder();
+  // Use TransformStream so the Response is returned immediately (not buffered until start() completes)
+  const { readable, writable } = new TransformStream();
+  const encoder = new TextEncoder();
+  const writer = writable.getWriter();
 
-      function sendEvent(data: Record<string, unknown>) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      }
+  function sendEvent(data: Record<string, unknown>) {
+    writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)).catch(() => {});
+  }
 
-      let completedPages = totalPages - pages.length; // Start from already-completed count
+  // Process stream in background — don't await so the Response returns immediately
+  (async () => {
+    let completedPages = totalPages - pages.length; // Start from already-completed count
 
-      // Send status for already-completed (skipped) pages
-      for (const page of allPages) {
-        if (skipSet.has(page.filename)) {
-          sendEvent({
-            type: 'page-status',
-            filename: page.filename,
-            status: 'complete',
-            totalPages,
-            completedPages,
-          });
-        }
-      }
-
-      // Send pending status for remaining pages
-      for (const page of pages) {
+    // Send status for already-completed (skipped) pages
+    for (const page of allPages) {
+      if (skipSet.has(page.filename)) {
         sendEvent({
           type: 'page-status',
           filename: page.filename,
-          status: 'pending',
+          status: 'complete',
           totalPages,
           completedPages,
         });
       }
+    }
+
+    // Send pending status for remaining pages
+    for (const page of pages) {
+      sendEvent({
+        type: 'page-status',
+        filename: page.filename,
+        status: 'pending',
+        totalPages,
+        completedPages,
+      });
+    }
+
+    sendEvent({
+      type: 'pipeline-status',
+      status: 'generating',
+      totalPages,
+      completedPages,
+    });
+
+    let hasErrors = false;
+    const completedPagesMap: Record<string, string> = {};
+
+    // --- Concurrency-limited parallel page generation ---
+
+    /** Unescape JSON string escape sequences in streaming deltas */
+    function unescapeJson(text: string): string {
+      return text
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\r/g, '\r')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+    }
+
+    async function generateSinglePage(page: typeof pages[number]) {
+      if (abortSignal.aborted) return;
+
+      // Fresh tool set per page — workingFiles accumulator starts empty
+      const { tools: pageTools, workingFiles } = createWebsiteTools({});
 
       sendEvent({
-        type: 'pipeline-status',
+        type: 'page-status',
+        filename: page.filename,
         status: 'generating',
         totalPages,
         completedPages,
       });
 
-      let hasErrors = false;
-      const completedPagesMap: Record<string, string> = {};
+      const sharedHtml = headerHtml && footerHtml ? { headerHtml, footerHtml } : undefined;
+      const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml, headTags);
+      const modelInstance = providerConfig.createModel(apiKey!, model);
+      const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
-      // --- Concurrency-limited parallel page generation ---
+      let prevMessages: ModelMessage[] = [];
+      let prevSegmentToolInputs = '';  // Degenerate loop detection
+      let writeFilesAttempted = false;
+      let segmentsWithoutWriteFiles = 0;
+      let allTextOutput = '';  // Accumulate text across all segments for fallback
+      const pageToolCallNames = new Map<string, string>();
+      let pageHasFileOutput = false;
+      const FILE_PRODUCING_TOOLS = new Set(['writeFile', 'writeFiles', 'editDOM', 'editFiles']);
 
-      /** Unescape JSON string escape sequences in streaming deltas */
-      function unescapeJson(text: string): string {
-        return text
-          .replace(/\\n/g, '\n')
-          .replace(/\\t/g, '\t')
-          .replace(/\\r/g, '\r')
-          .replace(/\\"/g, '"')
-          .replace(/\\\\/g, '\\');
-      }
+      for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
+        if (abortSignal.aborted) break;
 
-      async function generateSinglePage(page: typeof pages[number]) {
-        if (abortSignal.aborted) return;
-
-        // Fresh tool set per page — workingFiles accumulator starts empty
-        const { tools: pageTools, workingFiles } = createWebsiteTools({});
-
-        sendEvent({
-          type: 'page-status',
-          filename: page.filename,
-          status: 'generating',
-          totalPages,
-          completedPages,
+        const debugSession = createDebugSession({
+          scope: `blueprint-page:${page.filename}${segment > 0 ? `:cont${segment}` : ''}`,
+          model,
+          provider,
+          conversationId,
         });
 
-        const sharedHtml = headerHtml && footerHtml ? { headerHtml, footerHtml } : undefined;
-        const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml, headTags);
-        const modelInstance = providerConfig.createModel(apiKey!, model);
-        const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
-
-        let prevMessages: ModelMessage[] = [];
-        let prevSegmentToolInputs = '';  // Degenerate loop detection
-        let writeFilesAttempted = false;
-        let segmentsWithoutWriteFiles = 0;
-        let allTextOutput = '';  // Accumulate text across all segments for fallback
-
-        for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
-          if (abortSignal.aborted) break;
-
-          const debugSession = createDebugSession({
-            scope: `blueprint-page:${page.filename}${segment > 0 ? `:cont${segment}` : ''}`,
-            model,
-            provider,
-            conversationId,
+        let result;
+        if (segment === 0) {
+          debugSession.logPrompt({
+            systemPrompt,
+            messages: [{ role: 'user', content: pagePrompt }],
+            maxOutputTokens,
           });
+          result = streamText({
+            model: modelInstance,
+            system: systemPrompt,
+            prompt: pagePrompt,
+            maxOutputTokens,
+            tools: pageTools,
+            stopWhen: stepCountIs(8),
+            abortSignal,
+          });
+        } else {
+          // Lightweight continuation: extract resources, discard full message history
+          const continuationPrompt = buildLightweightContinuePrompt(
+            page.filename,
+            prevMessages,
+            writeFilesAttempted,
+          );
+          debugSession.logPrompt({
+            systemPrompt,
+            messages: [{ role: 'system', content: `[lightweight continuation seg=${segment}, writeFilesAttempted=${writeFilesAttempted}]` }],
+            maxOutputTokens,
+          });
+          result = streamText({
+            model: modelInstance,
+            system: systemPrompt,
+            prompt: continuationPrompt,
+            maxOutputTokens,
+            tools: pageTools,
+            stopWhen: stepCountIs(8),
+            abortSignal,
+          });
+        }
 
-          let result;
-          if (segment === 0) {
-            debugSession.logPrompt({
-              systemPrompt,
-              messages: [{ role: 'user', content: pagePrompt }],
-              maxOutputTokens,
-            });
-            result = streamText({
-              model: modelInstance,
-              system: systemPrompt,
-              prompt: pagePrompt,
-              maxOutputTokens,
-              tools: pageTools,
-              stopWhen: stepCountIs(8),
-              abortSignal,
-            });
-          } else {
-            // Lightweight continuation: extract resources, discard full message history
-            const continuationPrompt = buildLightweightContinuePrompt(
-              page.filename,
-              prevMessages,
-              writeFilesAttempted,
-            );
-            debugSession.logPrompt({
-              systemPrompt,
-              messages: [{ role: 'system', content: `[lightweight continuation seg=${segment}, writeFilesAttempted=${writeFilesAttempted}]` }],
-              maxOutputTokens,
-            });
-            result = streamText({
-              model: modelInstance,
-              system: systemPrompt,
-              prompt: continuationPrompt,
-              maxOutputTokens,
-              tools: pageTools,
-              stopWhen: stepCountIs(8),
-              abortSignal,
-            });
-          }
+        // Per-segment streaming state for writeFiles code deltas
+        let writeFilesToolId: string | null = null;
+        let writeFilesJsonBuffer = '';
+        let writeFilesContentStarted = false;
+        let segmentTextBuffer = '';  // Accumulate text output for fallback extraction
 
-          // Per-segment streaming state for writeFiles code deltas
-          let writeFilesToolId: string | null = null;
-          let writeFilesJsonBuffer = '';
-          let writeFilesContentStarted = false;
-          let segmentTextBuffer = '';  // Accumulate text output for fallback extraction
-
-          for await (const part of result.fullStream) {
-            if (part.type === 'text-delta') {
-              debugSession.logDelta(part.text);
-              segmentTextBuffer += part.text;
-            } else if (part.type === 'tool-input-delta' && part.id !== writeFilesToolId) {
-              debugSession.logToolInputDelta({ toolCallId: part.id, delta: part.delta });
-            } else if (part.type === 'tool-input-start') {
-              debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
+        for await (const part of result.fullStream) {
+          if (part.type === 'text-delta') {
+            debugSession.logDelta(part.text);
+            segmentTextBuffer += part.text;
+          } else if (part.type === 'tool-input-delta' && part.id !== writeFilesToolId) {
+            debugSession.logToolInputDelta({ toolCallId: part.id, delta: part.delta });
+          } else if (part.type === 'tool-input-start') {
+            pageToolCallNames.set(part.id, part.toolName);
+            debugSession.logToolStarting({ toolName: part.toolName, toolCallId: part.id });
+            sendEvent({
+              type: 'tool-activity',
+              filename: page.filename,
+              toolCallId: part.id,
+              toolName: part.toolName,
+              status: 'running',
+              label: TOOL_LABELS[part.toolName] ?? part.toolName,
+            });
+            // Track writeFile/writeFiles tool for streaming code deltas
+            if (part.toolName === 'writeFiles' || part.toolName === 'writeFile') {
+              writeFilesToolId = part.id;
+              writeFilesJsonBuffer = '';
+              writeFilesContentStarted = false;
+              writeFilesAttempted = true;
+            }
+          } else if (part.type === 'tool-input-delta' && writeFilesToolId && part.id === writeFilesToolId) {
+            writeFilesJsonBuffer += part.delta;
+            if (!writeFilesContentStarted) {
+              // Match writeFiles format: {"files":{"filename.html":"
+              // OR writeFile format: {"filename":"...","content":"
+              const multiMatch = writeFilesJsonBuffer.match(/"files"\s*:\s*\{\s*"[^"]+"\s*:\s*"/);
+              const singleMatch = !multiMatch && writeFilesJsonBuffer.match(/"content"\s*:\s*"/);
+              const match = multiMatch ?? singleMatch;
+              if (match) {
+                writeFilesContentStarted = true;
+                const contentStart = writeFilesJsonBuffer.indexOf(match[0]) + match[0].length;
+                const initialContent = writeFilesJsonBuffer.slice(contentStart);
+                if (initialContent) {
+                  sendEvent({
+                    type: 'code-delta',
+                    filename: page.filename,
+                    delta: unescapeJson(initialContent),
+                  });
+                }
+              }
+            } else {
+              sendEvent({
+                type: 'code-delta',
+                filename: page.filename,
+                delta: unescapeJson(part.delta),
+              });
+            }
+          } else if (part.type === 'tool-call') {
+            debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
+            const detail = summarizeToolInput(part.toolName, part.input);
+            if (detail) {
               sendEvent({
                 type: 'tool-activity',
                 filename: page.filename,
-                toolCallId: part.id,
+                toolCallId: part.toolCallId,
                 toolName: part.toolName,
                 status: 'running',
                 label: TOOL_LABELS[part.toolName] ?? part.toolName,
-              });
-              // Track writeFile/writeFiles tool for streaming code deltas
-              if (part.toolName === 'writeFiles' || part.toolName === 'writeFile') {
-                writeFilesToolId = part.id;
-                writeFilesJsonBuffer = '';
-                writeFilesContentStarted = false;
-                writeFilesAttempted = true;
-              }
-            } else if (part.type === 'tool-input-delta' && writeFilesToolId && part.id === writeFilesToolId) {
-              writeFilesJsonBuffer += part.delta;
-              if (!writeFilesContentStarted) {
-                // Match writeFiles format: {"files":{"filename.html":"
-                // OR writeFile format: {"filename":"...","content":"
-                const multiMatch = writeFilesJsonBuffer.match(/"files"\s*:\s*\{\s*"[^"]+"\s*:\s*"/);
-                const singleMatch = !multiMatch && writeFilesJsonBuffer.match(/"content"\s*:\s*"/);
-                const match = multiMatch ?? singleMatch;
-                if (match) {
-                  writeFilesContentStarted = true;
-                  const contentStart = writeFilesJsonBuffer.indexOf(match[0]) + match[0].length;
-                  const initialContent = writeFilesJsonBuffer.slice(contentStart);
-                  if (initialContent) {
-                    sendEvent({
-                      type: 'code-delta',
-                      filename: page.filename,
-                      delta: unescapeJson(initialContent),
-                    });
-                  }
-                }
-              } else {
-                sendEvent({
-                  type: 'code-delta',
-                  filename: page.filename,
-                  delta: unescapeJson(part.delta),
-                });
-              }
-            } else if (part.type === 'tool-call') {
-              debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
-              const detail = summarizeToolInput(part.toolName, part.input);
-              if (detail) {
-                sendEvent({
-                  type: 'tool-activity',
-                  filename: page.filename,
-                  toolCallId: part.toolCallId,
-                  toolName: part.toolName,
-                  status: 'running',
-                  label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                  detail,
-                });
-              }
-            } else if (part.type === 'tool-result') {
-              debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, output: part.output });
-              sendEvent({
-                type: 'tool-activity',
-                filename: page.filename,
-                toolCallId: part.toolCallId,
-                toolName: part.toolName,
-                status: 'done',
-                label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                detail: summarizeToolOutput(part.toolName, part.output),
-              });
-            } else if (part.type === 'tool-error') {
-              const rawErr = (part as { error?: unknown }).error;
-              const errMsg = rawErr instanceof Error ? rawErr.message.slice(0, 100) : typeof rawErr === 'string' ? rawErr.slice(0, 100) : 'Tool error';
-              debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, error: errMsg });
-              sendEvent({
-                type: 'tool-activity',
-                filename: page.filename,
-                toolCallId: part.toolCallId,
-                toolName: part.toolName,
-                status: 'error',
-                label: TOOL_LABELS[part.toolName] ?? part.toolName,
-                detail: errMsg,
+                detail,
               });
             }
-          }
-          debugSession.finish('complete');
-
-          // Collect response messages for resource extraction (used by lightweight continuation)
-          const response = await result.response;
-          const responseMessages = response.messages;
-          if (segment === 0) {
-            prevMessages = [
-              { role: 'user' as const, content: pagePrompt },
-              ...responseMessages,
-            ];
-          } else {
-            // Only keep latest segment's messages — we extract resources, not replay history
-            prevMessages = responseMessages;
-          }
-
-          const finishReason = await result.finishReason;
-          debugSession.logFullResponse(finishReason);
-
-          // Normalize filenames: models sometimes hallucinate prefixes like _about.html
-          for (const key of Object.keys(workingFiles)) {
-            const normalized = key.replace(/^_/, '').toLowerCase();
-            if (normalized !== key && !workingFiles[normalized]) {
-              workingFiles[normalized] = workingFiles[key];
+          } else if (part.type === 'tool-result') {
+            debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, output: part.output });
+            if (FILE_PRODUCING_TOOLS.has(part.toolName)) {
+              const out = part.output as Record<string, unknown> | undefined;
+              if (out && out.success !== false) pageHasFileOutput = true;
             }
-          }
-
-          // writeFiles succeeded — page is complete, no continuation needed
-          if (workingFiles[page.filename]) break;
-
-          // Accumulate text across segments for fallback extraction
-          allTextOutput += segmentTextBuffer;
-
-          // If model output HTML as text (not via writeFiles), extract and use it.
-          // Known issue: Gemini models get MALFORMED_FUNCTION_CALL with large tool arguments
-          // and fall back to outputting HTML as text instead of calling writeFiles.
-          if (allTextOutput) {
-            const extracted = extractHtmlFromText(allTextOutput);
-            if (extracted) {
-              workingFiles[page.filename] = extracted;
-              console.warn(`[blueprint-page:${page.filename}] Extracted HTML from text output (model did not use writeFiles)`);
-              break;
-            }
-          }
-
-          // Not truncated, just didn't produce output
-          if (finishReason !== 'length') break;
-
-          // Track segments where writeFiles was never even attempted
-          if (!writeFilesJsonBuffer) {
-            segmentsWithoutWriteFiles++;
-          } else {
-            segmentsWithoutWriteFiles = 0;
-          }
-
-          // Detect degenerate loops
-          const currentToolInputs = writeFilesJsonBuffer;
-          if (prevSegmentToolInputs && currentToolInputs === prevSegmentToolInputs) {
-            debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'Degenerate loop detected — stopping page continuation' });
-            break;
-          }
-          // If writeFiles was never attempted for 2 segments, model is confused — stop
-          if (segmentsWithoutWriteFiles >= 2) {
-            debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'writeFiles never attempted across 2 segments — stopping' });
-            break;
-          }
-          prevSegmentToolInputs = currentToolInputs;
-        }
-
-        // Extract HTML from workingFiles
-        let pageHtml: string | undefined = workingFiles[page.filename]
-          // Fallback: check for any file that looks like the page
-          ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
-
-        // Text fallback: if writeFiles didn't produce output, try extracting from accumulated text
-        if (!pageHtml && allTextOutput) {
-          pageHtml = extractHtmlFromText(allTextOutput) ?? undefined;
-          if (pageHtml) {
-            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from accumulated text output (writeFiles fallback)`);
+            sendEvent({
+              type: 'tool-activity',
+              filename: page.filename,
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              status: 'done',
+              label: TOOL_LABELS[part.toolName] ?? part.toolName,
+              detail: summarizeToolOutput(part.toolName, part.output),
+            });
+          } else if (part.type === 'tool-error') {
+            const rawErr = (part as { error?: unknown }).error;
+            const errMsg = rawErr instanceof Error ? rawErr.message.slice(0, 100) : typeof rawErr === 'string' ? rawErr.slice(0, 100) : 'Tool error';
+            debugSession.logToolResult({ toolName: part.toolName, toolCallId: part.toolCallId, error: errMsg });
+            sendEvent({
+              type: 'tool-activity',
+              filename: page.filename,
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              status: 'error',
+              label: TOOL_LABELS[part.toolName] ?? part.toolName,
+              detail: errMsg,
+            });
           }
         }
+        debugSession.finish('complete');
 
-        // Last resort: extract text from AI SDK response messages
-        if (!pageHtml) {
-          const responseText = prevMessages
-            .filter(m => m.role === 'assistant')
-            .map(m => {
-              if (typeof m.content === 'string') return m.content;
-              if (Array.isArray(m.content)) {
-                return (m.content as Array<{ type: string; text?: string }>)
-                  .filter(p => p.type === 'text' && p.text)
-                  .map(p => p.text)
-                  .join('');
-              }
-              return '';
-            })
-            .join('\n');
-          pageHtml = extractHtmlFromText(responseText) ?? undefined;
-          if (pageHtml) {
-            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from response messages (writeFiles fallback)`);
-          }
-        }
-
-        if (pageHtml) {
-          completedPages += 1;
-          sendEvent({
-            type: 'page-status',
-            filename: page.filename,
-            status: 'complete',
-            html: pageHtml,
-            totalPages,
-            completedPages,
-          });
-          completedPagesMap[page.filename] = pageHtml;
-          await prisma.generationState.update({
-            where: { conversationId },
-            data: { completedPages: completedPagesMap },
-          }).catch(() => {});
+        // Collect response messages for resource extraction (used by lightweight continuation)
+        const response = await result.response;
+        const responseMessages = response.messages;
+        if (segment === 0) {
+          prevMessages = [
+            { role: 'user' as const, content: pagePrompt },
+            ...responseMessages,
+          ];
         } else {
+          // Only keep latest segment's messages — we extract resources, not replay history
+          prevMessages = responseMessages;
+        }
+
+        const finishReason = await result.finishReason;
+        debugSession.logFullResponse(finishReason);
+        debugSession.logGenerationSummary?.({
+          finishReason,
+          hasFileOutput: pageHasFileOutput,
+          toolCallCount: pageToolCallNames.size,
+        });
+
+        // Normalize filenames: models sometimes hallucinate prefixes like _about.html
+        for (const key of Object.keys(workingFiles)) {
+          const normalized = key.replace(/^_/, '').toLowerCase();
+          if (normalized !== key && !workingFiles[normalized]) {
+            workingFiles[normalized] = workingFiles[key];
+          }
+        }
+
+        // writeFiles succeeded — page is complete, no continuation needed
+        if (workingFiles[page.filename]) break;
+
+        // Accumulate text across segments for fallback extraction
+        allTextOutput += segmentTextBuffer;
+
+        // If model output HTML as text (not via writeFiles), extract and use it.
+        // Known issue: Gemini models get MALFORMED_FUNCTION_CALL with large tool arguments
+        // and fall back to outputting HTML as text instead of calling writeFiles.
+        if (allTextOutput) {
+          const extracted = extractHtmlFromText(allTextOutput);
+          if (extracted) {
+            workingFiles[page.filename] = extracted;
+            console.warn(`[blueprint-page:${page.filename}] Extracted HTML from text output (model did not use writeFiles)`);
+            break;
+          }
+        }
+
+        // Not truncated, just didn't produce output
+        if (finishReason !== 'length') break;
+
+        // Track segments where writeFiles was never even attempted
+        if (!writeFilesJsonBuffer) {
+          segmentsWithoutWriteFiles++;
+        } else {
+          segmentsWithoutWriteFiles = 0;
+        }
+
+        // Detect degenerate loops
+        const currentToolInputs = writeFilesJsonBuffer;
+        if (prevSegmentToolInputs && currentToolInputs === prevSegmentToolInputs) {
+          debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'Degenerate loop detected — stopping page continuation' });
+          break;
+        }
+        // If writeFiles was never attempted for 2 segments, model is confused — stop
+        if (segmentsWithoutWriteFiles >= 2) {
+          debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'writeFiles never attempted across 2 segments — stopping' });
+          break;
+        }
+        prevSegmentToolInputs = currentToolInputs;
+      }
+
+      // Extract HTML from workingFiles
+      let pageHtml: string | undefined = workingFiles[page.filename]
+        // Fallback: check for any file that looks like the page
+        ?? Object.values(workingFiles).find(v => v.includes('<!DOCTYPE') || v.includes('<html'));
+
+      // Text fallback: if writeFiles didn't produce output, try extracting from accumulated text
+      if (!pageHtml && allTextOutput) {
+        pageHtml = extractHtmlFromText(allTextOutput) ?? undefined;
+        if (pageHtml) {
+          console.warn(`[blueprint-page:${page.filename}] Extracted HTML from accumulated text output (writeFiles fallback)`);
+        }
+      }
+
+      // Last resort: extract text from AI SDK response messages
+      if (!pageHtml) {
+        const responseText = prevMessages
+          .filter(m => m.role === 'assistant')
+          .map(m => {
+            if (typeof m.content === 'string') return m.content;
+            if (Array.isArray(m.content)) {
+              return (m.content as Array<{ type: string; text?: string }>)
+                .filter(p => p.type === 'text' && p.text)
+                .map(p => p.text)
+                .join('');
+            }
+            return '';
+          })
+          .join('\n');
+        pageHtml = extractHtmlFromText(responseText) ?? undefined;
+        if (pageHtml) {
+          console.warn(`[blueprint-page:${page.filename}] Extracted HTML from response messages (writeFiles fallback)`);
+        }
+      }
+
+      if (pageHtml) {
+        completedPages += 1;
+        sendEvent({
+          type: 'page-status',
+          filename: page.filename,
+          status: 'complete',
+          html: pageHtml,
+          totalPages,
+          completedPages,
+        });
+        completedPagesMap[page.filename] = pageHtml;
+        await prisma.generationState.update({
+          where: { conversationId },
+          data: { completedPages: completedPagesMap },
+        }).catch(() => {});
+      } else {
+        hasErrors = true;
+        sendEvent({
+          type: 'page-status',
+          filename: page.filename,
+          status: 'error',
+          error: 'Model did not produce file output via writeFiles',
+          totalPages,
+          completedPages,
+        });
+      }
+    }
+
+    // Semaphore for concurrency limiting
+    let running = 0;
+    const waitQueue: (() => void)[] = [];
+
+    async function acquireSlot() {
+      if (running >= MAX_CONCURRENT_PAGES) {
+        await new Promise<void>(resolve => { waitQueue.push(resolve); });
+      }
+      running++;
+    }
+
+    function releaseSlot() {
+      running--;
+      if (waitQueue.length > 0) {
+        const next = waitQueue.shift()!;
+        next();
+      }
+    }
+
+    const results = await Promise.allSettled(
+      pages.map(async (page) => {
+        await acquireSlot();
+        try {
+          await generateSinglePage(page);
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === 'AbortError') return;
           hasErrors = true;
           sendEvent({
             type: 'page-status',
             filename: page.filename,
             status: 'error',
-            error: 'Model did not produce file output via writeFiles',
+            error: err instanceof Error ? err.message : 'Generation failed',
             totalPages,
             completedPages,
           });
+        } finally {
+          releaseSlot();
         }
+      }),
+    );
+
+    // Check for any unhandled rejections
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        hasErrors = true;
       }
+    }
 
-      // Semaphore for concurrency limiting
-      let running = 0;
-      const waitQueue: (() => void)[] = [];
+    sendEvent({
+      type: 'pipeline-status',
+      status: hasErrors ? 'error' : 'complete',
+      totalPages,
+      completedPages,
+    });
 
-      async function acquireSlot() {
-        if (running >= MAX_CONCURRENT_PAGES) {
-          await new Promise<void>(resolve => { waitQueue.push(resolve); });
-        }
-        running++;
-      }
+    // Clean up generation state on successful completion
+    if (!hasErrors) {
+      await prisma.generationState.delete({
+        where: { conversationId },
+      }).catch(() => {});
+    }
 
-      function releaseSlot() {
-        running--;
-        if (waitQueue.length > 0) {
-          const next = waitQueue.shift()!;
-          next();
-        }
-      }
+    writer.close().catch(() => {});
+  })();
 
-      const results = await Promise.allSettled(
-        pages.map(async (page) => {
-          await acquireSlot();
-          try {
-            await generateSinglePage(page);
-          } catch (err: unknown) {
-            if (err instanceof Error && err.name === 'AbortError') return;
-            hasErrors = true;
-            sendEvent({
-              type: 'page-status',
-              filename: page.filename,
-              status: 'error',
-              error: err instanceof Error ? err.message : 'Generation failed',
-              totalPages,
-              completedPages,
-            });
-          } finally {
-            releaseSlot();
-          }
-        }),
-      );
-
-      // Check for any unhandled rejections
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          hasErrors = true;
-        }
-      }
-
-      sendEvent({
-        type: 'pipeline-status',
-        status: hasErrors ? 'error' : 'complete',
-        totalPages,
-        completedPages,
-      });
-
-      // Clean up generation state on successful completion
-      if (!hasErrors) {
-        await prisma.generationState.delete({
-          where: { conversationId },
-        }).catch(() => {});
-      }
-
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
+  return new Response(readable, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   });
 }
