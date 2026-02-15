@@ -25,13 +25,23 @@ export function getPageSystemPrompt(
 
   const hasSharedHeader = !!sharedHtml?.headerHtml;
   const hasSharedFooter = !!sharedHtml?.footerHtml;
+  const isSinglePage = blueprint.pages.length === 1;
 
   const headerSection = hasSharedHeader
     ? `<shared_header>
 Embed this header HTML VERBATIM at the start of <body> (do NOT modify it):
 ${sharedHtml!.headerHtml}
 </shared_header>`
-    : `<header_spec>
+    : isSinglePage
+      ? `<header_spec>
+Generate a responsive header with:
+- Site name "${blueprint.siteName}" as logo/brand text (styled with --color-primary and font-heading)
+- Navigation: use smooth-scroll anchor links to the page sections (e.g., #hero, #features, #contact) — NOT links to other .html files
+- Mobile: hamburger menu button that toggles a dropdown/slide nav (include the JS)
+- Use design system tokens: bg-[var(--color-bg)], text-[var(--color-text)], etc.
+- Sticky/fixed at top with subtle shadow
+</header_spec>`
+      : `<header_spec>
 Generate a responsive header with:
 - Site name "${blueprint.siteName}" as logo/brand text (styled with --color-primary and font-heading)
 - Desktop: horizontal nav with all links from shared_navigation, highlight current page (${page.filename})
@@ -46,7 +56,15 @@ ALL pages in this site use these EXACT same nav links, so keep the structure con
 Embed this footer HTML VERBATIM at the end of <body> (do NOT modify it):
 ${sharedHtml!.footerHtml}
 </shared_footer>`
-    : `<footer_spec>
+    : isSinglePage
+      ? `<footer_spec>
+Generate a footer with:
+- Site name and footer tagline
+- Anchor links to key sections of the page
+- Copyright line with current year
+- Use design system tokens for colors
+</footer_spec>`
+      : `<footer_spec>
 Generate a footer with:
 - Site name and footer tagline
 - Navigation links from shared_navigation
@@ -134,7 +152,13 @@ Sections (generate in this order):
 ${sectionsList}
 </page_spec>
 
-${hasSharedHeader && hasSharedFooter ? '' : `<shared_navigation>
+${hasSharedHeader && hasSharedFooter ? '' : isSinglePage
+    ? `<site_info>
+Site name: ${blueprint.siteName}
+Footer tagline: ${sharedComponents.footerTagline}
+Section IDs for anchor navigation: ${page.sections.map((s) => `#${s.id}`).join(', ')}
+</site_info>`
+    : `<shared_navigation>
 Site name: ${blueprint.siteName}
 Navigation links (use in BOTH header and footer):
 ${navLinksSpec}
