@@ -85,6 +85,7 @@ export function createEditDomTool(workingFiles: ProjectFiles) {
 
 export function createFileTools(workingFiles: ProjectFiles) {
   const editFileMistakes: MistakeTracker = new Map();
+  let writeFilesEmptyCount = 0;
 
   return {
     writeFiles: tool({
@@ -93,12 +94,27 @@ export function createFileTools(workingFiles: ProjectFiles) {
       inputSchema: z.object({
         files: z
           .record(z.string(), z.string())
-          .default({})
           .describe(
             'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document starting with <!DOCTYPE html>, containing <head> with Tailwind CDN, fonts, and design system, and a full <body>. Values must be complete HTML — never single words or placeholders.',
           ),
       }),
       execute: async ({ files }) => {
+        // Reject completely empty files map
+        if (!files || Object.keys(files).length === 0) {
+          writeFilesEmptyCount++;
+          const base = 'The "files" parameter is empty — you must provide at least one file. Example: writeFiles({ files: { "index.html": "<!DOCTYPE html><html>...</html>" } }).';
+          if (writeFilesEmptyCount >= 3) {
+            return {
+              success: false as const,
+              error: `${base} This is attempt #${writeFilesEmptyCount} with empty files. STOP calling writeFiles with empty content. Instead, generate the complete HTML document first, then pass it as the file value.`,
+            };
+          }
+          return { success: false as const, error: base };
+        }
+
+        // Reset empty counter on non-empty call
+        writeFilesEmptyCount = 0;
+
         // Normalize keys: convert underscores to dots for extension (e.g. "index_html" -> "index.html")
         const normalized: Record<string, string> = {};
         for (const [key, value] of Object.entries(files)) {
@@ -121,7 +137,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
           const names = tooSmall.map(([n, c]) => `"${n}" (${c.length} chars)`).join(', ');
           return {
             success: false as const,
-            error: `All files are too small to be valid HTML: ${names}. Each HTML file must be a complete document with <!DOCTYPE html>, <head>, and <body>.`,
+            error: `All files are too small to be valid HTML: ${names}. Each HTML file must be a complete document with <!DOCTYPE html>, <head>, and <body>. Generate the FULL page content, not placeholders.`,
           };
         }
 
@@ -131,7 +147,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         }
 
         if (Object.keys(normalized).length === 0) {
-          return { success: false as const, error: 'No valid files to write.' };
+          return { success: false as const, error: 'No valid files to write after filtering invalid entries. Each HTML file must be a complete document starting with <!DOCTYPE html>.' };
         }
 
         Object.assign(workingFiles, normalized);
