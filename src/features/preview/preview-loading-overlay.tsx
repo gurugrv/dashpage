@@ -107,7 +107,7 @@ export function PreviewLoadingOverlay({ buildProgress, blueprintPhase, pageStatu
   const isBlueprintActive = blueprintPhase && blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background/30 backdrop-blur-[1px]">
+    <div className="absolute inset-0 flex items-center justify-center bg-background/30 backdrop-blur-[2px]">
       {isBlueprintActive ? (
         <BlueprintOverlayContent blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />
       ) : (

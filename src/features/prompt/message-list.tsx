@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import { Loader2 } from 'lucide-react';
 import { BuildProgress } from '@/components/BuildProgress';
@@ -15,6 +15,62 @@ interface MessageListProps {
   onExampleSelect: (prompt: string) => void;
   buildProgress?: BuildProgressState;
   blueprintLoading?: boolean;
+}
+
+const BLUEPRINT_PHASES = [
+  'Analyzing requirements...',
+  'Planning page structure...',
+  'Selecting components...',
+  'Mapping content layout...',
+];
+
+function BlueprintLoadingIndicator() {
+  const [phaseIdx, setPhaseIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPhaseIdx((prev) => (prev + 1) % BLUEPRINT_PHASES.length);
+    }, 2400);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="flex gap-3 px-4 py-3">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+        <Loader2 className="size-3.5 animate-spin text-primary" />
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          key={phaseIdx}
+          className="text-sm text-muted-foreground"
+          style={{ animation: 'fadeSlideIn 0.35s ease-out' }}
+        >
+          {BLUEPRINT_PHASES[phaseIdx]}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function WaveDots() {
+  return (
+    <div className="flex gap-3 px-4 py-3">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted">
+        <div className="flex gap-[3px]">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="size-[5px] rounded-full bg-muted-foreground"
+              style={{
+                animation: 'dotWave 1.2s ease-in-out infinite',
+                animationDelay: `${i * 0.15}s`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function MessageList({
@@ -47,28 +103,13 @@ export function MessageList({
             />
           ))}
 
-          {blueprintLoading && (
-            <div className="flex gap-3 px-4 py-3">
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                <Loader2 className="size-3.5 animate-spin text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">Planning site architecture...</span>
-            </div>
-          )}
+          {blueprintLoading && <BlueprintLoadingIndicator />}
 
           {isLoading && !blueprintLoading && (
             buildProgress?.isActive ? (
               <BuildProgress progress={buildProgress} />
             ) : (
-              <div className="flex gap-3 px-4 py-3">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                  <div className="flex gap-1">
-                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
-                  </div>
-                </div>
-              </div>
+              <WaveDots />
             )
           )}
         </div>

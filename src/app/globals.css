@@ -123,3 +123,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Shared progress / loading animation keyframes                      */
+/* ------------------------------------------------------------------ */
+
+@keyframes shimmerBar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dotWave {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes shimmerBar { from, to { transform: none; } }
+  @keyframes fadeSlideIn { from, to { opacity: 1; transform: none; } }
+  @keyframes dotWave { from, to { transform: none; } }
+}
