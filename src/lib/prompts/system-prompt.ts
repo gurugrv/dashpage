@@ -7,7 +7,7 @@ import {
   buildFirstGenerationBlock,
   buildTemporalBlock,
 } from '@/lib/prompts/sections/context-blocks';
-import { TOOL_OUTPUT_FORMAT_SECTION, SINGLE_PAGE_TOOL_FORMAT_SECTION } from '@/lib/prompts/sections/tool-output-format';
+import { TOOL_OUTPUT_FORMAT_SECTION } from '@/lib/prompts/sections/tool-output-format';
 import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 export interface SystemPromptParts {
@@ -31,9 +31,7 @@ export function getSystemPromptParts(
   userPrompt?: string,
 ): SystemPromptParts {
   const isFirstGeneration = !currentFiles?.['index.html'];
-  const fileCount = Object.keys(currentFiles ?? {}).length;
-  const isSinglePageEdit = fileCount === 1;
-  const toolSection = isSinglePageEdit ? SINGLE_PAGE_TOOL_FORMAT_SECTION : TOOL_OUTPUT_FORMAT_SECTION;
+  const toolSection = TOOL_OUTPUT_FORMAT_SECTION;
 
   const stable = `${IDENTITY_LINE}
 
