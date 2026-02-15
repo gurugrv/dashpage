@@ -90,7 +90,7 @@ export interface DebugSession {
   logFullResponse(finishReason?: string): void;
   logCacheStats?(metadata: Record<string, unknown> | undefined): void;
   /** Log generation summary with tool timeline and throughput stats */
-  logGenerationSummary?(params: { finishReason?: string; hasFileOutput: boolean; toolCallCount: number }): void;
+  logGenerationSummary?(params: { finishReason?: string; hasFileOutput: boolean; toolCallCount: number; structuredOutput?: boolean; rawTextLength?: number }): void;
 }
 
 /**
@@ -160,7 +160,7 @@ export function createDebugSession(params: {
       }
 
       parts.push(subHeader('SYSTEM PROMPT'));
-      parts.push(prefixLines(systemPrompt, dimPrefix) + '\n');
+      parts.push(`${dimPrefix()}(${formatBytes(systemPrompt.length)} - content hidden)\n`);
 
       parts.push(subHeader('MESSAGES'));
       messages.forEach((msg, idx) => {
@@ -178,7 +178,12 @@ export function createDebugSession(params: {
 
       if (response) {
         parts.push(subHeader('RESPONSE CONTENT'));
-        parts.push(prefixLines(response, dimPrefix) + '\n');
+        if (status === 'error') {
+          // Always show error responses in full for debugging
+          parts.push(prefixLines(response, dimPrefix) + '\n');
+        } else {
+          parts.push(`${dimPrefix()}(${formatBytes(response.length)} - content hidden)\n`);
+        }
       }
 
       parts.push(footer());
@@ -383,7 +388,7 @@ export function createDebugSession(params: {
       }
     },
 
-    logGenerationSummary({ finishReason, hasFileOutput, toolCallCount }) {
+    logGenerationSummary({ finishReason, hasFileOutput, toolCallCount, structuredOutput, rawTextLength }) {
       const now = Date.now();
       const totalDuration = now - sessionStartedAt;
       const parts: string[] = [
@@ -392,11 +397,30 @@ export function createDebugSession(params: {
         `${prefix()}\x1b[1mGENERATION SUMMARY${RESET}`,
         `${color}${'─'.repeat(60)}${RESET}`,
         `${prefix()}Duration: ${formatDuration(totalDuration)} | Finish: ${finishReason || 'unknown'}`,
-        `${prefix()}Text: ${totalDeltaChars} chars in ${deltaCount} deltas` +
-          (firstDeltaAt ? ` | TTFT: ${formatDuration(firstDeltaAt - sessionStartedAt)}` : '') +
-          (totalDuration > 0 ? ` | ${Math.round(totalDeltaChars / (totalDuration / 1000))} chars/s` : ''),
-        `${prefix()}Tools: ${toolCallCount} call${toolCallCount !== 1 ? 's' : ''} | File output: ${hasFileOutput ? '\x1b[32mYES' : '\x1b[31mNO'}${RESET}`,
       ];
+
+      if (structuredOutput) {
+        // Non-streaming structured output — show raw response size and wait time
+        const textLen = rawTextLength ?? fullResponse.length;
+        // For structured output, subtract any tool execution time to show pure model wait
+        let toolTime = 0;
+        for (const t of toolTimings.values()) {
+          if (t.outputReadyAt) toolTime += t.outputReadyAt - t.startedAt;
+        }
+        const modelWait = totalDuration - toolTime;
+        parts.push(
+          `${prefix()}Output: ${formatBytes(textLen)} structured JSON | Model wait: ${formatDuration(modelWait)}` +
+            (toolTime > 0 ? ` | Tool time: ${formatDuration(toolTime)}` : '') +
+            (modelWait > 0 ? ` | ${Math.round(textLen / (modelWait / 1000))} chars/s` : ''),
+        );
+      } else {
+        parts.push(
+          `${prefix()}Text: ${totalDeltaChars} chars in ${deltaCount} deltas` +
+            (firstDeltaAt ? ` | TTFT: ${formatDuration(firstDeltaAt - sessionStartedAt)}` : '') +
+            (totalDuration > 0 ? ` | ${Math.round(totalDeltaChars / (totalDuration / 1000))} chars/s` : ''),
+          `${prefix()}Tools: ${toolCallCount} call${toolCallCount !== 1 ? 's' : ''} | File output: ${hasFileOutput ? '\x1b[32mYES' : '\x1b[31mNO'}${RESET}`,
+        );
+      }
 
       // Tool timeline
       if (toolTimings.size > 0) {
@@ -424,18 +448,20 @@ export function createDebugSession(params: {
         }
       }
 
-      // Warnings
-      if (!hasFileOutput && toolCallCount > 0) {
-        parts.push(`${prefix()}`);
-        parts.push(`${prefix()}\x1b[31m⚠ WARNING: Tools were called but no file output was produced!${RESET}`);
-        parts.push(`${dimPrefix()}  This usually means the model used tools (search, etc.) but never called writeFile/writeFiles/editBlock/editFiles.`);
+      // Warnings (skip tool-related warnings for structured output like blueprint generation)
+      if (!structuredOutput) {
+        if (!hasFileOutput && toolCallCount > 0) {
+          parts.push(`${prefix()}`);
+          parts.push(`${prefix()}\x1b[31m⚠ WARNING: Tools were called but no file output was produced!${RESET}`);
+          parts.push(`${dimPrefix()}  This usually means the model used tools (search, etc.) but never called writeFile/writeFiles/editBlock/editFiles.`);
+        }
+        if (!hasFileOutput && toolCallCount === 0) {
+          parts.push(`${prefix()}`);
+          parts.push(`${prefix()}\x1b[31m⚠ WARNING: No tool calls at all — generation produced only text!${RESET}`);
+          parts.push(`${dimPrefix()}  The model did not call any tools. Check system prompt and model compatibility.`);
+        }
       }
-      if (!hasFileOutput && toolCallCount === 0) {
-        parts.push(`${prefix()}`);
-        parts.push(`${prefix()}\x1b[31m⚠ WARNING: No tool calls at all — generation produced only text!${RESET}`);
-        parts.push(`${dimPrefix()}  The model did not call any tools. Check system prompt and model compatibility.`);
-      }
-      if (totalDuration > 60_000 && totalDeltaChars < 1000) {
+      if (!structuredOutput && totalDuration > 60_000 && totalDeltaChars < 1000) {
         parts.push(`${prefix()}\x1b[33m⚠ SLOW: ${formatDuration(totalDuration)} elapsed but only ${totalDeltaChars} chars generated${RESET}`);
       }
 
