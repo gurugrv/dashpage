@@ -2,18 +2,18 @@
 // Source: docs/ui-ux-pro-max-skill-main
 
 export const UI_UX_GUIDELINES_SECTION = `<ui_ux_guidelines>
-<industry_colors>
-Use the industry as inspiration, generate unique custom HSL values every time:
-- SaaS/B2B: Trust-evoking blues or teals with an energetic CTA accent
-- Healthcare/Medical: Calm tones — cyans, sage greens, soft blues
-- Fintech/Banking: Deep authoritative tones with warm metallic accents
-- Beauty/Spa/Wellness: Soft warm tones — rose, sage, champagne, lavender
-- E-commerce: Confidence-building greens or warm urgency tones for CTAs
-- Restaurant/Food: Appetizing warm colors — terracotta, amber, olive, burgundy
-- Legal/Consulting: Deep authoritative tones with understated elegance
-- Creative/Agency: Bold expressive palettes that show personality
-- Education: Approachable and clear — balanced warm/cool with progress indicators
-</industry_colors>
+<industry_tones>
+Industry tonal guidance — adjust the temperature and energy of your palette, not the specific colors (the design seed sets actual hues):
+- SaaS/B2B: Trust and stability — lean cool on the base hue, energetic accent for CTAs
+- Healthcare/Medical: Calm and reassuring — desaturate slightly, favor soft transitions
+- Fintech/Banking: Authority and weight — deepen tones, use warm metallic accents sparingly
+- Beauty/Spa/Wellness: Gentle and inviting — soften saturation, lean warm, airy backgrounds
+- E-commerce: Confident and actionable — clear contrast, warm urgency for CTAs
+- Restaurant/Food: Appetizing warmth — lean warm on the base hue, earth-toned accents
+- Legal/Consulting: Understated authority — muted saturation, deep tones, minimal accent use
+- Creative/Agency: Expressive energy — push saturation higher, bolder contrasts
+- Education: Approachable clarity — balanced warmth, clean hierarchy, progress-indicator accents
+</industry_tones>
 
 <accessibility_rules>
 - All interactive elements: cursor-pointer, hover feedback, smooth transition (duration-200/300), focus-visible:ring-2

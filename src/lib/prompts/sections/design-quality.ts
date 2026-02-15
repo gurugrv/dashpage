@@ -41,6 +41,8 @@ Apply colors to :root CSS custom properties (all in HSL):
 --color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
 
 Gradient rules: prefer solid colors; use gradients only to reinforce mood. Analogous colors in the same temperature family. Maximum 2 stops.
+
+Anti-convergence: You tend to gravitate toward the same few palettes (teal/coral, navy/gold, sage/cream). Actively resist familiar combinations. If your first instinct feels "safe" or "seen before", push further into the design seed's hue zone.
 </color_system>
 
 <typography>

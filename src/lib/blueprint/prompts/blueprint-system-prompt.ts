@@ -1,7 +1,8 @@
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
-import { buildTemporalBlock } from '@/lib/prompts/sections/context-blocks';
+import { buildTemporalBlock, getRandomStyleSeed } from '@/lib/prompts/sections/context-blocks';
 
 export function getBlueprintSystemPrompt(temporalContext?: TemporalContext): string {
+  const seed = getRandomStyleSeed();
   return `You are a senior web architect who plans multi-page websites. Produce a structured Site Blueprint as JSON.
 ${buildTemporalBlock(temporalContext)}
 <task>
@@ -40,9 +41,16 @@ Given the user's website description, produce a JSON object with this structure:
 
 <color_guidance>
 Generate a UNIQUE color palette for each project — never reuse the same colors.
-1. Choose a base hue inspired by the subject, but avoid the obvious choice (a bakery doesn't need orange, a law firm doesn't need navy).
+
+Design seed for this project:
+  Mood: "${seed.mood}" | Base hue zone: ${seed.hueRange}° | Strategy bias: ${seed.strategy}
+  Visual feel: ${seed.vibe}
+
+Fuse this aesthetic with the user's subject matter — blend the seed's visual DNA with the project's purpose.
+
+1. Start from the seed's base hue zone (${seed.hueRange}°), then adjust to fit the subject.
 2. Use a harmony rule (complementary, split-complementary, triadic, or analogous) to derive all 7 semantic colors: primaryColor, secondaryColor, accentColor, backgroundColor, surfaceColor, textColor, textMutedColor.
-3. Pick a PALETTE STRATEGY that fits the project's mood:
+3. Pick a PALETTE STRATEGY — the seed suggests ${seed.strategy}, but adjust if the project demands it:
    - LIGHT (default): airy, professional — light tinted backgrounds, saturated primaries
    - MUTED: earthy, artisanal — desaturated primaries, warm-tinted backgrounds
    - BOLD: vibrant, energetic — high-saturation primaries and accents
