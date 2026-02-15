@@ -29,6 +29,7 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
   const [selectedPage, setSelectedPage] = useState('index.html');
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const prevSrcDocRef = useRef<string>('');
 
   // During blueprint generation, prefer fresh files once they arrive (shown under overlay).
   // During normal streaming, freeze on lastValidFiles to avoid flickering.
@@ -41,9 +42,12 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
   // Derive effective active page — falls back to first available if selection is invalid
   const activePage = htmlPages.includes(selectedPage) ? selectedPage : (htmlPages[0] ?? 'index.html');
 
-  const srcDoc = isGenerating && !isBlueprintActive
-    ? combineForPreview(lastValidFiles, activePage)
-    : (combineForPreview(files, activePage) || combineForPreview(lastValidFiles, activePage));
+  const srcDoc = useMemo(() => {
+    if (isGenerating && !isBlueprintActive) {
+      return combineForPreview(lastValidFiles, activePage);
+    }
+    return combineForPreview(files, activePage) || combineForPreview(lastValidFiles, activePage);
+  }, [files, lastValidFiles, activePage, isGenerating, isBlueprintActive]);
 
   const hasContent = !!srcDoc;
 
@@ -107,6 +111,15 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
   const handleFullscreenChange = useCallback(() => {
     setIsFullscreen(document.fullscreenElement !== null);
   }, []);
+
+  // Update iframe only when srcDoc content actually changes to prevent flicker
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    const doc = srcDoc ?? '';
+    if (doc === prevSrcDocRef.current) return;
+    prevSrcDocRef.current = doc;
+    iframeRef.current.srcdoc = doc;
+  }, [srcDoc]);
 
   // Send build phase to iframe for section highlighting
   useEffect(() => {
@@ -204,7 +217,6 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
         >
           <iframe
             ref={iframeRef}
-            srcDoc={srcDoc ?? ''}
             sandbox="allow-scripts allow-forms allow-same-origin"
             className="h-full w-full border-0"
             title="Website Preview"
