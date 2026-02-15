@@ -399,14 +399,19 @@ export function useBlueprintGeneration({
   const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
 
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
-    const components = await generateComponents(activeBlueprint, conversationId);
-    if (!components) return; // Error already set by generateComponents
-
     // Build shared styles synchronously from design system — no AI call needed
     const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
     sharedStylesRef.current = sharedStyles;
 
-    await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags);
+    const isSinglePage = activeBlueprint.pages.length === 1;
+    if (isSinglePage) {
+      // Single-page sites skip the components step (no shared header/footer)
+      await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags);
+    } else {
+      const components = await generateComponents(activeBlueprint, conversationId);
+      if (!components) return; // Error already set by generateComponents
+      await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags);
+    }
   }, [generateComponents, generatePages]);
 
   const resumeFromState = useCallback(async (
@@ -427,22 +432,24 @@ export function useBlueprintGeneration({
     // Pre-populate accumulator with already-completed pages
     filesAccumulatorRef.current = { ...completedPageFiles };
 
-    if (!state.componentHtml) {
+    const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
+    sharedStylesRef.current = sharedStyles;
+
+    const isSinglePage = activeBlueprint.pages.length === 1;
+
+    if (isSinglePage) {
+      // Single-page sites skip the components step
+      await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags, completedFilenames);
+    } else if (!state.componentHtml) {
       // Need to regenerate components first, then pages
       const components = await generateComponents(activeBlueprint, conversationId);
       if (!components) return;
-
-      const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
-      sharedStylesRef.current = sharedStyles;
 
       await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags, completedFilenames);
     } else {
       // Components exist, just resume page generation
       setHeaderHtml(state.componentHtml.headerHtml);
       setFooterHtml(state.componentHtml.footerHtml);
-
-      const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
-      sharedStylesRef.current = sharedStyles;
 
       await generatePages(
         conversationId,

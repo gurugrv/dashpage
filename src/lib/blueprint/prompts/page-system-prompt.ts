@@ -119,7 +119,9 @@ CRITICAL: Use the design system CSS custom properties EVERYWHERE in your markup.
 - Radius: rounded-[var(--radius)]
 - Transitions: duration-200 ease-in-out (prefer transition-colors, transition-shadow, transition-transform; use transition-all when multiple properties change)
 
-This page is PART OF A MULTI-PAGE SITE. It must feel like it belongs to the same site as every other page — consistent color usage, typography, spacing rhythm, and visual personality across all pages.
+${blueprint.pages.length === 1
+    ? 'This is a standalone single-page website. Make it complete and self-contained — include header, all sections, and footer in one cohesive page.'
+    : 'This page is PART OF A MULTI-PAGE SITE. It must feel like it belongs to the same site as every other page — consistent color usage, typography, spacing rhythm, and visual personality across all pages.'}
 </design_token_usage>
 
 <page_spec>

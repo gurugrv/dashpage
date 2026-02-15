@@ -69,8 +69,27 @@ export function BlueprintCard({
     <div className="mx-4 my-3 rounded-lg border bg-background shadow-sm">
       {/* Header */}
       <div className="border-b px-4 py-3">
-        <h3 className="text-sm font-semibold">{blueprint.siteName}</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">{blueprint.siteDescription}</p>
+        {isEditing ? (
+          <>
+            <input
+              type="text"
+              className="w-full border-b border-dashed border-input bg-transparent text-sm font-semibold focus-visible:outline-none focus-visible:border-ring"
+              value={draft.siteName}
+              onChange={(e) => setDraft((prev) => ({ ...prev, siteName: e.target.value }))}
+            />
+            <input
+              type="text"
+              className="mt-0.5 w-full border-b border-dashed border-input bg-transparent text-xs text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+              value={draft.siteDescription}
+              onChange={(e) => setDraft((prev) => ({ ...prev, siteDescription: e.target.value }))}
+            />
+          </>
+        ) : (
+          <>
+            <h3 className="text-sm font-semibold">{blueprint.siteName}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">{blueprint.siteDescription}</p>
+          </>
+        )}
       </div>
 
       <div className="space-y-3 px-4 py-3">
@@ -164,21 +183,23 @@ export function BlueprintCard({
           )}
         </div>
 
-        {/* Pages */}
-        <div className="flex items-start gap-2">
-          <FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-          <span className="mt-0.5 w-14 shrink-0 text-xs font-medium text-muted-foreground">Pages</span>
-          <div className="flex flex-wrap gap-1">
-            {pages.map((page) => (
-              <span
-                key={page.filename}
-                className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs"
-              >
-                {page.filename.replace('.html', '')}
-              </span>
-            ))}
+        {/* Pages (hidden for single-page sites) */}
+        {pages.length > 1 && (
+          <div className="flex items-start gap-2">
+            <FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <span className="mt-0.5 w-14 shrink-0 text-xs font-medium text-muted-foreground">Pages</span>
+            <div className="flex flex-wrap gap-1">
+              {pages.map((page) => (
+                <span
+                  key={page.filename}
+                  className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs"
+                >
+                  {page.filename.replace('.html', '')}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content Strategy */}
         <div className="flex items-center gap-2">
@@ -214,7 +235,7 @@ export function BlueprintCard({
       {/* Actions */}
       <div className="flex items-center gap-2 border-t px-4 py-3">
         <Button size="sm" onClick={onApprove} disabled={disabled || isEditing}>
-          Generate Pages
+          {pages.length === 1 ? 'Generate Site' : 'Generate Pages'}
         </Button>
         {isEditing ? (
           <Button size="sm" variant="outline" onClick={handleDone}>

@@ -1,16 +1,9 @@
-import type { DesignBrief } from '@/lib/design-brief/types';
 import { getSystemPromptParts, type SystemPromptParts } from '@/lib/prompts/system-prompt';
 import { buildTemporalContext, resolvePreferredTimeZone } from '@/lib/prompts/temporal-context';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
-import { resolveMaxOutputTokens as resolveMaxTokens } from '@/lib/chat/constants';
+import { resolveMaxOutputTokens as resolveMaxTokens, MAX_OUTPUT_SAFETY_CEILING } from '@/lib/chat/constants';
 import { ChatRequestError } from '@/lib/chat/errors';
-
-interface DesignBriefInput {
-  brief: DesignBrief;
-  sharedStyles: string;
-  headTags: string;
-}
 
 interface ResolveChatExecutionInput {
   provider: string;
@@ -19,7 +12,6 @@ interface ResolveChatExecutionInput {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   currentFiles?: Record<string, string>;
-  designBriefContext?: DesignBriefInput;
 }
 
 interface ResolvedChatExecution {
@@ -37,7 +29,6 @@ export async function resolveChatExecution({
   savedTimeZone,
   browserTimeZone,
   currentFiles,
-  designBriefContext,
 }: ResolveChatExecutionInput): Promise<ResolvedChatExecution> {
   const apiKey = await resolveApiKey(provider);
   if (!apiKey) {
@@ -50,11 +41,11 @@ export async function resolveChatExecution({
   }
 
   const resolvedMax = resolveMaxTokens(providerConfig, model);
-  const maxOutputTokens = clientMaxTokens ? Math.min(clientMaxTokens, resolvedMax) : resolvedMax;
+  const maxOutputTokens = Math.min(clientMaxTokens || resolvedMax, MAX_OUTPUT_SAFETY_CEILING);
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, designBriefContext);
+  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext);
   const systemPrompt = systemPromptParts.stable + '\n' + systemPromptParts.dynamic;
   const modelInstance = providerConfig.createModel(apiKey, model);
 

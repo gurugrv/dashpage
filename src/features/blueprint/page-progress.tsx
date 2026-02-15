@@ -40,7 +40,9 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
               ? 'Preparing shared styles & components...'
               : isRetrying
                 ? `Retrying failed pages (${currentPage} of ${totalPages})`
-                : `Generating pages (${currentPage} of ${totalPages})`}
+                : totalPages === 1
+                  ? 'Generating your site...'
+                  : `Generating pages (${currentPage} of ${totalPages})`}
           </span>
           {onCancel && (
             <Button size="xs" variant="ghost" onClick={onCancel}>

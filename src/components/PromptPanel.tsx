@@ -38,8 +38,6 @@ interface PromptPanelProps {
   hasPartialMessage?: boolean;
   onContinueGeneration?: () => void;
   // Blueprint props
-  blueprintMode?: boolean;
-  onBlueprintModeChange?: (enabled: boolean) => void;
   isBlueprintBusy?: boolean;
   blueprintPhase?: BlueprintPhase;
   blueprint?: Blueprint | null;
@@ -74,8 +72,6 @@ export function PromptPanel({
   onOpenConversations,
   hasPartialMessage,
   onContinueGeneration,
-  blueprintMode,
-  onBlueprintModeChange,
   isBlueprintBusy,
   blueprintPhase,
   blueprint,
@@ -100,9 +96,6 @@ export function PromptPanel({
         availableProviders={availableProviders}
         onOpenSettings={onOpenSettings}
         onOpenConversations={onOpenConversations}
-        blueprintMode={blueprintMode}
-        onBlueprintModeChange={onBlueprintModeChange}
-        isBlueprintBusy={isBlueprintBusy}
       />
 
       <ScrollArea className="flex-1">

@@ -1,6 +1,5 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
-import type { DesignBrief } from '@/lib/design-brief/types';
 import { generateManifest } from '@/lib/prompts/manifest/generate-manifest';
 
 export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
@@ -95,37 +94,6 @@ Make a strong first impression — the design should feel polished and intention
 <color_inspiration>
 Color mood for this project: "${styleDirection}" — use this as a starting mood, then adapt to fit the user's actual request. Do NOT use this literally if it conflicts with the subject matter.
 </color_inspiration>`;
-}
-
-export function buildDesignBriefBlock(brief?: DesignBrief, sharedStyles?: string, headTags?: string): string {
-  if (!brief) return '';
-
-  return `\n<design_system>
-## Design System (MANDATORY)
-Use these exact design tokens. Do NOT invent your own colors or fonts.
-
-CSS Custom Properties (already in <head> via styles.css):
-  --color-primary: ${brief.primaryColor}
-  --color-secondary: ${brief.secondaryColor}
-  --color-accent: ${brief.accentColor}
-  --color-bg: ${brief.backgroundColor}
-  --color-surface: ${brief.surfaceColor}
-  --color-text: ${brief.textColor}
-  --color-text-muted: ${brief.textMutedColor}
-
-Typography: "${brief.headingFont}" for headings, "${brief.bodyFont}" for body
-Border Radius: ${brief.borderRadius}
-Mood: ${brief.mood}
-Tone: ${brief.tone}
-Primary CTA: "${brief.primaryCTA}"
-
-Use Tailwind classes with these CSS variables:
-  bg-[var(--color-primary)], text-[var(--color-text)], bg-[var(--color-surface)], etc.
-
-The styles.css file and Google Fonts <head> tags are already provided — include them in your HTML.
-${headTags ? `\nHead tags to include:\n${headTags}` : ''}
-${sharedStyles ? `\nstyles.css content (include as styles.css in writeFiles):\n${sharedStyles}` : ''}
-</design_system>`;
 }
 
 export function buildTemporalBlock(temporalContext?: TemporalContext): string {

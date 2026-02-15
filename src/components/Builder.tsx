@@ -19,10 +19,7 @@ import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-
 import { useBlueprintModelConfig } from '@/features/settings/use-blueprint-model-config';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
 import { useBlueprintGeneration } from '@/hooks/useBlueprintGeneration';
-import type { Blueprint, BlueprintDesignSystem } from '@/lib/blueprint/types';
-import type { DesignBrief } from '@/lib/design-brief/types';
-import { detectMultiPageIntent } from '@/lib/blueprint/detect-multi-page';
-import { generateSharedStyles } from '@/lib/blueprint/generate-shared-styles';
+import type { Blueprint } from '@/lib/blueprint/types';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
@@ -83,7 +80,6 @@ export function Builder() {
   const [input, setInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasPartialMessage, setHasPartialMessage] = useState(false);
-  const [blueprintMode, setBlueprintMode] = useState(false);
   const [resumableState, setResumableState] = useState<ResumableGenerationState | null>(null);
 
   // Sync active conversation with URL
@@ -344,51 +340,18 @@ export function Builder() {
         streamingTextRef.current = '';
         setHasPartialMessage(false);
 
-        // Design brief for initial prompt (single-page only)
-        let designBriefContext: { brief: DesignBrief; sharedStyles: string; headTags: string } | undefined;
-        if (!detectMultiPageIntent(promptToSubmit)) {
-          try {
-            const briefRes = await fetch('/api/design-brief/generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                prompt: promptToSubmit,
-                provider: effectiveSelectedProvider,
-                model: effectiveSelectedModel,
-                savedTimeZone: getSavedTimeZone(),
-                browserTimeZone: getBrowserTimeZone(),
-              }),
-            });
-            if (briefRes.ok) {
-              const { brief } = await briefRes.json() as { brief: DesignBrief };
-              const { stylesCss, headTags } = generateSharedStyles(brief as unknown as BlueprintDesignSystem);
-              designBriefContext = { brief, sharedStyles: stylesCss, headTags };
-            }
-          } catch (err) {
-            console.warn('Design brief generation failed, continuing without:', err);
-          }
-        }
-
-        await sendMessage(
-          { text: promptToSubmit },
-          {
-            body: {
-              currentFiles: currentFilesRef.current,
-              provider: effectiveSelectedProvider,
-              model: effectiveSelectedModel,
-              maxOutputTokens: resolveMaxOutputTokens(),
-              savedTimeZone: getSavedTimeZone(),
-              browserTimeZone: getBrowserTimeZone(),
-              conversationId: conversation.id,
-              designBriefContext,
-            },
-          },
-        );
+        // All first-generation requests go through the blueprint pipeline
+        setMessages([{
+          id: `user-${Date.now()}`,
+          role: 'user',
+          parts: [{ type: 'text', text: promptToSubmit }],
+        }]);
+        await generateBlueprint(promptToSubmit, conversation.id);
       };
 
       submitWithPrompt();
     }
-  }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, updateModel, resetProgress, sendMessage, effectiveSelectedProvider, effectiveSelectedModel, resolveMaxOutputTokens]);
+  }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, updateModel, resetProgress, setMessages, generateBlueprint, effectiveSelectedProvider, effectiveSelectedModel]);
 
   useEffect(() => {
     processMessages(messages, isLoading);
@@ -420,9 +383,8 @@ export function Builder() {
       }
     }
 
-    // Blueprint mode: first message triggers blueprint generation instead of chat
-    // Auto-detect multi-page intent OR respect manual toggle
-    const useBlueprint = messages.length === 0 && (blueprintMode || detectMultiPageIntent(input));
+    // All first-generation requests go through the blueprint pipeline
+    const useBlueprint = messages.length === 0;
     if (useBlueprint) {
       const promptText = input;
       setInput('');
@@ -443,33 +405,6 @@ export function Builder() {
     const messageText = input;
     setInput('');
 
-    // Design brief: first message (single-page) gets a lightweight design system
-    let designBriefContext: { brief: DesignBrief; sharedStyles: string; headTags: string } | undefined;
-    if (messages.length === 0) {
-      try {
-        const briefRes = await fetch('/api/design-brief/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: messageText,
-            provider: effectiveSelectedProvider,
-            model: effectiveSelectedModel,
-            savedTimeZone: getSavedTimeZone(),
-            browserTimeZone: getBrowserTimeZone(),
-          }),
-        });
-        if (briefRes.ok) {
-          const { brief } = await briefRes.json() as { brief: DesignBrief };
-          // generateSharedStyles expects BlueprintDesignSystem shape (same fields minus tone/primaryCTA)
-          const { stylesCss, headTags } = generateSharedStyles(brief as unknown as BlueprintDesignSystem);
-          designBriefContext = { brief, sharedStyles: stylesCss, headTags };
-        }
-      } catch (err) {
-        // Non-fatal: proceed without brief — the AI will pick its own design
-        console.warn('Design brief generation failed, continuing without:', err);
-      }
-    }
-
     await sendMessage(
       { text: messageText },
       {
@@ -481,7 +416,6 @@ export function Builder() {
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
           conversationId: activeConversationIdRef.current,
-          designBriefContext,
         },
       },
     );
@@ -489,7 +423,6 @@ export function Builder() {
     input,
     isLoading,
     isBlueprintBusy,
-    blueprintMode,
     activeConversationId,
     setActiveConversationId,
     currentFilesRef,
@@ -724,8 +657,6 @@ export function Builder() {
                   onDiscard={handleDiscardResume}
                 />
               ) : undefined}
-              blueprintMode={blueprintMode}
-              onBlueprintModeChange={setBlueprintMode}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}

@@ -1,22 +1,14 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
-import type { DesignBrief } from '@/lib/design-brief/types';
 import { getBaseRulesSection } from '@/lib/prompts/sections/base-rules';
 import {
   buildCurrentWebsiteBlock,
-  buildDesignBriefBlock,
   buildEditModeBlock,
   buildFirstGenerationBlock,
   buildTemporalBlock,
 } from '@/lib/prompts/sections/context-blocks';
 import { TOOL_OUTPUT_FORMAT_SECTION, SINGLE_PAGE_TOOL_FORMAT_SECTION } from '@/lib/prompts/sections/tool-output-format';
 import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
-
-interface DesignBriefContext {
-  brief: DesignBrief;
-  sharedStyles: string;
-  headTags: string;
-}
 
 export interface SystemPromptParts {
   stable: string;
@@ -31,15 +23,13 @@ const CLOSING_LINE = `IMPORTANT: Be concise in your explanation. Focus on delive
  * Returns the system prompt split into stable (cacheable) and dynamic parts.
  * The stable part contains the identity, base rules, UI/UX guidelines, and tool format —
  * content that rarely changes between requests. The dynamic part contains temporal context,
- * design brief, current website state, and edit mode instructions.
+ * current website state, and edit mode instructions.
  */
 export function getSystemPromptParts(
   currentFiles?: ProjectFiles,
   temporalContext?: TemporalContext,
-  designBriefContext?: DesignBriefContext,
 ): SystemPromptParts {
   const isFirstGeneration = !currentFiles?.['index.html'];
-  const hasDesignBrief = isFirstGeneration && !!designBriefContext;
   const fileCount = Object.keys(currentFiles ?? {}).length;
   const isSinglePageEdit = fileCount === 1;
   const toolSection = isSinglePageEdit ? SINGLE_PAGE_TOOL_FORMAT_SECTION : TOOL_OUTPUT_FORMAT_SECTION;
@@ -50,7 +40,7 @@ ${getBaseRulesSection(isFirstGeneration)}
 ${isFirstGeneration ? '\n' + UI_UX_GUIDELINES_SECTION + '\n' : ''}
 ${toolSection}`;
 
-  const dynamic = `${buildTemporalBlock(temporalContext)}${hasDesignBrief ? buildDesignBriefBlock(designBriefContext.brief, designBriefContext.sharedStyles, designBriefContext.headTags) : buildFirstGenerationBlock(isFirstGeneration)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
+  const dynamic = `${buildTemporalBlock(temporalContext)}${buildFirstGenerationBlock(isFirstGeneration)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
 
 ${CLOSING_LINE}`;
 
@@ -60,8 +50,7 @@ ${CLOSING_LINE}`;
 export function getSystemPrompt(
   currentFiles?: ProjectFiles,
   temporalContext?: TemporalContext,
-  designBriefContext?: DesignBriefContext,
 ): string {
-  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext, designBriefContext);
+  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext);
   return stable + '\n' + dynamic;
 }

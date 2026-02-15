@@ -8,26 +8,6 @@ import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 import type { ToolActivityEvent } from '@/types/build-progress';
 import { prisma } from '@/lib/db/prisma';
 
-interface DesignBriefBody {
-  brief: {
-    primaryColor: string;
-    secondaryColor: string;
-    accentColor: string;
-    backgroundColor: string;
-    surfaceColor: string;
-    textColor: string;
-    textMutedColor: string;
-    headingFont: string;
-    bodyFont: string;
-    borderRadius: string;
-    mood: string;
-    tone: string;
-    primaryCTA: string;
-  };
-  sharedStyles: string;
-  headTags: string;
-}
-
 interface ChatRequestBody {
   messages: Array<Omit<UIMessage, 'id'>>;
   currentFiles?: Record<string, string>;
@@ -37,7 +17,6 @@ interface ChatRequestBody {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   conversationId?: string;
-  designBriefContext?: DesignBriefBody;
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
@@ -144,7 +123,6 @@ export async function POST(req: Request) {
     savedTimeZone,
     browserTimeZone,
     conversationId: clientConversationId,
-    designBriefContext,
   } = body;
 
   try {
@@ -161,7 +139,6 @@ export async function POST(req: Request) {
       savedTimeZone,
       browserTimeZone,
       currentFiles,
-      designBriefContext,
     });
 
     const isAnthropicDirect = resolvedProvider === 'anthropic';
