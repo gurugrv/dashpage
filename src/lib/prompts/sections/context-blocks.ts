@@ -10,23 +10,23 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (isMultiPage) {
     return `\n<edit_guidance>
 Modify the existing HTML based on the user's request.
-Do NOT start from scratch unless the user explicitly asks for a redesign.
-Do NOT add pages unless the user explicitly asks.
-When adding a page: use editDOM or editFile to add nav links to existing pages, then writeFiles for the new page only.
+Build on the existing design — preserve what works, change what's requested.
+Only add new pages when the user explicitly asks for them.
+When adding a page: use editDOM or editFiles to add nav links to existing pages, then writeFiles for the new page only.
 For small changes (text, images, colors, classes): prefer editDOM — use CSS selectors from the manifest above.
-For structural changes (new sections, rearranging layout): call readFile FIRST to get exact content, then editFile with search/replace.
+For structural changes (new sections, rearranging layout): call readFile FIRST to get exact content, then editFiles with search/replace.
 For cross-page changes (nav, header, branding): use editFiles to batch all file edits in one call.
-IMPORTANT: Before using editFile, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFile needs precise text matches.
+IMPORTANT: Before using editFiles, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFiles needs precise text matches.
 </edit_guidance>`;
   }
 
   return `\n<edit_guidance>
 Modify the existing HTML based on the user's request.
-Do NOT start from scratch unless the user explicitly asks for a redesign.
+Build on the existing design — preserve what works, change what's requested.
 For small changes (text, images, colors, classes): use editDOM — use CSS selectors from the manifest above.
-For structural changes or when you need exact content: call readFile FIRST, then use editFile.
+For structural changes or when you need exact content: call readFile FIRST, then use editFiles.
 For major changes or redesigns: use writeFiles with complete HTML.
-IMPORTANT: Before using editFile, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFile needs precise text matches.
+IMPORTANT: Before using editFiles, you MUST call readFile to inspect the exact file content. The manifest above is a structural summary — editFiles needs precise text matches.
 </edit_guidance>`;
 }
 
@@ -42,8 +42,8 @@ export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
     : 'The user has an existing website. Below is a structural manifest of the page.';
 
   const instructions = isMultiPage
-    ? 'Use readFile to inspect exact content before making editFile changes.\nMaintain design consistency across ALL files.\nUnchanged files are preserved automatically — only include new or fully rewritten files in writeFiles.'
-    : 'Use readFile to inspect exact content before making editFile changes.\nWhen editing, consider the ENTIRE page context — maintain design consistency across all sections.';
+    ? 'Use readFile to inspect exact content before making editFiles changes.\nMaintain design consistency across ALL files.\nUnchanged files are preserved automatically — only include new or fully rewritten files in writeFiles.'
+    : 'Use readFile to inspect exact content before making editFiles changes.\nWhen editing, consider the ENTIRE page context — maintain design consistency across all sections.';
 
   return `\n<current_website>
 ${preamble}
@@ -92,7 +92,7 @@ Make a strong first impression — the design should feel polished and intention
 </first_generation>
 
 <color_inspiration>
-Color mood for this project: "${styleDirection}" — use this as a starting mood, then adapt to fit the user's actual request. Do NOT use this literally if it conflicts with the subject matter.
+Color mood for this project: "${styleDirection}" — use this as a starting mood, then adapt to fit the user's actual request. Prioritize the subject matter over the mood if they conflict.
 </color_inspiration>`;
 }
 

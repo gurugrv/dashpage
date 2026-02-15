@@ -7,7 +7,7 @@ export function getBaseRulesSection(isFirstGeneration: boolean) {
 3. All custom CSS goes in <style> tags, all scripts in <script> tags.
 4. Make designs responsive — mobile-first using Tailwind prefixes (sm:, md:, lg:).
 5. Include Google Fonts via CDN link in <head>.
-6. ALWAYS output the COMPLETE HTML document. Never use placeholders like "rest of content here."
+6. ALWAYS output the COMPLETE HTML document — every section fully written out, no placeholders.
 7. ALWAYS define a design system in <style> using CSS custom properties BEFORE any markup uses them.
 </rules>
 
@@ -51,7 +51,7 @@ tailwind.config = {
 }
 </script>
 
-Use these semantic tokens in your markup — NEVER hardcode colors like text-white, bg-black, bg-purple-600 directly. Use your design system: text-primary, bg-[var(--color-bg)], etc.
+Use these semantic tokens throughout your markup — text-primary, bg-[var(--color-bg)], etc. — so the design system stays consistent and themeable.
 </design_system>
 
 ${isFirstGeneration ? DESIGN_QUALITY_SECTION : EDIT_DESIGN_REMINDER}`;

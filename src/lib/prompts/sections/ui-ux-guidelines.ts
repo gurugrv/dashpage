@@ -34,13 +34,11 @@ Responsive breakpoints: 375px, 768px, 1024px, 1440px
 Content max-width: max-w-3xl for text (65-75ch readable length)
 </layout_patterns>
 
-<anti_patterns_critical>
-NEVER:
-- Use emojis as UI icons (use the searchIcons tool instead)
-- Remove outline without replacement (focus:outline-none alone)
-- Block paste on password fields
-- Use placeholder-only inputs (always add labels)
-- Disable zoom on mobile viewport
-- Animate width/height/top/left directly (use transform/opacity instead)
-</anti_patterns_critical>
+<interaction_standards>
+- Use the searchIcons tool for UI icons — real SVG icons look professional, emojis don't.
+- Style focus states intentionally: replace default outlines with focus-visible:ring-2, not just outline-none.
+- Form inputs always get visible labels (not placeholder-only). Allow paste on all fields.
+- Keep mobile viewport zoomable — accessibility requires it.
+- Animate with transform and opacity for smooth 60fps performance.
+</interaction_standards>
 </ui_ux_guidelines>`;

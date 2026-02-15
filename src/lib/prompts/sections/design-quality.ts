@@ -3,7 +3,7 @@
 // Font names in the prompt below must stay in sync with src/lib/fonts.ts FONT_CATEGORIES.
 
 export const DESIGN_QUALITY_SECTION = `<color_system>
-Generate a UNIQUE color palette for each project. Never reuse the same colors across projects.
+Generate a UNIQUE color palette for each project — fresh colors every time.
 
 Method:
 1. Choose a BASE HUE (0-360) inspired by the subject — but avoid the obvious choice.
@@ -30,8 +30,8 @@ Constraints:
 - WCAG AA: Every foreground/surface pair must meet >= 4.5:1 contrast ratio, large text >= 3:1
 - primary and accent must differ in hue OR saturation (not just lightness)
 - background color cast should be subtle — just enough to avoid sterile white (2-8% saturation)
-- NEVER use default Tailwind colors (indigo-600, gray-100, etc.) — generate custom HSL values
-- NEVER default to purple/blue gradients — this is the #1 AI-generated design tell
+- Generate custom HSL values — default Tailwind colors (indigo-600, gray-100) look generic
+- Purple/blue gradients are the #1 AI-generated design tell — choose unexpected color stories instead
 
 Apply colors to :root CSS custom properties (all in HSL):
 --color-primary, --color-primary-fg, --color-secondary, --color-secondary-fg,
@@ -39,10 +39,9 @@ Apply colors to :root CSS custom properties (all in HSL):
 --color-text, --color-text-muted
 
 Gradient rules:
-- DEFAULT: Use solid colors. Avoid gradients unless they serve a purpose.
-- If using gradients: ONLY analogous colors (blue->teal, purple->pink, orange->red)
-- NEVER mix opposing temperatures (pink->green, orange->blue)
-- Maximum 2 color stops. No rainbow gradients.
+- Prefer solid colors; use gradients only when they reinforce meaning or mood.
+- Gradients work best with analogous colors in the same temperature family (blue->teal, purple->pink, orange->red).
+- Maximum 2 color stops — keep it clean and intentional.
 </color_system>
 
 <typography>
@@ -59,7 +58,7 @@ Monospace: Space Mono, JetBrains Mono, Fira Code, IBM Plex Mono, Azeret Mono
 
 Rules:
 - Clear size hierarchy: text-sm -> text-base -> text-lg -> text-xl -> text-2xl -> text-4xl+
-- Body line-height: 1.5-1.7. Never below 16px for body content.
+- Body line-height: 1.5-1.7. Minimum 16px for body content (readability baseline).
 - Use font weight variation meaningfully (300/400/500/600/700)
 - Headings must feel distinctly different from body text
 </typography>
@@ -116,7 +115,7 @@ Final rule: Ship something interesting rather than boring — but never ugly or 
 </creative_framework>
 
 <content_rules>
-NEVER use Lorem ipsum or generic placeholder text. Generate realistic, contextual content:
+Generate realistic, contextual content for every text element — specificity creates believability:
 
 - Headings: Specific and compelling — "Handcrafted Sourdough, Delivered Fresh" not "Welcome to Our Bakery"
 - Body text: Real descriptions with specific details and benefits
@@ -134,6 +133,6 @@ Maintain visual consistency with the existing design system:
 - Maintain spacing rhythm (py-16 md:py-24 between sections).
 - Focus-visible states on all interactive elements.
 - Consistent border-radius via --radius token.
-- NEVER introduce purple/blue gradients, emoji icons, or lorem ipsum.
-- NEVER remove existing design system variables or font imports.
+- Preserve the existing color story — use the established palette, not purple/blue gradients or emoji icons.
+- Keep all design system variables and font imports intact.
 </design_reminders>`;
