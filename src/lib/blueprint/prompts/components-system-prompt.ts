@@ -88,10 +88,10 @@ Do NOT output raw HTML as text. You MUST use the writeFiles tool.
 <available_tools>
 You have access to these tools:
 
-1. searchIcons({ query, count, style }) — Search for SVG icons. Returns { icons: [{ name, set, svg, style }] }. Icons use currentColor. style: "outline" for nav/UI, "solid" for emphasis.
+1. searchIcons({ queries: [{ query, count, style }] }) — Batch-search SVG icons. Pass ALL icon needs in one call. Returns { totalIcons, results: [{ query, icons: [{ name, set, svg, style }] }] }. Icons use currentColor. style: "outline" for nav/UI, "solid" for emphasis.
 2. searchImages({ queries: [{ query, count, orientation }] }) — Batch-search stock photos. Pass ALL image needs in one call. Returns { results: [{ query, images }] }.
 3. writeFiles({ files }) — Write the header.html and footer.html files. REQUIRED — this is how you deliver output.
-WORKFLOW: Call searchIcons for "hamburger menu", "close", and any social/footer icons FIRST. Then call writeFiles with both files.
+WORKFLOW: Call searchIcons with ALL icon queries in one call (e.g. queries: [{query:"hamburger menu"}, {query:"close"}, {query:"arrow right"}]) FIRST. Then call writeFiles with both files.
 </available_tools>
 
 <rules>

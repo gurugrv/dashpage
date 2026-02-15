@@ -49,8 +49,11 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       if (queries) return queries.map(q => q.query).filter(Boolean).join(', ');
       return typeof inp.query === 'string' ? inp.query : undefined;
     }
-    case 'searchIcons':
+    case 'searchIcons': {
+      const queries = inp.queries as Array<{ query?: string }> | undefined;
+      if (queries) return queries.map(q => q.query).filter(Boolean).join(', ');
       return typeof inp.query === 'string' ? inp.query : undefined;
+    }
     case 'fetchUrl':
       return typeof inp.url === 'string' ? inp.url : undefined;
     case 'writeFiles':
@@ -93,6 +96,8 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       return undefined;
     }
     case 'searchIcons': {
+      const total = out.totalIcons as number | undefined;
+      if (total != null) return `${total} icon${total !== 1 ? 's' : ''} found`;
       const icons = out.icons as unknown[] | undefined;
       if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
       return undefined;
