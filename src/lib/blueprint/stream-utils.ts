@@ -3,6 +3,7 @@ export const TOOL_LABELS: Record<string, string> = {
   searchIcons: 'Adding icons',
   fetchUrl: 'Loading content',
   webSearch: 'Researching content',
+  writeFile: 'Writing page',
   writeFiles: 'Writing page',
   editBlock: 'Fixing issues',
   editFiles: 'Fixing issues',
@@ -63,6 +64,10 @@ export function summarizeToolOutput(toolName: string, output: unknown): string |
     }
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
+    case 'writeFile': {
+      const fileName = out.fileName as string | undefined;
+      return fileName ? `Wrote ${fileName}` : 'File written';
+    }
     case 'writeFiles': {
       const fileNames = out.fileNames as string[] | undefined;
       return fileNames ? `Wrote ${fileNames.join(', ')}` : 'Files written';

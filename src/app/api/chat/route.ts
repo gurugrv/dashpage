@@ -106,6 +106,7 @@ function sanitizeToolInputs<T extends { role: string; parts: Array<Record<string
 }
 
 const TOOL_LABELS: Record<string, string> = {
+  writeFile: 'Writing file',
   writeFiles: 'Writing files',
   editBlock: 'Applying edits',
   editFiles: 'Editing files',
@@ -134,6 +135,8 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
     }
     case 'fetchUrl':
       return typeof inp.url === 'string' ? inp.url : undefined;
+    case 'writeFile':
+      return typeof inp.filename === 'string' ? inp.filename : undefined;
     case 'writeFiles':
       if (inp.files && typeof inp.files === 'object') {
         const names = Object.keys(inp.files as Record<string, unknown>);
@@ -182,6 +185,10 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
     }
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
+    case 'writeFile': {
+      const fileName = out.fileName as string | undefined;
+      return fileName ? `Wrote ${fileName}` : 'File written';
+    }
     case 'writeFiles': {
       const fileNames = out.fileNames as string[] | undefined;
       if (fileNames) return `${fileNames.length} file${fileNames.length !== 1 ? 's' : ''} written`;
@@ -291,6 +298,7 @@ export async function POST(req: Request) {
           webSearch: 18,
           fetchUrl: 18,
           readFile: 28,
+          writeFile: 32,
           writeFiles: 32,
           editBlock: 32,
           editFiles: 32,
@@ -301,6 +309,7 @@ export async function POST(req: Request) {
           webSearch: 28,
           fetchUrl: 28,
           readFile: 30,
+          writeFile: 92,
           writeFiles: 92,
           editBlock: 90,
           editFiles: 90,
@@ -386,6 +395,7 @@ export async function POST(req: Request) {
                 debugSession.logToolStarting({ toolName, toolCallId });
 
                 const progressLabels: Record<string, string> = {
+                  writeFile: 'Generating code...',
                   writeFiles: 'Generating code...',
                   editBlock: 'Applying edits...',
                   editFiles: 'Applying edits...',
@@ -455,6 +465,7 @@ export async function POST(req: Request) {
                 }
 
                 const TOOL_END_LABELS: Record<string, string> = {
+                  writeFile: 'Code generated',
                   writeFiles: 'Code generated',
                   searchImages: 'Images found',
                   searchIcons: 'Icons found',
