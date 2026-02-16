@@ -14,9 +14,9 @@ const iconQuerySchema = z.object({
     .default(3)
     .describe('Number of icon results to return (1-5). Default 3.'),
   style: z
-    .enum(['outline', 'solid'])
+    .string()
     .default('outline')
-    .describe('Icon style. outline for stroke-based icons (nav, UI chrome), solid for filled icons (badges, emphasis, active states).'),
+    .describe('Icon style: "outline" or "solid". outline for stroke-based icons (nav, UI chrome), solid for filled icons (badges, emphasis, active states).'),
 });
 
 export function createIconTools() {
@@ -34,7 +34,10 @@ export function createIconTools() {
       execute: async ({ queries }) => {
         const results = queries.map(({ query, count, style }) => {
           try {
-            const icons = searchIcons(query, style, count);
+            // Sanitize garbled model output (e.g. "outline旋" -> "outline")
+            const cleanedStyle = String(style ?? 'outline').replace(/[^\x20-\x7E]/g, '').trim().toLowerCase();
+            const safeStyle = cleanedStyle === 'solid' ? 'solid' as const : 'outline' as const;
+            const icons = searchIcons(query, safeStyle, count);
 
             if (icons.length === 0) {
               return {
