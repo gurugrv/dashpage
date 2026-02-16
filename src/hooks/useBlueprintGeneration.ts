@@ -200,6 +200,10 @@ export function useBlueprintGeneration({
     sharedStylesRef.current = null;
   }, [cancelPendingRafs]);
 
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   /** Restore the awaiting-approval state so the BlueprintCard is shown again after refresh. */
   const restoreAwaitingApproval = useCallback((blueprintData: Blueprint) => {
     setBlueprint(blueprintData);
@@ -684,5 +688,6 @@ export function useBlueprintGeneration({
     updateBlueprint,
     cancel,
     reset,
+    clearError,
   };
 }

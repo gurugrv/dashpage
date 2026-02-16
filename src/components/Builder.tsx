@@ -125,6 +125,7 @@ export function Builder() {
     blueprintStreamingCode,
     cancel: cancelBlueprint,
     reset: resetBlueprint,
+    clearError: clearBlueprintError,
   } = useBlueprintGeneration({
     resolveStepModel: resolveBlueprintStepModel,
     savedTimeZone: getSavedTimeZone(),
@@ -145,6 +146,7 @@ export function Builder() {
     sendMessage,
     stop,
     error,
+    clearError,
     status,
     regenerate,
   } = useChat({
@@ -371,6 +373,9 @@ export function Builder() {
     event.preventDefault();
     if (!input.trim() || isLoading || isBlueprintBusy) return;
 
+    clearError();
+    clearBlueprintError();
+
     let conversationId = activeConversationId;
 
     if (!conversationId) {
@@ -441,6 +446,8 @@ export function Builder() {
     rename,
     updateModel,
     resetProgress,
+    clearError,
+    clearBlueprintError,
     sendMessage,
     setMessages,
     generateBlueprint,
