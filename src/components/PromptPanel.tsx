@@ -9,11 +9,13 @@ import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintG
 import type { IntakePhase } from '@/hooks/useIntake';
 import type { Blueprint } from '@/lib/blueprint/types';
 import type { IntakeQuestion, BusinessProfileData, PlacesEnrichment } from '@/lib/intake/types';
+import type { StoredBusinessProfile } from '@/hooks/useBusinessProfiles';
 import { BlueprintCard } from '@/features/blueprint/blueprint-card';
 import { PageProgress } from '@/features/blueprint/page-progress';
 import { IntakeQuestionCard } from '@/features/intake/intake-question-card';
 import { IntakeLoadingIndicator } from '@/features/intake/intake-loading';
 import { BusinessProfileSummary } from '@/features/intake/business-profile-summary';
+import { BusinessProfilePicker } from '@/features/intake/business-profile-picker';
 import { ErrorBanner } from '@/features/prompt/error-banner';
 import { InterruptedBanner } from '@/features/prompt/interrupted-banner';
 import { MessageList } from '@/features/prompt/message-list';
@@ -48,11 +50,14 @@ interface PromptPanelProps {
   intakeQuestions?: IntakeQuestion[];
   intakeAnswers?: Record<string, string>;
   intakeProfile?: BusinessProfileData | null;
+  intakeExistingProfiles?: (BusinessProfileData & { id?: string })[];
   intakeAllAnswered?: boolean;
   onIntakeAnswer?: (questionId: string, value: string) => void;
   onIntakeAddressAnswer?: (questionId: string, address: string, enrichment: PlacesEnrichment) => void;
   onIntakeEvaluate?: () => void;
   onIntakeConfirm?: (profile: BusinessProfileData) => void;
+  onIntakePickProfile?: (profile: StoredBusinessProfile) => void;
+  onIntakeCreateNew?: () => void;
   // Blueprint props
   isBlueprintBusy?: boolean;
   blueprintPhase?: BlueprintPhase;
@@ -92,11 +97,14 @@ export function PromptPanel({
   intakeQuestions,
   intakeAnswers,
   intakeProfile,
+  intakeExistingProfiles,
   intakeAllAnswered,
   onIntakeAnswer,
   onIntakeAddressAnswer,
   onIntakeEvaluate,
   onIntakeConfirm,
+  onIntakePickProfile,
+  onIntakeCreateNew,
   isBlueprintBusy,
   blueprintPhase,
   blueprint,
@@ -136,6 +144,14 @@ export function PromptPanel({
           />
 
           {/* Intake flow UI */}
+          {intakePhase === 'picking' && intakeExistingProfiles && intakeExistingProfiles.length > 0 && onIntakePickProfile && onIntakeCreateNew && (
+            <BusinessProfilePicker
+              profiles={intakeExistingProfiles as StoredBusinessProfile[]}
+              onSelect={onIntakePickProfile}
+              onCreateNew={onIntakeCreateNew}
+            />
+          )}
+
           {(intakePhase === 'analyzing' || intakePhase === 'evaluating') && (
             <IntakeLoadingIndicator />
           )}

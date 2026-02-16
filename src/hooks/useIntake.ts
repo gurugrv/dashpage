@@ -11,6 +11,7 @@ import type {
 
 export type IntakePhase =
   | 'idle'           // Not started
+  | 'picking'        // Showing existing profiles to choose from
   | 'analyzing'      // AI analyzing prompt
   | 'asking'         // Showing questions to user
   | 'evaluating'     // AI checking if enough data
@@ -31,13 +32,12 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
   const [placesEnrichment, setPlacesEnrichment] = useState<PlacesEnrichment | null>(null);
   const [questionsAskedCount, setQuestionsAskedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [existingProfiles, setExistingProfiles] = useState<(BusinessProfileData & { id?: string })[]>([]);
   const originalPromptRef = useRef<string>('');
 
-  // Start intake: POST /api/intake/analyze
-  const startIntake = useCallback(async (prompt: string) => {
-    setError(null);
+  // Proceed with AI analysis (called after picker or when no existing profiles)
+  const runAnalysis = useCallback(async (prompt: string) => {
     setPhase('analyzing');
-    originalPromptRef.current = prompt;
 
     try {
       const res = await fetch('/api/intake/analyze', {
@@ -81,6 +81,34 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
       setPhase('idle');
     }
   }, [provider, model]);
+
+  // Start intake: check for existing profiles, then analyze
+  const startIntake = useCallback(async (prompt: string) => {
+    setError(null);
+    originalPromptRef.current = prompt;
+
+    // Check if there are existing business profiles
+    try {
+      const profilesRes = await fetch('/api/business-profiles');
+      if (profilesRes.ok) {
+        const profiles = await profilesRes.json();
+        if (profiles.length > 0) {
+          setExistingProfiles(profiles);
+          setPhase('picking');
+          return;
+        }
+      }
+    } catch {
+      // Continue to analysis if profiles fetch fails
+    }
+
+    await runAnalysis(prompt);
+  }, [runAnalysis]);
+
+  // Called when user selects "Create new" from the picker
+  const skipPickerAndAnalyze = useCallback(async () => {
+    await runAnalysis(originalPromptRef.current);
+  }, [runAnalysis]);
 
   // Handle answer submission for a question
   const submitAnswer = useCallback((questionId: string, value: string) => {
@@ -242,19 +270,27 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
   const allCurrentQuestionsAnswered = questions.length > 0 &&
     questions.every((q) => !q.required || answers[q.id]?.trim());
 
+  // Also reset existing profiles
+  const resetFull = useCallback(() => {
+    reset();
+    setExistingProfiles([]);
+  }, [reset]);
+
   return {
     phase,
     questions,
     answers,
     businessProfile,
+    existingProfiles,
     error,
     allCurrentQuestionsAnswered,
     startIntake,
+    skipPickerAndAnalyze,
     submitAnswer,
     submitAddressAnswer,
     evaluateAndContinue,
     confirmProfile,
     selectExistingProfile,
-    reset,
+    reset: resetFull,
   };
 }

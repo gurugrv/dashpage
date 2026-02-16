@@ -666,6 +666,17 @@ export function Builder() {
     }
   }, [intake, activeConversationId]);
 
+  const handleIntakePickProfile = useCallback((profile: import('@/hooks/useBusinessProfiles').StoredBusinessProfile) => {
+    const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
+    if (convId) {
+      intake.selectExistingProfile(profile, convId);
+    }
+  }, [intake, activeConversationId]);
+
+  const handleIntakeCreateNew = useCallback(() => {
+    intake.skipPickerAndAnalyze();
+  }, [intake]);
+
   return (
     <>
       <ConversationSidebar
@@ -727,11 +738,14 @@ export function Builder() {
               intakeQuestions={intake.questions}
               intakeAnswers={intake.answers}
               intakeProfile={intake.businessProfile}
+              intakeExistingProfiles={intake.existingProfiles}
               intakeAllAnswered={intake.allCurrentQuestionsAnswered}
               onIntakeAnswer={handleIntakeAnswer}
               onIntakeAddressAnswer={handleIntakeAddressAnswer}
               onIntakeEvaluate={handleIntakeEvaluate}
               onIntakeConfirm={handleIntakeConfirm}
+              onIntakePickProfile={handleIntakePickProfile}
+              onIntakeCreateNew={handleIntakeCreateNew}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}
