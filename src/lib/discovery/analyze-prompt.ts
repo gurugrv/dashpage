@@ -20,8 +20,8 @@ RULES:
   - Service business: services list, service area, certifications
   - Professional services: specializations, team, case studies
   - Generic: business hours, email, key services
-- Use "select" type when the user should pick ONE option from a list (e.g., cuisine type, business category).
-- Use "multi_select" type when the user can pick MULTIPLE options from a list (e.g., services offered, insurance accepted, product categories).
+- Use "select" type ONLY when exactly one option must be chosen (e.g., cuisine type, business category, primary industry).
+- Use "multi_select" type whenever the user could reasonably pick MORE THAN ONE option. This includes: services offered, insurance accepted, product categories, specializations, amenities, features, payment methods, languages spoken, certifications, etc. When in doubt, prefer multi_select over select.
 - Use "textarea" for open-ended info (e.g., "describe your services").
 - Total questions: 3-7 depending on business complexity.
 - For non-business sites (portfolio, hobby, personal blog), set isBusinessSite=false and return empty questions array.
@@ -57,6 +57,26 @@ export async function analyzePromptForDiscovery(
     debug?.logResponse({ response: result.text, status: 'error', finishReason: 'no-structured-output' });
     debug?.logGenerationSummary?.({ finishReason: 'no-structured-output', hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: result.text?.length });
     return { isBusinessSite: true, detectedName: null, questions: [] };
+  }
+
+  // Post-process: fix LLMs that return "select" for questions that should be "multi_select"
+  const ALWAYS_MULTI_SELECT_IDS = new Set([
+    'services', 'specializations', 'insurance', 'amenities', 'features',
+    'product_categories', 'categories', 'certifications', 'payment_methods',
+    'languages', 'menu_highlights', 'brands', 'treatments', 'programs',
+  ]);
+
+  for (const q of result.output.questions) {
+    if (q.type === 'select' && q.options && q.options.length > 0) {
+      // Force multi_select for known multi-pick question IDs
+      if (ALWAYS_MULTI_SELECT_IDS.has(q.id)) {
+        q.type = 'multi_select';
+      }
+      // Heuristic: select with 5+ options is likely multi_select
+      else if (q.options.length >= 5) {
+        q.type = 'multi_select';
+      }
+    }
   }
 
   const outputJson = JSON.stringify(result.output, null, 2);
