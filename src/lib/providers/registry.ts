@@ -1,4 +1,5 @@
 import { anthropicProvider } from '@/lib/providers/configs/anthropic';
+import { cerebrasProvider } from '@/lib/providers/configs/cerebras';
 import { deepinfraProvider } from '@/lib/providers/configs/deepinfra';
 import { googleProvider } from '@/lib/providers/configs/google';
 import { minimaxProvider } from '@/lib/providers/configs/minimax';
@@ -15,6 +16,7 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
   Anthropic: anthropicProvider,
   Google: googleProvider,
   OpenAI: openAIProvider,
+  Cerebras: cerebrasProvider,
   DeepInfra: deepinfraProvider,
   MiniMax: minimaxProvider,
   Moonshot: moonshotProvider,
