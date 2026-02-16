@@ -113,6 +113,57 @@ const STYLE_SEEDS: StyleSeed[] = [
   { mood: 'Norwegian fjord', hueRange: '200-230', strategy: 'LIGHT', vibe: 'steel blue water, snow white, deep pine green' },
 ];
 
+export const LAYOUT_ARCHETYPES_SECTION = `<layout_archetypes>
+Choose a layout archetype that fits the content. Vary your choices across generations — don't default to the same archetype every time.
+
+bento-grid: Asymmetric grid tiles with varying column/row spans. Mix large feature tiles (span 2-3 cols) with small detail tiles. NOT a uniform card grid.
+  CSS: display:grid; grid-template-columns:repeat(4,1fr); grid-column:span 2, grid-row:span 2 for variety. Gap 1rem-1.5rem.
+
+split-screen: Side-by-side contrasting panels (50/50 or 60/40). Hero splits image and text. Sections alternate which side has content vs media.
+  CSS: display:grid; grid-template-columns:1fr 1fr (or 3fr 2fr). On mobile: stack vertically. Contrasting bg colors per side.
+
+editorial-magazine: Large hero image with overlaid text, multi-column body text, pull quotes that break columns, varied image sizes. Magazine spread feel.
+  CSS: column-count:2 for text; column-span:all for pull quotes. Mix full-bleed images with contained text. Vary font sizes dramatically.
+
+immersive-scroll: Full-viewport sections (min-h-screen) creating a narrative scroll journey. Each section is a complete visual moment.
+  CSS: Each section min-h-screen with flex centering. Snap optional: scroll-snap-type:y mandatory. Intersection Observer for reveals.
+
+asymmetric-hero: Hero content pushed off-center. Overlapping elements create depth — images breaking container bounds, text overlaid with offset.
+  CSS: Hero grid: grid-template-columns:1fr 1.5fr. Overlap with negative margins and z-index.
+
+card-mosaic: Mixed card sizes in masonry-like flow. Some tall, some wide, some small. NOT uniform heights.
+  CSS: CSS columns (column-count:3, break-inside:avoid) OR grid with grid-auto-rows:minmax(200px,auto) and varying spans.
+
+diagonal-sections: Angled dividers between sections using clip-path. Alternating angles. Background colors shift across diagonals.
+  CSS: clip-path:polygon(0 0,100% 0,100% 85%,0 100%). Alternate angle direction. Negative margin-top to overlap clipped edges.
+
+centered-minimal: Dramatic whitespace, single-column focus. Content narrow (max-w-2xl). Large type contrasts with small body. The emptiness IS the design.
+  CSS: max-w-2xl mx-auto. Huge vertical padding (py-32+). Very large headings (text-6xl+) with normal body text.
+
+horizontal-scroll-showcase: Key sections scroll horizontally. Portfolio items, features, or testimonials in a sideways strip with snap points.
+  CSS: overflow-x:auto; scroll-snap-type:x mandatory; display:flex. Children: flex:0 0 80vw; scroll-snap-align:start.
+
+glassmorphism-layers: Frosted glass cards over rich gradient or image backgrounds. Translucent panels with blur. Depth through layered transparency.
+  CSS: backdrop-filter:blur(16px); background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2). Rich bg behind.
+
+mega-footer-architecture: Minimal above-the-fold content. Footer is a dense, multi-column information hub. Footer IS a design feature.
+  CSS: Footer grid with 4-5 columns, py-20+. Dark bg contrasting with page. Above-fold: minimal, single CTA.
+
+kinetic-typography-hero: Oversized animated text as primary visual. Minimal imagery — words ARE the design. Text scales, rotates, or reveals.
+  CSS: text-8xl md:text-9xl, font-weight:900. CSS @keyframes for text animation. mix-blend-mode for text over backgrounds.
+
+overlapping-collage: Scattered, rotated elements in art-directed chaos. Images and cards overlap intentionally. Handmade, editorial feel.
+  CSS: position:absolute/relative with manual offsets. transform:rotate(-3deg to 5deg). z-index layering. Negative margins.
+
+dashboard-inspired: Data visualization aesthetic for non-dashboard sites. Stat counters, progress rings, metric cards. Information feels quantified.
+  CSS: Grid of stat cards with large numbers (text-5xl font-bold). SVG circles for progress rings. Monospace font for data.
+
+sticky-reveal-panels: Sections pin in place and layer over each other on scroll. Card-stacking reveal effect.
+  CSS: Each section: position:sticky; top:0; min-h-screen. Increment z-index. Box-shadow on top edge. Opaque backgrounds.
+
+Pick the archetype that best matches the content's purpose, then adapt it — not every section needs to follow it, but the overall page structure should reflect it.
+</layout_archetypes>`;
+
 export function getRandomStyleSeed(): StyleSeed {
   return STYLE_SEEDS[Math.floor(Math.random() * STYLE_SEEDS.length)];
 }
@@ -199,21 +250,19 @@ export function buildFirstGenerationBlock(isFirstGeneration: boolean, userPrompt
 
   return `\n<first_generation>
 This is a NEW website. Your design seed for this project:
-  Mood: "${seed.mood}" | Base hue zone: ${seed.hueRange}° | Strategy bias: ${seed.strategy}
+
+DESIGN SEED:
+  Mood: "${seed.mood}" | Hue zone: ${seed.hueRange}° | Strategy: ${seed.strategy}
   Visual feel: ${seed.vibe}
 
-Fuse this aesthetic with the user's subject matter — don't discard it, blend it.
-A "${seed.mood}" law firm, a "${seed.mood}" bakery, a "${seed.mood}" SaaS dashboard — each would be different but carry that visual DNA in its palette and typography choices.
+Choose a layout archetype from layout_archetypes above that best suits this content. Fuse the design seed's aesthetic with the archetype's structure.
 
 Steps:
-1. State what you'll build and how the design seed influences your approach
-2. Declare your exact palette: list all 7 HSL color values you'll use (primary, secondary, accent, bg, surface, text, text-muted) and explain why each fits the mood. Start from the seed's hue zone (${seed.hueRange}°), apply the ${seed.strategy} strategy ranges from color_system, then adjust to fit the subject
-3. Pick a font pairing that reinforces the mood — explain the contrast principle (e.g., geometric + humanist, display + workhorse)
-4. Use the writeFiles tool with your design system defined FIRST in <style>, using your declared palette values in :root {} custom properties
+1. Define your :root CSS custom properties (7 HSL colors from the seed's strategy ranges + font families + shadows + radius) and Tailwind config
+2. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
+3. After tool calls, add a 1-sentence summary
 
-If the user's request explicitly names multiple pages, include all requested pages in a single writeFiles call. Each page must be a complete standalone HTML document. Otherwise, generate a single index.html.
-
-Make a strong first impression — the design should feel polished and intentional, not templated.
+Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce.
 </first_generation>`;
 }
 

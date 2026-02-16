@@ -6,6 +6,7 @@ import {
   buildEditModeBlock,
   buildFirstGenerationBlock,
   buildTemporalBlock,
+  LAYOUT_ARCHETYPES_SECTION,
 } from '@/lib/prompts/sections/context-blocks';
 import { TOOL_OUTPUT_FORMAT_SECTION } from '@/lib/prompts/sections/tool-output-format';
 import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
@@ -19,6 +20,18 @@ const IDENTITY_LINE = `You are WebBuilder, an expert web designer and developer 
 
 const CLOSING_LINE = `IMPORTANT: Be concise in your explanation. Focus on delivering excellent HTML.`;
 
+const CREATIVE_DIRECTION_SECTION = `<creative_direction>
+Fight generic "AI-generated" aesthetics actively. Every design choice should feel intentional and distinctive.
+
+Typography: Pick distinctive, lesser-known Google Fonts. NEVER default to Inter, DM Sans, Roboto, Open Sans, Poppins, Montserrat, Space Grotesk, or system fonts. The Google Fonts catalog has 1700+ options — explore it.
+Color: Dominant colors with sharp accents outperform timid, evenly-distributed palettes. Draw from real-world aesthetics (vintage travel posters, Japanese print design, mid-century modern, brutalism) not SaaS templates.
+Backgrounds: Create atmosphere — layer CSS gradients, use geometric SVG patterns, add contextual texture. NEVER default to plain white/gray backgrounds.
+Layout: Follow your assigned layout archetype. Break grid monotony with the techniques in layout_techniques. A predictable 3-column card grid is the hallmark of AI-generated design.
+Motion: Focus on high-impact moments — one orchestrated page load with staggered reveals creates more delight than scattered micro-interactions.
+
+Vary between light and dark themes, different font pairings, different aesthetic moods across generations. The best designs feel inevitable in hindsight but surprising at first glance.
+</creative_direction>`;
+
 /**
  * Returns the system prompt split into stable (cacheable) and dynamic parts.
  * The stable part contains the identity, base rules, UI/UX guidelines, and tool format —
@@ -29,6 +42,8 @@ export function getSystemPromptParts(
   currentFiles?: ProjectFiles,
   temporalContext?: TemporalContext,
   userPrompt?: string,
+  provider?: string,
+  modelId?: string,
 ): SystemPromptParts {
   const isFirstGeneration = !currentFiles?.['index.html'];
   const toolSection = TOOL_OUTPUT_FORMAT_SECTION;
@@ -37,6 +52,8 @@ export function getSystemPromptParts(
 
 ${getBaseRulesSection(isFirstGeneration)}
 ${UI_UX_GUIDELINES_SECTION}
+${CREATIVE_DIRECTION_SECTION}
+${LAYOUT_ARCHETYPES_SECTION}
 ${toolSection}`;
 
   const dynamic = `${buildTemporalBlock(temporalContext)}${buildFirstGenerationBlock(isFirstGeneration, userPrompt)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
@@ -50,7 +67,9 @@ export function getSystemPrompt(
   currentFiles?: ProjectFiles,
   temporalContext?: TemporalContext,
   userPrompt?: string,
+  provider?: string,
+  modelId?: string,
 ): string {
-  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext, userPrompt);
+  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext, userPrompt, provider, modelId);
   return stable + '\n' + dynamic;
 }

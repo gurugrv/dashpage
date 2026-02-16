@@ -72,8 +72,10 @@ If a tool returns success: false, use these fallbacks:
 - searchIcons failed → use a simple inline SVG or Unicode symbol
 - editBlock failed (block not found) → check error for available blocks, retry with correct blockId. If targeting a component, edit the _components/ file instead. If no blocks exist, use selector mode.
 - editFiles failed (search text not found) → check bestMatch for closest match. After 2 failures on same file, use writeFiles.
+- writeFiles/writeFile failed → fix the issue the error describes and retry ONLY the file write. Do NOT re-call searchImages, searchIcons, webSearch, or fetchUrl — their results are already in the conversation. Use the URLs and data you already have.
 - webSearch failed → proceed using your own knowledge
 - fetchUrl failed → use the search result snippets instead
+CRITICAL: When retrying after a failed tool, NEVER re-call tools that already succeeded. Resource tools (searchImages, searchIcons, webSearch, fetchUrl) return results that persist in the conversation — reuse them directly.
 Always have a fallback path — tool failures should not halt generation.
 </tool_error_handling>
 
@@ -84,7 +86,7 @@ Always have a fallback path — tool failures should not halt generation.
 - Inter-page links: use plain relative filenames (href="about.html").
 - EVERY top-level semantic element (nav, header, main, section, footer, aside) MUST have a data-block attribute.
 - For colors: generate a unique palette per the color_system rules, apply values to :root CSS custom properties.
-- For images: call searchImages ONCE with all queries. Use DIFFERENT queries per image for variety.
+- For images: call searchImages ONCE with all queries. Each query must describe a DIFFERENT subject — vary the scene, not just adjectives. BAD: "modern dental clinic interior", "dental clinic reception area" (same subject). GOOD: "dentist examining patient", "woman smiling bright teeth", "dental tools on tray" (distinct scenes). Duplicate-subject queries are rejected and waste a round-trip.
 - For icons: call searchIcons ONCE with all queries. Use "outline" style for UI chrome, "solid" for emphasis.
 - Before calling a tool, explain what you'll build/change in 2-3 sentences max.
 - After tool calls complete, add a 1-sentence summary of what was delivered.
