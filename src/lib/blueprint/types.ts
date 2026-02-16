@@ -1,11 +1,59 @@
 import { z } from 'zod';
 
+// Section enrichment enums — used by blueprint generation and page generation
+export const sectionTypeEnum = z.enum([
+  'hero', 'features', 'testimonials', 'pricing', 'faq', 'stats', 'team',
+  'gallery', 'form', 'timeline', 'comparison', 'cta-banner', 'case-study',
+  'process-steps', 'logo-cloud', 'video-showcase', 'map-contact',
+  'blog-grid', 'portfolio-grid', 'before-after', 'scrollytelling',
+  'mega-menu-preview', 'calculator-tool', 'custom'
+]);
+
+export const layoutHintEnum = z.enum([
+  'bento-grid', 'split-screen', 'card-mosaic', 'asymmetric',
+  'centered-minimal', 'horizontal-scroll', 'diagonal', 'full-bleed',
+  'stacked', 'sticky-stack', 'overlapping-layers', 'cinematic-fullscreen',
+  'alternating-sides', 'custom'
+]);
+
+export const mediaTypeEnum = z.enum([
+  'hero-image', 'inline-photos', 'icons-only', 'background-pattern',
+  'illustration', 'video-embed', 'gradient-mesh', 'none'
+]);
+
+export const interactiveElementEnum = z.enum([
+  'accordion', 'tabs', 'carousel', 'counter-animation', 'toggle-switch',
+  'hover-reveal', 'progressive-disclosure', 'before-after-slider',
+  'tilt-card', 'scroll-scrub', 'none'
+]);
+
+export const motionIntentEnum = z.enum([
+  'entrance-reveal', 'staggered-cards', 'parallax-bg', 'counter-animation',
+  'kinetic-type', 'hover-showcase', 'scroll-reveal', 'text-reveal',
+  'zoom-entrance', 'none'
+]);
+
+export const surfaceTreatmentEnum = z.enum([
+  'textured', 'layered-gradients', 'glassmorphism', 'clean', 'organic',
+  'neubrutalist', 'claymorphism'
+]);
+
 export const blueprintPageSectionSchema = z.object({
   id: z.string().describe('Unique section identifier (e.g., "hero", "features", "pricing")'),
-  name: z.string().describe('Human-readable section name'),
+  name: z.string().describe('Human-readable section name (e.g., "Hero", "Features"). Use empty string if unsure.'),
   description: z.string().describe('What this section should contain and accomplish'),
-  contentNotes: z.string().describe('Specific content guidance or copy direction'),
-});
+  contentNotes: z.string().describe('Specific content guidance or copy direction. Use empty string if none.'),
+  sectionType: sectionTypeEnum.catch('custom').optional().default('custom').describe('Section archetype (hero, features, pricing, etc.)'),
+  layoutHint: layoutHintEnum.catch('stacked').optional().default('stacked').describe('Layout pattern (bento-grid, split-screen, asymmetric, etc.)'),
+  itemCount: z.number().catch(undefined as unknown as number).optional().describe('Number of repeating items (cards, testimonials, features). Omit to let generator decide.'),
+  mediaType: mediaTypeEnum.catch('none').optional().default('none').describe('Primary media type for this section'),
+  interactiveElement: interactiveElementEnum.catch('none').optional().default('none').describe('Interactive UI pattern (accordion, tabs, carousel, etc.)'),
+  motionIntent: motionIntentEnum.catch('none').optional().default('none').describe('Animation intent (entrance-reveal, staggered-cards, parallax-bg, etc.)'),
+}).transform((section) => ({
+  ...section,
+  // Derive name from id when model returns empty string (e.g., "about-doctor" → "About Doctor")
+  name: section.name || section.id.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+}));
 
 export const blueprintPageSchema = z.object({
   filename: z.string().describe('HTML filename (e.g., "index.html", "about.html")'),
@@ -27,6 +75,12 @@ export const blueprintDesignSystemSchema = z.object({
   bodyFont: z.string().min(1).describe('Google Font name for body text'),
   borderRadius: z.string().min(1).describe('Border radius token (e.g., "8px", "12px", "0.5rem")'),
   mood: z.string().min(3).describe('Overall design mood (e.g., "warm and inviting", "sleek and modern")'),
+  surfaceTreatment: surfaceTreatmentEnum.catch('clean').optional().default('clean').describe('Background surface style (textured, layered-gradients, glassmorphism, clean, organic)'),
+});
+
+const keyStatSchema = z.object({
+  label: z.string().describe('Stat label (e.g., "Happy Clients")'),
+  value: z.string().describe('Stat value (e.g., "500+")'),
 });
 
 export const blueprintContentStrategySchema = z.object({
@@ -34,6 +88,10 @@ export const blueprintContentStrategySchema = z.object({
   targetAudience: z.string().min(3).describe('Who the site is for'),
   primaryCTA: z.string().min(3).describe('Main call-to-action text and goal'),
   brandVoice: z.string().min(3).describe('Brand personality in 2-3 words'),
+  valuePropositions: z.array(z.string()).optional().default([]).describe('3-5 core value propositions'),
+  differentiators: z.array(z.string()).optional().default([]).describe('What makes this business unique'),
+  keyStats: z.array(keyStatSchema).optional().default([]).describe('Impressive numbers to showcase'),
+  brandStory: z.string().optional().default('').describe('2-3 sentence brand narrative'),
 });
 
 export const blueprintNavLinkSchema = z.object({
@@ -47,15 +105,15 @@ export const blueprintSharedComponentsSchema = z.object({
 });
 
 export const siteFactsSchema = z.object({
-  businessName: z.string().describe('Official business name, or empty string if unknown'),
-  address: z.string().describe('Physical address, or empty string if unknown'),
-  phone: z.string().describe('Phone number, or empty string if unknown'),
-  email: z.string().describe('Email address, or empty string if unknown'),
-  hours: z.string().describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm"), or empty string if unknown'),
-  services: z.array(z.string()).describe('Key services or offerings, or empty array if unknown'),
-  tagline: z.string().describe('Business tagline or slogan, or empty string if unknown'),
-  socialMedia: z.string().describe('Social media URLs as comma-separated "platform: url" pairs, e.g. "Facebook: https://facebook.com/biz, Instagram: https://instagram.com/biz", or empty string if unknown'),
-  additionalInfo: z.string().describe('Any other relevant business details, or empty string if unknown'),
+  businessName: z.string().optional().default('').describe('Official business name, or empty string if unknown'),
+  address: z.string().optional().default('').describe('Physical address, or empty string if unknown'),
+  phone: z.string().optional().default('').describe('Phone number, or empty string if unknown'),
+  email: z.string().optional().default('').describe('Email address, or empty string if unknown'),
+  hours: z.string().optional().default('').describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm"), or empty string if unknown'),
+  services: z.array(z.string()).optional().default([]).describe('Key services or offerings, or empty array if unknown'),
+  tagline: z.string().optional().default('').describe('Business tagline or slogan, or empty string if unknown'),
+  socialMedia: z.string().optional().default('').describe('Social media URLs as comma-separated "platform: url" pairs, e.g. "Facebook: https://facebook.com/biz, Instagram: https://instagram.com/biz", or empty string if unknown'),
+  additionalInfo: z.string().optional().default('').describe('Any other relevant business details, or empty string if unknown'),
 });
 
 export type SiteFacts = z.infer<typeof siteFactsSchema>;

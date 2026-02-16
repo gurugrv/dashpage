@@ -119,21 +119,25 @@ Performance rules:
 </motion_design>
 
 <creative_framework>
-Match your creative approach to the request:
+Each generation should feel like a DIFFERENT designer built it. Vary your aesthetic instincts.
 
-IF the request is vague ("make me a landing page", "build a portfolio"):
--> BE BOLD: Choose distinctive colors, interesting layouts, strong typography. Make creative decisions confidently rather than playing safe.
+Aesthetic vocabulary — draw from these for inspiration:
+brutalist, neobrutalist, organic/biomorphic, editorial, retro-futuristic, maximalist, art-deco, Swiss/international, Memphis, mid-century modern, cyberpunk, Japanese minimalist, Scandinavian, industrial, whimsical/playful
 
-IF the user provides brand guidelines or specific design direction:
--> BE RESPECTFUL: Work within their constraints. Add polish through excellent execution, not creative rebellion.
+Match intensity to the request:
+IF vague ("make me a landing page", "build a portfolio"):
+-> BE BOLD: Strong layout archetype, distinctive palette, unexpected typography. Make creative decisions confidently.
 
-IF building enterprise/professional tools (dashboards, admin panels, SaaS):
--> BE CONSERVATIVE: Prioritize usability and convention. Clean, functional, well-organized. Creativity through craft, not bold choices.
+IF brand guidelines or specific design direction provided:
+-> BE RESPECTFUL: Work within constraints. Polish through execution, not rebellion.
 
-IF building personal/creative projects (portfolios, art sites, event pages):
--> BE EXPERIMENTAL: Unconventional layouts, creative typography, unique visual treatments. Take calculated risks.
+IF enterprise/professional tools (dashboards, admin panels, SaaS):
+-> BE CONSERVATIVE: Usability first. Creativity through craft and micro-details, not wild layout choices.
 
-Final rule: Ship something interesting rather than boring — but never ugly or confusing.
+IF personal/creative projects (portfolios, art sites, event pages):
+-> BE EXPERIMENTAL: Push the layout archetype further. Unconventional typography. Take calculated risks.
+
+The layout archetype in your creative direction is your structural foundation — build on it, don't ignore it for a generic grid.
 </creative_framework>
 
 <content_rules>
@@ -146,7 +150,64 @@ Generate realistic, contextual content for every text element — specificity cr
 - Testimonials: Distinct voices with specific praise, not generic "Great service!"
 - Navigation: Contextually appropriate menu items
 - CTAs: Action-specific ("Start Your Free Trial", "View the Menu", "Book a Call") not generic "Learn More"
-</content_rules>`;
+</content_rules>
+
+<anti_patterns>
+NEVER do these — they are the hallmarks of generic AI-generated sites:
+
+Structure:
+- NEVER: hero section + 3 equal-width cards + CTA banner + footer. This is THE most common AI layout. Break it.
+- NEVER: all sections the same height or vertical padding
+- NEVER: everything centered — vary alignment across sections (left-aligned hero, right-aligned stats, centered CTA)
+- NEVER: predictable section ordering — surprise the user with unexpected content flow
+
+Typography:
+- NEVER default to: Inter, Roboto, Open Sans, Poppins, DM Sans, Montserrat, Lato, Source Sans Pro
+- NEVER use the same font weight throughout — create contrast with weight variation
+- NEVER make all headings the same size — use dramatic scale differences
+
+Color:
+- NEVER: purple/indigo/blue gradient as primary accent (the #1 AI design tell)
+- NEVER: evenly-distributed color palette — one dominant color with sharp accents
+- NEVER: gray-100 backgrounds with indigo-600 buttons (Tailwind defaults)
+
+Elements:
+- NEVER: emoji as icons — always use the searchIcons tool for real SVGs
+- NEVER: placeholder images when searchImages is available
+- NEVER: "Lorem ipsum" or "Learn More" as button text — be specific
+</anti_patterns>
+
+<layout_techniques>
+Use these CSS patterns to create visual interest. Mix and match across sections:
+
+Bento grid:
+  display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem;
+  Feature tiles: grid-column:span 2; grid-row:span 2;
+
+Diagonal dividers:
+  clip-path:polygon(0 0, 100% 0, 100% 85%, 0 100%);
+  Next section: negative margin-top to overlap the clipped edge.
+
+Overlapping depth:
+  position:relative; z-index layers; negative margins (-mt-16, -ml-8);
+  Child elements breaking parent bounds for dimensional feel.
+
+Glassmorphism:
+  backdrop-filter:blur(16px); background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15); Rich bg behind.
+
+Horizontal scroll:
+  overflow-x:auto; scroll-snap-type:x mandatory; display:flex;
+  Children: flex:0 0 clamp(280px,80vw,600px); scroll-snap-align:start;
+
+Sticky stacking:
+  Each section: position:sticky; top:0; z-index incrementing;
+  Opaque backgrounds. Box-shadow on leading edge for depth.
+
+Asymmetric splits:
+  grid-template-columns: 2fr 3fr (or 3fr 2fr). Alternate per section.
+  Not everything needs to be 50/50 or full-width.
+</layout_techniques>`;
 
 // Condensed version for blueprint page/component generation where the design system
 // (colors, fonts, radius) is already defined. Keeps visual quality rules, drops
@@ -211,22 +272,92 @@ Performance rules:
 </motion_design>
 
 <creative_framework>
-Match your creative approach to the request:
+Each generation should feel like a DIFFERENT designer built it. Vary your aesthetic instincts.
 
-IF the request is vague ("make me a landing page", "build a portfolio"):
--> BE BOLD: Choose distinctive layouts, strong visual hierarchy. Make creative decisions confidently rather than playing safe.
+Aesthetic vocabulary — draw from these for inspiration:
+brutalist, neobrutalist, organic/biomorphic, editorial, retro-futuristic, maximalist, art-deco, Swiss/international, Memphis, mid-century modern, cyberpunk, Japanese minimalist, Scandinavian, industrial, whimsical/playful
 
-IF the user provides brand guidelines or specific design direction:
--> BE RESPECTFUL: Work within their constraints. Add polish through excellent execution, not creative rebellion.
+Match intensity to the request:
+IF vague ("make me a landing page", "build a portfolio"):
+-> BE BOLD: Strong layout archetype, distinctive palette, unexpected typography. Make creative decisions confidently.
 
-IF building enterprise/professional tools (dashboards, admin panels, SaaS):
--> BE CONSERVATIVE: Prioritize usability and convention. Clean, functional, well-organized. Creativity through craft, not bold choices.
+IF brand guidelines or specific design direction provided:
+-> BE RESPECTFUL: Work within constraints. Polish through execution, not rebellion.
 
-IF building personal/creative projects (portfolios, art sites, event pages):
--> BE EXPERIMENTAL: Unconventional layouts, creative typography, unique visual treatments. Take calculated risks.
+IF enterprise/professional tools (dashboards, admin panels, SaaS):
+-> BE CONSERVATIVE: Usability first. Creativity through craft and micro-details, not wild layout choices.
 
-Final rule: Ship something interesting rather than boring — but never ugly or confusing.
+IF personal/creative projects (portfolios, art sites, event pages):
+-> BE EXPERIMENTAL: Push the layout archetype further. Unconventional typography. Take calculated risks.
+
+Choose a layout archetype from layout_archetypes that fits this page's content. The archetype is your structural foundation — build on it, don't ignore it for a generic grid.
+
+Surface treatment — apply the design system's surfaceTreatment across section backgrounds:
+- textured: subtle noise, grain, or paper textures via CSS (craft/artisanal)
+- layered-gradients: multi-stop CSS gradients, mesh gradients using design tokens (bold/modern)
+- glassmorphism: backdrop-blur with translucent panels over rich backgrounds (premium/tech)
+- clean: flat, minimal surfaces — solid colors only (minimal/corporate)
+- organic: blob shapes, curved dividers, wavy section separators via SVG/clip-path (playful/natural)
+- neubrutalist: thick 2-4px borders, hard offset shadows (4-8px solid, no blur), high-contrast unexpected color combos (creative/bold)
+- claymorphism: large soft shadows (blur 16px+, offset 8-12px), rounded puffy shapes, bright saturated colors (friendly/wellness)
 </creative_framework>
+
+<layout_techniques>
+Use these CSS patterns to create visual interest. Mix and match across sections:
+
+Bento grid:
+  display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem;
+  Feature tiles: grid-column:span 2; grid-row:span 2;
+
+Diagonal dividers:
+  clip-path:polygon(0 0, 100% 0, 100% 85%, 0 100%);
+  Next section: negative margin-top to overlap the clipped edge.
+
+Overlapping depth:
+  position:relative; z-index layers; negative margins (-mt-16, -ml-8);
+  Child elements breaking parent bounds for dimensional feel.
+
+Glassmorphism:
+  backdrop-filter:blur(16px); background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15); Rich bg behind.
+
+Horizontal scroll:
+  overflow-x:auto; scroll-snap-type:x mandatory; display:flex;
+  Children: flex:0 0 clamp(280px,80vw,600px); scroll-snap-align:start;
+
+Sticky stacking:
+  Each section: position:sticky; top:0; z-index incrementing;
+  Opaque backgrounds. Box-shadow on leading edge for depth.
+
+Asymmetric splits:
+  grid-template-columns: 2fr 3fr (or 3fr 2fr). Alternate per section.
+  Not everything needs to be 50/50 or full-width.
+</layout_techniques>
+
+<anti_patterns>
+NEVER do these — they are the hallmarks of generic AI-generated sites:
+
+Structure:
+- NEVER: hero section + 3 equal-width cards + CTA banner + footer. This is THE most common AI layout. Break it.
+- NEVER: all sections the same height or vertical padding
+- NEVER: everything centered — vary alignment across sections (left-aligned hero, right-aligned stats, centered CTA)
+- NEVER: predictable section ordering — surprise the user with unexpected content flow
+
+Typography:
+- NEVER default to: Inter, Roboto, Open Sans, Poppins, DM Sans, Montserrat, Lato, Source Sans Pro
+- NEVER use the same font weight throughout — create contrast with weight variation
+- NEVER make all headings the same size — use dramatic scale differences
+
+Color:
+- NEVER: purple/indigo/blue gradient as primary accent (the #1 AI design tell)
+- NEVER: evenly-distributed color palette — one dominant color with sharp accents
+- NEVER: gray-100 backgrounds with indigo-600 buttons (Tailwind defaults)
+
+Elements:
+- NEVER: emoji as icons — always use the searchIcons tool for real SVGs
+- NEVER: placeholder images when searchImages is available
+- NEVER: "Lorem ipsum" or "Learn More" as button text — be specific
+</anti_patterns>
 
 <content_rules>
 Generate realistic, contextual content for every text element — specificity creates believability:

@@ -6,7 +6,7 @@ import { blueprintSchema, type Blueprint } from '@/lib/blueprint/types';
 import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-execution';
 import { sanitizeFont } from '@/lib/fonts';
 import { ChatRequestError } from '@/lib/chat/errors';
-import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createDebugSession, isDebugEnabled } from '@/lib/chat/stream-debug';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
 import { researchSiteFacts } from '@/lib/blueprint/research';
 import { resolveApiKey } from '@/lib/keys/key-manager';
@@ -141,6 +141,10 @@ export async function POST(req: Request) {
       } else {
         throw parseErr;
       }
+    }
+
+    if (isDebugEnabled()) {
+      console.log('\n[blueprint-generate] Parsed blueprint:\n' + JSON.stringify(blueprint, null, 2) + '\n');
     }
 
     debugSession.logResponse({
