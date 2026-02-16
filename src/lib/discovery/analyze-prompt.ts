@@ -20,7 +20,8 @@ RULES:
   - Service business: services list, service area, certifications
   - Professional services: specializations, team, case studies
   - Generic: business hours, email, key services
-- Use "select" type when there are clear predefined options (e.g., cuisine type).
+- Use "select" type when the user should pick ONE option from a list (e.g., cuisine type, business category).
+- Use "multi_select" type when the user can pick MULTIPLE options from a list (e.g., services offered, insurance accepted, product categories).
 - Use "textarea" for open-ended info (e.g., "describe your services").
 - Total questions: 3-7 depending on business complexity.
 - For non-business sites (portfolio, hobby, personal blog), set isBusinessSite=false and return empty questions array.

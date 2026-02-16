@@ -7,7 +7,7 @@ export const discoveryAnalysisSchema = z.object({
   questions: z.array(z.object({
     id: z.string(),
     question: z.string(),
-    type: z.enum(['text', 'phone', 'email', 'address_autocomplete', 'select', 'textarea']),
+    type: z.enum(['text', 'phone', 'email', 'address_autocomplete', 'select', 'multi_select', 'textarea']),
     required: z.boolean(),
     options: z.array(z.string()).optional(),
     prefilled: z.string().optional(),
@@ -19,7 +19,7 @@ export type DiscoveryAnalysis = z.infer<typeof discoveryAnalysisSchema>;
 export interface DiscoveryQuestion {
   id: string;
   question: string;
-  type: 'text' | 'phone' | 'email' | 'address_autocomplete' | 'select' | 'textarea';
+  type: 'text' | 'phone' | 'email' | 'address_autocomplete' | 'select' | 'multi_select' | 'textarea';
   required: boolean;
   options?: string[];
   prefilled?: string;
@@ -31,7 +31,7 @@ export const completenessResultSchema = z.object({
   followUpQuestions: z.array(z.object({
     id: z.string(),
     question: z.string(),
-    type: z.enum(['text', 'phone', 'email', 'select', 'textarea']),
+    type: z.enum(['text', 'phone', 'email', 'select', 'multi_select', 'textarea']),
     required: z.boolean(),
     options: z.array(z.string()).optional(),
   })).optional(),

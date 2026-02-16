@@ -31,6 +31,7 @@ export function DiscoveryQuestionCard({
   disabled,
 }: DiscoveryQuestionCardProps) {
   const [value, setValue] = useState(question.prefilled ?? '');
+  const [selectedOptions, setSelectedOptions] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -126,6 +127,53 @@ export function DiscoveryQuestionCard({
                 ))}
               </SelectContent>
             </Select>
+          ) : question.type === 'multi_select' && question.options ? (
+            <div className="flex flex-1 flex-col gap-2">
+              <div className="flex flex-wrap gap-1.5">
+                {question.options.map((opt) => {
+                  const isSelected = selectedOptions.has(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => {
+                        setSelectedOptions(prev => {
+                          const next = new Set(prev);
+                          if (next.has(opt)) next.delete(opt);
+                          else next.add(opt);
+                          return next;
+                        });
+                      }}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => onSubmit(Array.from(selectedOptions).join(', '))}
+                  disabled={selectedOptions.size === 0}
+                >
+                  Submit
+                </Button>
+                {canSkip && (
+                  <button
+                    type="button"
+                    onClick={handleSkip}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Skip
+                  </button>
+                )}
+              </div>
+            </div>
           ) : question.type === 'textarea' ? (
             <div className="flex flex-1 flex-col gap-2">
               <Textarea
