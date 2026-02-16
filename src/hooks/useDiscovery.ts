@@ -2,14 +2,14 @@
 
 import { useState, useCallback, useRef } from 'react';
 import type {
-  IntakeQuestion,
-  IntakeAnalysis,
+  DiscoveryQuestion,
+  DiscoveryAnalysis,
   BusinessProfileData,
   PlacesEnrichment,
   CompletenessResult,
-} from '@/lib/intake/types';
+} from '@/lib/discovery/types';
 
-export type IntakePhase =
+export type DiscoveryPhase =
   | 'idle'           // Not started
   | 'picking'        // Showing existing profiles to choose from
   | 'analyzing'      // AI analyzing prompt
@@ -17,22 +17,23 @@ export type IntakePhase =
   | 'evaluating'     // AI checking if enough data
   | 'confirming'     // Showing BusinessProfileSummary
   | 'complete'       // Done, ready for blueprint generation
-  | 'skipped';       // Non-business site, skip intake
+  | 'skipped';       // Non-business site, skip discovery
 
-export interface UseIntakeOptions {
+export interface UseDiscoveryOptions {
   provider: string;
   model: string;
 }
 
-export function useIntake({ provider, model }: UseIntakeOptions) {
-  const [phase, setPhase] = useState<IntakePhase>('idle');
-  const [questions, setQuestions] = useState<IntakeQuestion[]>([]);
+export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
+  const [phase, setPhase] = useState<DiscoveryPhase>('idle');
+  const [questions, setQuestions] = useState<DiscoveryQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [businessProfile, setBusinessProfile] = useState<BusinessProfileData | null>(null);
   const [placesEnrichment, setPlacesEnrichment] = useState<PlacesEnrichment | null>(null);
   const [questionsAskedCount, setQuestionsAskedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [existingProfiles, setExistingProfiles] = useState<(BusinessProfileData & { id?: string })[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const originalPromptRef = useRef<string>('');
 
   // Proceed with AI analysis (called after picker or when no existing profiles)
@@ -40,7 +41,7 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
     setPhase('analyzing');
 
     try {
-      const res = await fetch('/api/intake/analyze', {
+      const res = await fetch('/api/discovery/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, provider, model }),
@@ -51,7 +52,7 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
         throw new Error(data.error ?? 'Failed to analyze prompt');
       }
 
-      const analysis: IntakeAnalysis & { placesConfigured?: boolean } = await res.json();
+      const analysis: DiscoveryAnalysis & { placesConfigured?: boolean } = await res.json();
 
       if (!analysis.isBusinessSite) {
         setPhase('skipped');
@@ -66,15 +67,8 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
 
       setQuestions(analysis.questions);
       setQuestionsAskedCount(analysis.questions.length);
-
-      // Pre-fill answers from detected data
-      const prefilled: Record<string, string> = {};
-      for (const q of analysis.questions) {
-        if (q.prefilled) {
-          prefilled[q.id] = q.prefilled;
-        }
-      }
-      setAnswers(prefilled);
+      setCurrentQuestionIndex(0);
+      setAnswers({});
       setPhase('asking');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');
@@ -82,8 +76,8 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
     }
   }, [provider, model]);
 
-  // Start intake: check for existing profiles, then analyze
-  const startIntake = useCallback(async (prompt: string) => {
+  // Start discovery: check for existing profiles, then analyze
+  const startDiscovery = useCallback(async (prompt: string) => {
     setError(null);
     originalPromptRef.current = prompt;
 
@@ -110,16 +104,23 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
     await runAnalysis(originalPromptRef.current);
   }, [runAnalysis]);
 
+  // Advance to next question (called after answer)
+  const advanceQuestion = useCallback(() => {
+    setCurrentQuestionIndex((prev) => prev + 1);
+  }, []);
+
   // Handle answer submission for a question
   const submitAnswer = useCallback((questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
-  }, []);
+    advanceQuestion();
+  }, [advanceQuestion]);
 
   // Handle address selection with Places enrichment
   const submitAddressAnswer = useCallback((questionId: string, address: string, enrichment: PlacesEnrichment) => {
     setAnswers((prev) => ({ ...prev, [questionId]: address }));
     setPlacesEnrichment(enrichment);
-  }, []);
+    advanceQuestion();
+  }, [advanceQuestion]);
 
   // Build BusinessProfileData from answers + enrichment
   const buildProfileFromAnswers = useCallback((): BusinessProfileData => {
@@ -163,7 +164,7 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
     const profile = buildProfileFromAnswers();
 
     try {
-      const res = await fetch('/api/intake/evaluate', {
+      const res = await fetch('/api/discovery/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,12 +189,16 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
         setBusinessProfile(profile);
         setPhase('confirming');
       } else {
-        // Append follow-up questions
-        const followUps: IntakeQuestion[] = result.followUpQuestions.map((q) => ({
+        // Append follow-up questions and show the first new one
+        const followUps: DiscoveryQuestion[] = result.followUpQuestions.map((q) => ({
           ...q,
-          type: q.type as IntakeQuestion['type'],
+          type: q.type as DiscoveryQuestion['type'],
         }));
-        setQuestions((prev) => [...prev, ...followUps]);
+        setQuestions((prev) => {
+          // currentQuestionIndex should point to the first new question
+          setCurrentQuestionIndex(prev.length);
+          return [...prev, ...followUps];
+        });
         setQuestionsAskedCount((prev) => prev + followUps.length);
         setPhase('asking');
       }
@@ -262,13 +267,17 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
     setBusinessProfile(null);
     setPlacesEnrichment(null);
     setQuestionsAskedCount(0);
+    setCurrentQuestionIndex(0);
     setError(null);
     originalPromptRef.current = '';
   }, []);
 
-  // Check if all current questions are answered
+  // Check if all current questions are answered (index past the last question)
   const allCurrentQuestionsAnswered = questions.length > 0 &&
-    questions.every((q) => !q.required || answers[q.id]?.trim());
+    currentQuestionIndex >= questions.length;
+
+  // Visible questions: all answered + current active one
+  const visibleQuestions = questions.slice(0, currentQuestionIndex + 1);
 
   // Also reset existing profiles
   const resetFull = useCallback(() => {
@@ -279,12 +288,13 @@ export function useIntake({ provider, model }: UseIntakeOptions) {
   return {
     phase,
     questions,
+    visibleQuestions,
     answers,
     businessProfile,
     existingProfiles,
     error,
     allCurrentQuestionsAnswered,
-    startIntake,
+    startDiscovery,
     skipPickerAndAnalyze,
     submitAnswer,
     submitAddressAnswer,

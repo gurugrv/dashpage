@@ -23,7 +23,7 @@ import type { Blueprint } from '@/lib/blueprint/types';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
-import { useIntake } from '@/hooks/useIntake';
+import { useDiscovery } from '@/hooks/useDiscovery';
 import { useModels } from '@/hooks/useModels';
 import { ARTIFACT_COMPLETION_MESSAGE, sanitizeAssistantMessage } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
@@ -105,7 +105,7 @@ export function Builder() {
   } = useBlueprintModelConfig(availableProviders);
 
   const resolveBlueprintStepModel = useCallback(
-    (step: 'planning' | 'research' | 'components' | 'pages') => {
+    (step: 'discovery' | 'planning' | 'research' | 'components' | 'pages') => {
       if (!effectiveSelectedProvider || !effectiveSelectedModel) return null;
       return resolveRawStepModel(step, effectiveSelectedProvider, effectiveSelectedModel);
     },
@@ -136,13 +136,14 @@ export function Builder() {
 
   const isBlueprintBusy = blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
 
-  const intake = useIntake({
-    provider: effectiveSelectedProvider ?? '',
-    model: effectiveSelectedModel ?? '',
+  const resolvedDiscoveryModel = resolveBlueprintStepModel('discovery');
+  const discovery = useDiscovery({
+    provider: resolvedDiscoveryModel?.provider ?? effectiveSelectedProvider ?? '',
+    model: resolvedDiscoveryModel?.model ?? effectiveSelectedModel ?? '',
   });
   const pendingBlueprintPromptRef = useRef<string | null>(null);
   const pendingBlueprintConversationIdRef = useRef<string | null>(null);
-  const isIntakeActive = intake.phase !== 'idle' && intake.phase !== 'complete' && intake.phase !== 'skipped';
+  const isDiscoveryActive = discovery.phase !== 'idle' && discovery.phase !== 'complete' && discovery.phase !== 'skipped';
 
   const currentFilesRef = useRef<ProjectFiles>(currentFiles);
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
@@ -361,7 +362,7 @@ export function Builder() {
         streamingTextRef.current = '';
         setHasPartialMessage(false);
 
-        // All first-generation requests go through intake -> blueprint pipeline
+        // All first-generation requests go through discovery -> blueprint pipeline
         setMessages([{
           id: `user-${Date.now()}`,
           role: 'user',
@@ -369,7 +370,7 @@ export function Builder() {
         }]);
         pendingBlueprintPromptRef.current = promptToSubmit;
         pendingBlueprintConversationIdRef.current = conversation.id;
-        await intake.startIntake(promptToSubmit);
+        await discovery.startDiscovery(promptToSubmit);
       };
 
       submitWithPrompt();
@@ -409,7 +410,7 @@ export function Builder() {
       }
     }
 
-    // All first-generation requests go through intake -> blueprint pipeline
+    // All first-generation requests go through discovery -> blueprint pipeline
     const isFirstMessage = messages.length === 0;
     if (isFirstMessage) {
       const promptText = input;
@@ -419,10 +420,10 @@ export function Builder() {
         role: 'user',
         parts: [{ type: 'text', text: promptText }],
       }]);
-      // Start intake analysis instead of immediate blueprint
+      // Start discovery analysis instead of immediate blueprint
       pendingBlueprintPromptRef.current = promptText;
       pendingBlueprintConversationIdRef.current = conversationId;
-      await intake.startIntake(promptText);
+      await discovery.startDiscovery(promptText);
       return;
     }
 
@@ -631,10 +632,10 @@ export function Builder() {
     resetBlueprint();
   }, [blueprintPhase, blueprint, resetBlueprint, setMessages]);
 
-  // When intake completes or is skipped, trigger blueprint generation
+  // When discovery completes or is skipped, trigger blueprint generation
   useEffect(() => {
     if (
-      (intake.phase === 'complete' || intake.phase === 'skipped') &&
+      (discovery.phase === 'complete' || discovery.phase === 'skipped') &&
       pendingBlueprintPromptRef.current &&
       pendingBlueprintConversationIdRef.current
     ) {
@@ -644,38 +645,41 @@ export function Builder() {
       pendingBlueprintConversationIdRef.current = null;
       generateBlueprint(prompt, convId);
     }
-  }, [intake.phase, generateBlueprint]);
+  }, [discovery.phase, generateBlueprint]);
 
-  // Intake callbacks
-  const handleIntakeAnswer = useCallback((questionId: string, value: string) => {
-    intake.submitAnswer(questionId, value);
-  }, [intake]);
+  // Auto-evaluate when all discovery questions are answered
+  useEffect(() => {
+    if (discovery.phase === 'asking' && discovery.allCurrentQuestionsAnswered) {
+      discovery.evaluateAndContinue();
+    }
+  }, [discovery.phase, discovery.allCurrentQuestionsAnswered, discovery.evaluateAndContinue]);
 
-  const handleIntakeAddressAnswer = useCallback((questionId: string, address: string, enrichment: import('@/lib/intake/types').PlacesEnrichment) => {
-    intake.submitAddressAnswer(questionId, address, enrichment);
-  }, [intake]);
+  // Discovery callbacks
+  const handleDiscoveryAnswer = useCallback((questionId: string, value: string) => {
+    discovery.submitAnswer(questionId, value);
+  }, [discovery]);
 
-  const handleIntakeEvaluate = useCallback(() => {
-    intake.evaluateAndContinue();
-  }, [intake]);
+  const handleDiscoveryAddressAnswer = useCallback((questionId: string, address: string, enrichment: import('@/lib/discovery/types').PlacesEnrichment) => {
+    discovery.submitAddressAnswer(questionId, address, enrichment);
+  }, [discovery]);
 
-  const handleIntakeConfirm = useCallback((profile: import('@/lib/intake/types').BusinessProfileData) => {
+  const handleDiscoveryConfirm = useCallback((profile: import('@/lib/discovery/types').BusinessProfileData) => {
     const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
     if (convId) {
-      intake.confirmProfile(convId, profile);
+      discovery.confirmProfile(convId, profile);
     }
-  }, [intake, activeConversationId]);
+  }, [discovery, activeConversationId]);
 
-  const handleIntakePickProfile = useCallback((profile: import('@/hooks/useBusinessProfiles').StoredBusinessProfile) => {
+  const handleDiscoveryPickProfile = useCallback((profile: import('@/hooks/useBusinessProfiles').StoredBusinessProfile) => {
     const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
     if (convId) {
-      intake.selectExistingProfile(profile, convId);
+      discovery.selectExistingProfile(profile, convId);
     }
-  }, [intake, activeConversationId]);
+  }, [discovery, activeConversationId]);
 
-  const handleIntakeCreateNew = useCallback(() => {
-    intake.skipPickerAndAnalyze();
-  }, [intake]);
+  const handleDiscoveryCreateNew = useCallback(() => {
+    discovery.skipPickerAndAnalyze();
+  }, [discovery]);
 
   return (
     <>
@@ -734,18 +738,16 @@ export function Builder() {
                   onDiscard={handleDiscardResume}
                 />
               ) : undefined}
-              intakePhase={intake.phase}
-              intakeQuestions={intake.questions}
-              intakeAnswers={intake.answers}
-              intakeProfile={intake.businessProfile}
-              intakeExistingProfiles={intake.existingProfiles}
-              intakeAllAnswered={intake.allCurrentQuestionsAnswered}
-              onIntakeAnswer={handleIntakeAnswer}
-              onIntakeAddressAnswer={handleIntakeAddressAnswer}
-              onIntakeEvaluate={handleIntakeEvaluate}
-              onIntakeConfirm={handleIntakeConfirm}
-              onIntakePickProfile={handleIntakePickProfile}
-              onIntakeCreateNew={handleIntakeCreateNew}
+              discoveryPhase={discovery.phase}
+              discoveryQuestions={discovery.visibleQuestions}
+              discoveryAnswers={discovery.answers}
+              discoveryProfile={discovery.businessProfile}
+              discoveryExistingProfiles={discovery.existingProfiles}
+              onDiscoveryAnswer={handleDiscoveryAnswer}
+              onDiscoveryAddressAnswer={handleDiscoveryAddressAnswer}
+              onDiscoveryConfirm={handleDiscoveryConfirm}
+              onDiscoveryPickProfile={handleDiscoveryPickProfile}
+              onDiscoveryCreateNew={handleDiscoveryCreateNew}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}

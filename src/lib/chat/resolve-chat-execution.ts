@@ -4,7 +4,7 @@ import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { resolveMaxOutputTokens as resolveMaxTokens } from '@/lib/chat/constants';
 import { ChatRequestError } from '@/lib/chat/errors';
-import type { BusinessProfileData } from '@/lib/intake/types';
+import type { BusinessProfileData } from '@/lib/discovery/types';
 
 interface ResolveChatExecutionInput {
   provider: string;

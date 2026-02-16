@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { BusinessProfileData } from '@/lib/intake/types';
+import type { BusinessProfileData } from '@/lib/discovery/types';
 
 export type StoredBusinessProfile = BusinessProfileData & { id: string };
 

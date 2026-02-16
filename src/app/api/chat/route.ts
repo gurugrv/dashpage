@@ -237,7 +237,7 @@ export async function POST(req: Request) {
       .join(' ') ?? '';
 
     // Fetch linked business profile if conversation has one
-    let businessProfile: import('@/lib/intake/types').BusinessProfileData | null = null;
+    let businessProfile: import('@/lib/discovery/types').BusinessProfileData | null = null;
     if (clientConversationId) {
       const conv = await prisma.conversation.findUnique({
         where: { id: clientConversationId },

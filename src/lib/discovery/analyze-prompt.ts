@@ -1,8 +1,9 @@
 import { generateText, Output } from 'ai';
 import type { LanguageModel } from 'ai';
-import { intakeAnalysisSchema, type IntakeAnalysis } from './types';
+import { discoveryAnalysisSchema, type DiscoveryAnalysis } from './types';
+import { createDebugSession, isDebugEnabled } from '@/lib/chat/stream-debug';
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a smart intake assistant for a website builder. Analyze the user's prompt and determine:
+const ANALYSIS_SYSTEM_PROMPT = `You are a smart discovery assistant for a website builder. Analyze the user's prompt and determine:
 
 1. Is this a business/organization website (vs personal hobby, creative project, etc.)?
 2. Extract any business name mentioned in the prompt.
@@ -28,21 +29,38 @@ QUESTION ID CONVENTIONS:
 - business_name, phone, address, email, website, hours, services, description, team, social_media
 - Use descriptive IDs for industry-specific: cuisine_type, menu_highlights, insurance, specializations`;
 
-export async function analyzePromptForIntake(
+export async function analyzePromptForDiscovery(
   model: LanguageModel,
   userPrompt: string,
-): Promise<IntakeAnalysis> {
+  options?: { provider?: string; modelId?: string },
+): Promise<DiscoveryAnalysis> {
+  const debug = isDebugEnabled()
+    ? createDebugSession({ scope: 'discovery-analyze', model: options?.modelId, provider: options?.provider })
+    : null;
+
+  debug?.logPrompt({
+    systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+    maxOutputTokens: 2048,
+  });
+
   const result = await generateText({
     model,
     system: ANALYSIS_SYSTEM_PROMPT,
-    output: Output.object({ schema: intakeAnalysisSchema }),
+    output: Output.object({ schema: discoveryAnalysisSchema }),
     prompt: userPrompt,
     maxOutputTokens: 2048,
   });
 
   if (!result.output) {
+    debug?.logResponse({ response: result.text, status: 'error', finishReason: 'no-structured-output' });
+    debug?.logGenerationSummary?.({ finishReason: 'no-structured-output', hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: result.text?.length });
     return { isBusinessSite: true, detectedName: null, questions: [] };
   }
+
+  const outputJson = JSON.stringify(result.output, null, 2);
+  debug?.logResponse({ response: outputJson, status: 'complete', finishReason: result.finishReason });
+  debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length });
 
   return result.output;
 }

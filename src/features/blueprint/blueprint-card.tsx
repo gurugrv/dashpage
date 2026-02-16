@@ -247,9 +247,6 @@ export function BlueprintCard({
             <div className="flex items-center gap-1.5">
               <Building2 className="size-3.5 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground">Business Details</span>
-              {!isEditing && (
-                <span className="ml-auto text-[10px] text-muted-foreground/60">from web research</span>
-              )}
             </div>
             {factsSource.businessName && (
               <FactRow label="Name" value={factsSource.businessName} field="businessName" isEditing={isEditing} onChange={updateFact} />

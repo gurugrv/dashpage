@@ -28,10 +28,11 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
 
-  const data: Record<string, string> = {};
+  const data: Record<string, string | null> = {};
   if (typeof body.title === 'string' && body.title) data.title = body.title;
   if (typeof body.provider === 'string') data.provider = body.provider;
   if (typeof body.model === 'string') data.model = body.model;
+  if (typeof body.businessProfileId === 'string') data.businessProfileId = body.businessProfileId;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });

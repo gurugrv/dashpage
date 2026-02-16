@@ -3,18 +3,18 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const INTAKE_PHASES = [
+const DISCOVERY_PHASES = [
   'Understanding your business...',
   'Preparing questions...',
   'Almost ready...',
 ];
 
-export function IntakeLoadingIndicator() {
+export function DiscoveryLoadingIndicator() {
   const [phaseIdx, setPhaseIdx] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setPhaseIdx((prev) => (prev + 1) % INTAKE_PHASES.length);
+      setPhaseIdx((prev) => (prev + 1) % DISCOVERY_PHASES.length);
     }, 2400);
     return () => clearInterval(id);
   }, []);
@@ -30,7 +30,7 @@ export function IntakeLoadingIndicator() {
           className="text-sm text-muted-foreground"
           style={{ animation: 'fadeSlideIn 0.35s ease-out' }}
         >
-          {INTAKE_PHASES[phaseIdx]}
+          {DISCOVERY_PHASES[phaseIdx]}
         </span>
       </div>
     </div>

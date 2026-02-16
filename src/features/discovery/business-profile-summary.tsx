@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { BusinessProfileData } from '@/lib/intake/types';
+import type { BusinessProfileData } from '@/lib/discovery/types';
 
 interface BusinessProfileSummaryProps {
   profile: BusinessProfileData;

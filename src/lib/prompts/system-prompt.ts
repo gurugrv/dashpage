@@ -1,7 +1,7 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
-import type { BusinessProfileData } from '@/lib/intake/types';
-import { buildBusinessContextBlock } from '@/lib/intake/build-business-context';
+import type { BusinessProfileData } from '@/lib/discovery/types';
+import { buildBusinessContextBlock } from '@/lib/discovery/build-business-context';
 import { getBaseRulesSection } from '@/lib/prompts/sections/base-rules';
 import {
   buildCurrentWebsiteBlock,

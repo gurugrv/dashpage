@@ -15,7 +15,7 @@ export function getComponentsSystemPrompt(blueprint: Blueprint): string {
 
   const siteFactsBlock = blueprint.siteFacts
     ? `\n<site_facts>
-These are verified business details from web research. Use them in the footer (address, phone, social links) and header (if relevant). Do NOT invent or guess details not listed here.
+These are verified business details provided by the business owner. Use them EXACTLY as given in the footer (address, phone, social links) and header (if relevant). Do NOT invent, guess, or override any details listed here.
 ${blueprint.siteFacts.businessName ? `Business name: ${blueprint.siteFacts.businessName}` : ''}
 ${blueprint.siteFacts.address ? `Address: ${blueprint.siteFacts.address}` : ''}
 ${blueprint.siteFacts.phone ? `Phone: ${blueprint.siteFacts.phone}` : ''}

@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import type { PlacesEnrichment } from '@/lib/intake/types';
+import type { PlacesEnrichment } from '@/lib/discovery/types';
 
 interface AddressAutocompleteProps {
   value: string;
@@ -25,6 +24,8 @@ export function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Track whether user just selected from dropdown (to prevent Enter from double-submitting)
+  const justSelectedRef = useRef(false);
 
   const handlePlaceChanged = useCallback(() => {
     const place = autocompleteRef.current?.getPlace();
@@ -32,6 +33,7 @@ export function AddressAutocomplete({
 
     const address = place.formatted_address ?? place.name ?? '';
     onChange(address);
+    justSelectedRef.current = true;
 
     // Fetch enrichment from our server-side API
     fetch('/api/places/details', {
@@ -63,74 +65,69 @@ export function AddressAutocomplete({
         onSelect(address, enrichment);
       })
       .catch(() => {
-        // Fallback: submit without enrichment
-        onSelect(address, {
-          formattedAddress: address,
-          lat: place.geometry?.location?.lat() ?? 0,
-          lng: place.geometry?.location?.lng() ?? 0,
-          types: place.types ?? [],
-          primaryType: place.types?.[0] ?? '',
-          displayName: place.name ?? '',
-          googleMapsUri: '',
-        });
+        // Fallback: submit as plain text
+        onSubmitPlain();
       });
-  }, [onChange, onSelect]);
+  }, [onChange, onSelect, onSubmitPlain]);
 
   useEffect(() => {
     if (!GOOGLE_KEY || !inputRef.current) return;
 
-    setOptions({ key: GOOGLE_KEY, v: 'weekly' });
+    let cancelled = false;
 
-    importLibrary('places').then(() => {
-      if (!inputRef.current) return;
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-        types: ['establishment', 'geocode'],
-        fields: ['place_id', 'formatted_address', 'name', 'geometry', 'types'],
+    import('@googlemaps/js-api-loader').then(({ setOptions, importLibrary }) => {
+      if (cancelled || !inputRef.current) return;
+
+      setOptions({ key: GOOGLE_KEY!, v: 'weekly' });
+
+      importLibrary('places').then(() => {
+        if (cancelled || !inputRef.current) return;
+        const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+          types: ['establishment', 'geocode'],
+          fields: ['place_id', 'formatted_address', 'name', 'geometry', 'types'],
+        });
+        autocomplete.addListener('place_changed', handlePlaceChanged);
+        autocompleteRef.current = autocomplete;
+        setLoaded(true);
+      }).catch(() => {
+        // Google Maps failed to load - works as plain text input
       });
-      autocomplete.addListener('place_changed', handlePlaceChanged);
-      autocompleteRef.current = autocomplete;
-      setLoaded(true);
     }).catch(() => {
-      // Google Maps failed to load - will work as plain text
+      // Loader failed - works as plain text input
     });
+
+    return () => { cancelled = true; };
   }, [handlePlaceChanged]);
 
-  // Fallback: no Google key, plain text input
-  if (!GOOGLE_KEY) {
-    return (
-      <div className="flex flex-1 gap-2">
-        <Input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onSubmitPlain();
-            }
-          }}
-          placeholder="123 Main St, City, State"
-          className="h-9 flex-1 text-sm"
-        />
-        <Button size="sm" className="h-9" onClick={onSubmitPlain} disabled={!value.trim()}>
-          Submit
-        </Button>
-      </div>
-    );
-  }
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // If the Places dropdown is open, Enter selects from it (handled by Google).
+      // We use a short delay to check if a place was just selected.
+      setTimeout(() => {
+        if (!justSelectedRef.current) {
+          onSubmitPlain();
+        }
+        justSelectedRef.current = false;
+      }, 100);
+    }
+  };
+
+  const hasAutocomplete = !!GOOGLE_KEY;
 
   return (
     <div className="flex flex-1 gap-2">
       <div className="relative flex-1">
-        <MapPin className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        {hasAutocomplete && loaded && (
+          <MapPin className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        )}
         <Input
           ref={inputRef}
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={loaded ? 'Start typing an address...' : 'Loading...'}
-          className="h-9 pl-8 text-sm"
+          onKeyDown={handleKeyDown}
+          placeholder="123 Main St, City, State"
+          className={`h-9 text-sm ${hasAutocomplete && loaded ? 'pl-8' : ''}`}
         />
       </div>
       <Button size="sm" className="h-9" onClick={onSubmitPlain} disabled={!value.trim()}>

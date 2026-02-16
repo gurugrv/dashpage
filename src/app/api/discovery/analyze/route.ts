@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { analyzePromptForIntake } from '@/lib/intake/analyze-prompt';
+import { analyzePromptForDiscovery } from '@/lib/discovery/analyze-prompt';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { isPlacesConfigured } from '@/lib/places/google-places';
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   }
 
   const modelInstance = providerConfig.createModel(apiKey, model);
-  const analysis = await analyzePromptForIntake(modelInstance, prompt);
+  const analysis = await analyzePromptForDiscovery(modelInstance, prompt, { provider, modelId: model });
 
   // If Google Places not configured, downgrade address_autocomplete to text
   if (!isPlacesConfigured()) {

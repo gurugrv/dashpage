@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, MessageSquare } from 'lucide-react';
+import { Check, MessageSquare, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,24 +12,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { IntakeQuestion, PlacesEnrichment } from '@/lib/intake/types';
+import type { DiscoveryQuestion, PlacesEnrichment } from '@/lib/discovery/types';
 import { AddressAutocomplete } from './address-autocomplete';
 
-interface IntakeQuestionCardProps {
-  question: IntakeQuestion;
+interface DiscoveryQuestionCardProps {
+  question: DiscoveryQuestion;
   answered?: string;
   onSubmit: (value: string) => void;
   onAddressSelect?: (address: string, enrichment: PlacesEnrichment) => void;
   disabled?: boolean;
 }
 
-export function IntakeQuestionCard({
+export function DiscoveryQuestionCard({
   question,
   answered,
   onSubmit,
   onAddressSelect,
   disabled,
-}: IntakeQuestionCardProps) {
+}: DiscoveryQuestionCardProps) {
   const [value, setValue] = useState(question.prefilled ?? '');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
@@ -41,9 +41,16 @@ export function IntakeQuestionCard({
 
   const handleSubmit = () => {
     const trimmed = value.trim();
-    if (!trimmed && question.required) return;
+    if (!trimmed) return;
     onSubmit(trimmed);
   };
+
+  const handleSkip = () => {
+    onSubmit('');
+  };
+
+  // business_name is the only truly required field — everything else can be skipped
+  const canSkip = question.id !== 'business_name' && question.id !== 'name';
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && question.type !== 'textarea') {
@@ -52,18 +59,24 @@ export function IntakeQuestionCard({
     }
   };
 
-  if (disabled && answered) {
+  if (disabled && answered !== undefined) {
+    const wasSkipped = answered === '';
     return (
       <div
         className="flex gap-3 px-4 py-3"
         style={{ animation: 'fadeSlideIn 0.3s ease-out' }}
       >
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-          <Check className="size-3.5 text-green-600 dark:text-green-500" />
+        <div className={`flex size-7 shrink-0 items-center justify-center rounded-full ${wasSkipped ? 'bg-muted' : 'bg-green-100 dark:bg-green-900/30'}`}>
+          {wasSkipped
+            ? <SkipForward className="size-3.5 text-muted-foreground" />
+            : <Check className="size-3.5 text-green-600 dark:text-green-500" />
+          }
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-sm text-muted-foreground">{question.question}</span>
-          <span className="text-sm font-medium">{answered}</span>
+          <span className={`text-sm ${wasSkipped ? 'italic text-muted-foreground' : 'font-medium'}`}>
+            {wasSkipped ? 'Skipped' : answered}
+          </span>
         </div>
       </div>
     );
@@ -123,13 +136,24 @@ export function IntakeQuestionCard({
                 className="min-h-[80px] text-sm"
                 rows={3}
               />
-              <Button
-                size="sm"
-                onClick={handleSubmit}
-                disabled={question.required && !value.trim()}
-              >
-                Submit
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSubmit}
+                  disabled={!value.trim()}
+                >
+                  Submit
+                </Button>
+                {canSkip && (
+                  <button
+                    type="button"
+                    onClick={handleSkip}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Skip
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <>
@@ -150,13 +174,31 @@ export function IntakeQuestionCard({
                 size="sm"
                 className="h-9"
                 onClick={handleSubmit}
-                disabled={question.required && !value.trim()}
+                disabled={!value.trim()}
               >
                 Submit
               </Button>
+              {canSkip && (
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  className="h-9 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Skip
+                </button>
+              )}
             </>
           )}
         </div>
+        {canSkip && (question.type === 'address_autocomplete' || question.type === 'select') && (
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="self-start text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Skip this question
+          </button>
+        )}
       </div>
     </div>
   );

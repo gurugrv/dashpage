@@ -164,33 +164,31 @@ export async function POST(req: Request) {
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');
 
-    // Check if conversation has a business profile (from intake)
+    // Check if conversation has a business profile (from discovery)
     const conv = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: { businessProfile: true },
     });
     const businessProfile = conv?.businessProfile;
 
-    // If we have intake data, inject it as siteFacts and skip web research
-    if (businessProfile && blueprint.needsResearch) {
-      blueprint.siteFacts = {
-        businessName: businessProfile.name,
-        address: businessProfile.address ?? '',
-        phone: businessProfile.phone ?? '',
-        email: businessProfile.email ?? '',
-        hours: businessProfile.hours ? JSON.stringify(businessProfile.hours) : '',
-        services: (businessProfile.services as string[] | null) ?? [],
-        tagline: '',
-        socialMedia: businessProfile.socialMedia ? JSON.stringify(businessProfile.socialMedia) : '',
-        additionalInfo: businessProfile.additionalInfo ?? '',
-      };
-      blueprint.needsResearch = false;
-    }
+    // Build discovery facts from business profile (user-provided data takes priority)
+    const discoveryFacts: import('@/lib/blueprint/types').SiteFacts | null = businessProfile
+      ? {
+          businessName: businessProfile.name,
+          address: businessProfile.address ?? '',
+          phone: businessProfile.phone ?? '',
+          email: businessProfile.email ?? '',
+          hours: businessProfile.hours ? JSON.stringify(businessProfile.hours) : '',
+          services: (businessProfile.services as string[] | null) ?? [],
+          tagline: '',
+          socialMedia: businessProfile.socialMedia ? JSON.stringify(businessProfile.socialMedia) : '',
+          additionalInfo: businessProfile.additionalInfo ?? '',
+        }
+      : null;
 
-    // Research site facts if the AI flagged this as a real business (and no intake data)
+    // Run web research to complement discovery data (or as sole source if no discovery)
     if (blueprint.needsResearch) {
       try {
-        // Use research model override if provided, otherwise fall back to planning model
         let researchModelInstance = modelInstance;
         let researchDebugProvider = provider;
         let researchDebugModel = model;
@@ -207,19 +205,41 @@ export async function POST(req: Request) {
           }
         }
 
-        const siteFacts = await researchSiteFacts(
+        const researchFacts = await researchSiteFacts(
           researchModelInstance,
           blueprint.siteName,
           prompt,
           { conversationId, provider: researchDebugProvider, model: researchDebugModel },
         );
-        if (siteFacts) {
-          blueprint.siteFacts = siteFacts;
+
+        if (researchFacts && discoveryFacts) {
+          // Merge: discovery data wins for non-empty fields, research fills gaps
+          blueprint.siteFacts = {
+            businessName: discoveryFacts.businessName || researchFacts.businessName,
+            address: discoveryFacts.address || researchFacts.address,
+            phone: discoveryFacts.phone || researchFacts.phone,
+            email: discoveryFacts.email || researchFacts.email,
+            hours: discoveryFacts.hours || researchFacts.hours,
+            services: discoveryFacts.services?.length ? discoveryFacts.services : researchFacts.services,
+            tagline: researchFacts.tagline || discoveryFacts.tagline,
+            socialMedia: discoveryFacts.socialMedia || researchFacts.socialMedia,
+            additionalInfo: [discoveryFacts.additionalInfo, researchFacts.additionalInfo].filter(Boolean).join('\n'),
+          };
+        } else if (researchFacts) {
+          blueprint.siteFacts = researchFacts;
+        } else if (discoveryFacts) {
+          blueprint.siteFacts = discoveryFacts;
         }
       } catch (err) {
-        // Non-fatal: proceed without facts
+        // Non-fatal: use discovery data if available, otherwise proceed without
         console.warn('[blueprint-generate] Site facts research failed:', err instanceof Error ? err.message : err);
+        if (discoveryFacts) {
+          blueprint.siteFacts = discoveryFacts;
+        }
       }
+    } else if (discoveryFacts) {
+      // No research needed but we have discovery data — use it directly
+      blueprint.siteFacts = discoveryFacts;
     }
 
     const dbBlueprint = await prisma.blueprint.upsert({

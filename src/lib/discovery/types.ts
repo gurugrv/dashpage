@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // What the AI returns when analyzing a prompt
-export const intakeAnalysisSchema = z.object({
+export const discoveryAnalysisSchema = z.object({
   isBusinessSite: z.boolean(),
   detectedName: z.string().nullable(),
   questions: z.array(z.object({
@@ -14,9 +14,9 @@ export const intakeAnalysisSchema = z.object({
   })),
 });
 
-export type IntakeAnalysis = z.infer<typeof intakeAnalysisSchema>;
+export type DiscoveryAnalysis = z.infer<typeof discoveryAnalysisSchema>;
 
-export interface IntakeQuestion {
+export interface DiscoveryQuestion {
   id: string;
   question: string;
   type: 'text' | 'phone' | 'email' | 'address_autocomplete' | 'select' | 'textarea';
