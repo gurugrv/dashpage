@@ -11,11 +11,11 @@ const iconQuerySchema = z.object({
     .int()
     .min(1)
     .max(5)
-    .default(3)
+    .catch(3)
     .describe('Number of icon results to return (1-5). Default 3.'),
   style: z
     .string()
-    .default('outline')
+    .catch('outline')
     .describe('Icon style: "outline" or "solid". outline for stroke-based icons (nav, UI chrome), solid for filled icons (badges, emphasis, active states).'),
 });
 

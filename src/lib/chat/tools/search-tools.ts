@@ -18,7 +18,7 @@ export function createSearchTools() {
           .int()
           .min(1)
           .max(5)
-          .default(5)
+          .catch(5)
           .describe('Number of results to return (1-5). Default 5.'),
       }),
       execute: async ({ query, count }): Promise<SearchOutcome> => {

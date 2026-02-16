@@ -28,7 +28,7 @@ const imageQuerySchema = z.object({
     .int()
     .min(1)
     .max(5)
-    .default(2)
+    .catch(2)
     .describe('Number of results for this query (1-5). Default 2.'),
   orientation: z
     .enum(['landscape', 'portrait', 'square'])
