@@ -68,40 +68,60 @@ export async function POST(req: Request) {
     let rawText: string | undefined;
     let finishReason: string | undefined;
 
+    const useStructuredOutput = providerConfig?.supportsStructuredOutput !== false;
+
     try {
       {
+        const textPrompt = useStructuredOutput
+          ? prompt
+          : prompt + '\n\nRespond ONLY with a valid JSON object matching the blueprint schema. No markdown fences, no extra text.';
+
         const result = await generateText({
           model: modelInstance,
           system: systemPrompt,
-          output: Output.object({ schema: blueprintSchema }),
-          prompt,
+          ...(useStructuredOutput ? { output: Output.object({ schema: blueprintSchema }) } : {}),
+          prompt: textPrompt,
           maxOutputTokens,
         });
 
         rawText = result.text;
         finishReason = result.finishReason;
 
-        // result.output getter throws NoOutputGeneratedError when parsing failed internally
-        let parsed: Blueprint | undefined;
-        try {
-          parsed = result.output;
-        } catch {
-          // fall through to repair
-        }
+        if (useStructuredOutput) {
+          // result.output getter throws NoOutputGeneratedError when parsing failed internally
+          let parsed: Blueprint | undefined;
+          try {
+            parsed = result.output;
+          } catch {
+            // fall through to repair
+          }
 
-        if (parsed) {
-          blueprint = parsed;
-        } else if (rawText) {
-          console.warn('Blueprint output missing, attempting repair from raw text...');
-          const repaired = repairAndParseJson(rawText, blueprintSchema);
-          if (repaired) {
-            console.info('Blueprint JSON repair succeeded');
-            blueprint = repaired;
+          if (parsed) {
+            blueprint = parsed;
+          } else if (rawText) {
+            console.warn('Blueprint output missing, attempting repair from raw text...');
+            const repaired = repairAndParseJson(rawText, blueprintSchema);
+            if (repaired) {
+              console.info('Blueprint JSON repair succeeded');
+              blueprint = repaired;
+            } else {
+              throw new Error('Model did not produce a valid blueprint object');
+            }
           } else {
             throw new Error('Model did not produce a valid blueprint object');
           }
         } else {
-          throw new Error('Model did not produce a valid blueprint object');
+          // Text mode: parse raw JSON response
+          if (rawText) {
+            const repaired = repairAndParseJson(rawText, blueprintSchema);
+            if (repaired) {
+              blueprint = repaired;
+            } else {
+              throw new Error('Model did not produce a valid blueprint object');
+            }
+          } else {
+            throw new Error('Model did not produce a valid blueprint object');
+          }
         }
       }
     } catch (parseErr) {

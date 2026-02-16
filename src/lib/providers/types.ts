@@ -13,6 +13,8 @@ export interface ProviderConfig {
   createModel: (apiKey: string, modelId: string) => LanguageModel;
   staticModels: ModelInfo[];
   fetchModels?: (apiKey: string) => Promise<ModelInfo[]>;
+  /** Set to false if the provider rejects JSON Schema constraints like minItems/minLength (default: true) */
+  supportsStructuredOutput?: boolean;
 }
 
 export interface OpenRouterModelResponse {

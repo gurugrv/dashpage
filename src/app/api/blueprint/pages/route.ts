@@ -1,4 +1,4 @@
-import { stepCountIs, streamText, type ModelMessage } from 'ai';
+import { hasToolCall, stepCountIs, streamText, type ModelMessage } from 'ai';
 import { prisma } from '@/lib/db/prisma';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
@@ -291,6 +291,7 @@ export async function POST(req: Request) {
         let writeFilesAttempted = false;
         let segmentsWithoutWriteFiles = 0;
         let allTextOutput = '';  // Accumulate text across all segments for fallback
+        let pageSummary: string | undefined;  // Extracted from writeFile/writeFiles summary field
 
         for (let segment = 0; segment <= MAX_PAGE_CONTINUATIONS; segment++) {
           if (abortSignal.aborted) break;
@@ -315,7 +316,7 @@ export async function POST(req: Request) {
               prompt: pagePrompt,
               maxOutputTokens,
               tools: pageTools,
-              stopWhen: stepCountIs(8),
+              stopWhen: [hasToolCall('writeFile'), hasToolCall('writeFiles'), stepCountIs(8)],
               abortSignal,
             });
           } else {
@@ -336,7 +337,7 @@ export async function POST(req: Request) {
               prompt: continuationPrompt,
               maxOutputTokens,
               tools: pageTools,
-              stopWhen: stepCountIs(8),
+              stopWhen: [hasToolCall('writeFile'), hasToolCall('writeFiles'), stepCountIs(8)],
               abortSignal,
             });
           }
@@ -399,6 +400,13 @@ export async function POST(req: Request) {
               }
             } else if (part.type === 'tool-call') {
               debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
+              // Extract summary from writeFile/writeFiles tool calls
+              if ((part.toolName === 'writeFile' || part.toolName === 'writeFiles') && part.input) {
+                const input = part.input as Record<string, unknown>;
+                if (typeof input.summary === 'string' && input.summary.trim()) {
+                  pageSummary = input.summary.trim();
+                }
+              }
               const detail = summarizeToolInput(part.toolName, part.input);
               if (detail) {
                 sendEvent({
@@ -553,6 +561,7 @@ export async function POST(req: Request) {
             html: pageHtml,
             totalPages,
             completedPages,
+            ...(pageSummary ? { summary: pageSummary } : {}),
           });
           completedPagesMap[page.filename] = pageHtml;
           await prisma.generationState.update({

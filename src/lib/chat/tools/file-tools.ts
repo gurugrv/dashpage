@@ -64,11 +64,19 @@ function normalizeFilesInput(val: unknown): unknown {
       // String value — keep as-is (likely filename -> HTML)
       result[key] = value;
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      // Nested object — try to extract HTML from content/html/body fields
       const nested = value as Record<string, unknown>;
+      const nestedKeys = Object.keys(nested);
+
+      // Try to extract HTML from content/html/body fields first
       const html = nested.content ?? nested.html ?? nested.body ?? nested.source;
       if (typeof html === 'string') {
         result[key] = html;
+      } else if (nestedKeys.length > 0 && nestedKeys.every(k => typeof nested[k] === 'string')) {
+        // Directory wrapper pattern: { "_components": { "footer": "<footer>...", "header": "<header>..." } }
+        // Flatten inner entries as individual files
+        for (const [innerKey, innerVal] of Object.entries(nested)) {
+          result[innerKey] = innerVal as string;
+        }
       }
     }
   }
@@ -91,6 +99,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         ).describe(
             'Map of filename (with extension, e.g. "index.html", "about.html") to complete file content. Each HTML file must be a standalone document starting with <!DOCTYPE html>, containing <head> with Tailwind CDN, fonts, and design system, and a full <body>. Values must be complete HTML — never single words or placeholders.',
           ),
+        summary: z.string().optional().describe('Brief 1-2 sentence description of what was created or changed, highlighting key design choices and sections. Shown to the user as a completion message.'),
       }),
       execute: async ({ files }) => {
         // Reject completely empty files map
@@ -147,7 +156,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         }
 
         Object.assign(workingFiles, normalized);
-        return { success: true as const, fileNames: Object.keys(normalized), notice: 'Files written. Proceed without re-reading.' };
+        return { success: true as const, fileNames: Object.keys(normalized) };
       },
     }),
 
@@ -159,6 +168,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
       inputSchema: z.object({
         filename: z.string().describe('Filename with extension, e.g. "index.html", "about.html"'),
         content: z.string().describe('Complete HTML document starting with <!DOCTYPE html>. Must include <head> with Tailwind CDN, fonts, design system, and a full <body>. Never use placeholders or abbreviated content.'),
+        summary: z.string().optional().describe('Brief 1-2 sentence description of what was created or changed, highlighting key design choices and sections. Shown to the user as a completion message.'),
       }),
       execute: async ({ filename, content }) => {
         // Strip wrapping quotes hallucinated by some models, lowercase
@@ -177,7 +187,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         }
 
         workingFiles[fixedName] = content;
-        return { success: true as const, fileName: fixedName, notice: 'File written. Proceed without re-reading.' };
+        return { success: true as const, fileName: fixedName };
       },
     }),
 

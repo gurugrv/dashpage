@@ -15,11 +15,20 @@ export function resolveMaxOutputTokens(
   modelId: string,
   clientMaxTokens?: number,
 ): number {
-  // Client-provided value (from fetchModels) is authoritative when available
-  if (clientMaxTokens && clientMaxTokens > 0) {
-    return Math.min(clientMaxTokens, MAX_OUTPUT_SAFETY_CEILING);
-  }
+  // Look up server-side known limit from static models
+  const serverLimit = resolveServerMaxOutputTokens(providerConfig, modelId);
 
+  // Use the higher of client and server values to prevent stale client cache from
+  // underreporting a model's true capacity
+  const clientLimit = clientMaxTokens && clientMaxTokens > 0 ? clientMaxTokens : 0;
+
+  return Math.min(Math.max(clientLimit, serverLimit), MAX_OUTPUT_SAFETY_CEILING);
+}
+
+function resolveServerMaxOutputTokens(
+  providerConfig: ProviderConfig,
+  modelId: string,
+): number {
   // Exact match on static models
   const exact = providerConfig.staticModels.find((m) => m.id === modelId);
   if (exact) return exact.maxOutputTokens;
@@ -28,11 +37,9 @@ export function resolveMaxOutputTokens(
   // Require a separator after the prefix to avoid false positives (gpt-4o matching gpt-4o-mini)
   const prefixMatch = providerConfig.staticModels.find((m) => {
     if (modelId.length > m.id.length) {
-      // Dynamic ID is longer: check if static ID is a prefix followed by a separator
       return modelId.startsWith(m.id) && /^[-.:@]/.test(modelId.slice(m.id.length));
     }
     if (m.id.length > modelId.length) {
-      // Static ID is longer: check if dynamic ID is a prefix followed by a separator
       return m.id.startsWith(modelId) && /^[-.:@]/.test(m.id.slice(modelId.length));
     }
     return false;
