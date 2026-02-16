@@ -200,6 +200,12 @@ export function useBlueprintGeneration({
     sharedStylesRef.current = null;
   }, [cancelPendingRafs]);
 
+  /** Restore the awaiting-approval state so the BlueprintCard is shown again after refresh. */
+  const restoreAwaitingApproval = useCallback((blueprintData: Blueprint) => {
+    setBlueprint(blueprintData);
+    setPhase('awaiting-approval');
+  }, []);
+
   const generateBlueprint = useCallback(async (prompt: string, conversationId: string) => {
     const stepModel = resolveStepModel('planning');
     if (!stepModel) {
@@ -674,6 +680,7 @@ export function useBlueprintGeneration({
     generatePages,
     approveAndGenerate,
     resumeFromState,
+    restoreAwaitingApproval,
     updateBlueprint,
     cancel,
     reset,

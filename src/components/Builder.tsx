@@ -119,6 +119,7 @@ export function Builder() {
     generateBlueprint,
     approveAndGenerate,
     resumeFromState,
+    restoreAwaitingApproval,
     updateBlueprint,
     retryAttempt,
     blueprintStreamingCode,
@@ -259,7 +260,25 @@ export function Builder() {
     setHasPartialMessage,
     resetBlueprint,
     onRestoreModel: setModelForConversation,
-    onRestoreGenerationState: setResumableState,
+    onRestoreGenerationState: useCallback((state: ResumableGenerationState | null) => {
+      if (state?.mode === 'blueprint' && state.phase === 'awaiting-approval' && state.blueprintId) {
+        // Blueprint was generated but user hadn't approved yet — restore the BlueprintCard
+        const convId = state.conversationId;
+        fetch(`/api/blueprint/${convId}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data?.blueprint) {
+              restoreAwaitingApproval(data.blueprint);
+            } else {
+              // Blueprint missing from DB — fall back to resume card
+              setResumableState(state);
+            }
+          })
+          .catch(() => setResumableState(state));
+        return;
+      }
+      setResumableState(state);
+    }, [restoreAwaitingApproval]),
   });
 
   // Restore conversation from URL when conversations are loaded
