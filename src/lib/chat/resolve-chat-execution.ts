@@ -4,6 +4,7 @@ import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
 import { resolveMaxOutputTokens as resolveMaxTokens } from '@/lib/chat/constants';
 import { ChatRequestError } from '@/lib/chat/errors';
+import type { BusinessProfileData } from '@/lib/intake/types';
 
 interface ResolveChatExecutionInput {
   provider: string;
@@ -13,6 +14,7 @@ interface ResolveChatExecutionInput {
   browserTimeZone?: string;
   currentFiles?: Record<string, string>;
   userPrompt?: string;
+  businessProfile?: BusinessProfileData | null;
 }
 
 interface ResolvedChatExecution {
@@ -31,6 +33,7 @@ export async function resolveChatExecution({
   browserTimeZone,
   currentFiles,
   userPrompt,
+  businessProfile,
 }: ResolveChatExecutionInput): Promise<ResolvedChatExecution> {
   const apiKey = await resolveApiKey(provider);
   if (!apiKey) {
@@ -46,7 +49,7 @@ export async function resolveChatExecution({
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);
-  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, userPrompt, provider, model);
+  const systemPromptParts = getSystemPromptParts(currentFiles, temporalContext, userPrompt, provider, model, businessProfile);
   const systemPrompt = systemPromptParts.stable + '\n' + systemPromptParts.dynamic;
   const modelInstance = providerConfig.createModel(apiKey, model);
 

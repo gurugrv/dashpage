@@ -236,6 +236,35 @@ export async function POST(req: Request) {
       .map(p => p.text)
       .join(' ') ?? '';
 
+    // Fetch linked business profile if conversation has one
+    let businessProfile: import('@/lib/intake/types').BusinessProfileData | null = null;
+    if (clientConversationId) {
+      const conv = await prisma.conversation.findUnique({
+        where: { id: clientConversationId },
+        include: { businessProfile: true },
+      });
+      if (conv?.businessProfile) {
+        const bp = conv.businessProfile;
+        businessProfile = {
+          name: bp.name,
+          phone: bp.phone ?? undefined,
+          email: bp.email ?? undefined,
+          website: bp.website ?? undefined,
+          address: bp.address ?? undefined,
+          lat: bp.lat ?? undefined,
+          lng: bp.lng ?? undefined,
+          placeId: bp.placeId ?? undefined,
+          category: bp.category ?? undefined,
+          categories: (bp.categories as string[] | null) ?? undefined,
+          hours: (bp.hours as Record<string, string> | null) ?? undefined,
+          services: (bp.services as string[] | null) ?? undefined,
+          socialMedia: (bp.socialMedia as Record<string, string> | null) ?? undefined,
+          additionalInfo: bp.additionalInfo ?? undefined,
+          googleMapsUri: bp.googleMapsUri ?? undefined,
+        };
+      }
+    }
+
     const {
       modelInstance,
       maxOutputTokens: resolvedMaxOutputTokens,
@@ -250,6 +279,7 @@ export async function POST(req: Request) {
       browserTimeZone,
       currentFiles,
       userPrompt: lastUserText,
+      businessProfile,
     });
 
     const isAnthropicDirect = resolvedProvider === 'anthropic';

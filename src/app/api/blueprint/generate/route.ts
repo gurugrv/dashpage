@@ -164,7 +164,30 @@ export async function POST(req: Request) {
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');
 
-    // Research site facts if the AI flagged this as a real business
+    // Check if conversation has a business profile (from intake)
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { businessProfile: true },
+    });
+    const businessProfile = conv?.businessProfile;
+
+    // If we have intake data, inject it as siteFacts and skip web research
+    if (businessProfile && blueprint.needsResearch) {
+      blueprint.siteFacts = {
+        businessName: businessProfile.name,
+        address: businessProfile.address ?? '',
+        phone: businessProfile.phone ?? '',
+        email: businessProfile.email ?? '',
+        hours: businessProfile.hours ? JSON.stringify(businessProfile.hours) : '',
+        services: (businessProfile.services as string[] | null) ?? [],
+        tagline: '',
+        socialMedia: businessProfile.socialMedia ? JSON.stringify(businessProfile.socialMedia) : '',
+        additionalInfo: businessProfile.additionalInfo ?? '',
+      };
+      blueprint.needsResearch = false;
+    }
+
+    // Research site facts if the AI flagged this as a real business (and no intake data)
     if (blueprint.needsResearch) {
       try {
         // Use research model override if provided, otherwise fall back to planning model

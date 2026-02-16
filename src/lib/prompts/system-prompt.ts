@@ -1,5 +1,7 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
+import type { BusinessProfileData } from '@/lib/intake/types';
+import { buildBusinessContextBlock } from '@/lib/intake/build-business-context';
 import { getBaseRulesSection } from '@/lib/prompts/sections/base-rules';
 import {
   buildCurrentWebsiteBlock,
@@ -44,6 +46,7 @@ export function getSystemPromptParts(
   userPrompt?: string,
   provider?: string,
   modelId?: string,
+  businessProfile?: BusinessProfileData | null,
 ): SystemPromptParts {
   const isFirstGeneration = !currentFiles?.['index.html'];
   const toolSection = TOOL_OUTPUT_FORMAT_SECTION;
@@ -56,7 +59,7 @@ ${CREATIVE_DIRECTION_SECTION}
 ${LAYOUT_ARCHETYPES_SECTION}
 ${toolSection}`;
 
-  const dynamic = `${buildTemporalBlock(temporalContext)}${buildFirstGenerationBlock(isFirstGeneration, userPrompt)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
+  const dynamic = `${buildTemporalBlock(temporalContext)}${buildBusinessContextBlock(businessProfile ?? null)}${buildFirstGenerationBlock(isFirstGeneration, userPrompt)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
 
 ${CLOSING_LINE}`;
 
@@ -69,7 +72,8 @@ export function getSystemPrompt(
   userPrompt?: string,
   provider?: string,
   modelId?: string,
+  businessProfile?: BusinessProfileData | null,
 ): string {
-  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext, userPrompt, provider, modelId);
+  const { stable, dynamic } = getSystemPromptParts(currentFiles, temporalContext, userPrompt, provider, modelId, businessProfile);
   return stable + '\n' + dynamic;
 }
