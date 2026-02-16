@@ -22,7 +22,17 @@ export async function POST(req: Request) {
   }
 
   const modelInstance = providerConfig.createModel(apiKey, model);
-  const analysis = await analyzePromptForDiscovery(modelInstance, prompt, { provider, modelId: model });
+
+  let analysis;
+  try {
+    analysis = await analyzePromptForDiscovery(modelInstance, prompt, { provider, modelId: model });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    // Log the cause chain for schema validation failures
+    const cause = error instanceof Error && 'cause' in error ? (error.cause as Error)?.message : undefined;
+    console.error('[discovery/analyze] AI call failed:', msg, cause ? `\n  Cause: ${cause}` : '');
+    return NextResponse.json({ error: 'Analysis failed. Try a different model.' }, { status: 502 });
+  }
 
   // If Google Places not configured, downgrade address_autocomplete to text
   if (!isPlacesConfigured()) {

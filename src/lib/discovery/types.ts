@@ -3,15 +3,15 @@ import { z } from 'zod';
 // What the AI returns when analyzing a prompt
 export const discoveryAnalysisSchema = z.object({
   isBusinessSite: z.boolean(),
-  detectedName: z.string().nullable(),
+  detectedName: z.string().nullable().optional().default(null),
   questions: z.array(z.object({
     id: z.string(),
     question: z.string(),
     type: z.enum(['text', 'phone', 'email', 'address_autocomplete', 'select', 'multi_select', 'textarea']),
-    required: z.boolean(),
+    required: z.boolean().default(false),
     options: z.array(z.string()).optional(),
     prefilled: z.string().optional(),
-  })),
+  })).default([]),
 });
 
 export type DiscoveryAnalysis = z.infer<typeof discoveryAnalysisSchema>;

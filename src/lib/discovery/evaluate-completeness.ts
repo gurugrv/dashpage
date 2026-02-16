@@ -1,4 +1,4 @@
-import { generateText, Output } from 'ai';
+import { generateText } from 'ai';
 import type { LanguageModel } from 'ai';
 import { completenessResultSchema, type CompletenessResult } from './types';
 import type { BusinessProfileData } from './types';
@@ -23,7 +23,77 @@ FOLLOW-UP RULES:
 - Don't re-ask for data already collected
 - Focus on content that would otherwise be placeholder (testimonials, specific services, team names)
 - If the user provided a rich initial prompt, fewer questions needed
-- Never ask for data that's nice-to-have but not visible on the site`;
+- Never ask for data that's nice-to-have but not visible on the site
+
+Respond with a JSON object with this exact structure:
+{
+  "ready": boolean,
+  "followUpQuestions": [
+    {
+      "id": "string",
+      "question": "The question text to display",
+      "type": "text|phone|email|select|multi_select|textarea",
+      "required": boolean,
+      "options": ["only for select/multi_select"]
+    }
+  ]
+}
+
+IMPORTANT: Each question MUST have a "question" field (not "label") with the display text. The type for phone must be "phone" (not "tel").`;
+
+// Map common model deviations to expected field names
+const TYPE_ALIASES: Record<string, string> = {
+  tel: 'phone',
+  telephone: 'phone',
+  number: 'text',
+  url: 'text',
+  checkbox: 'multi_select',
+  radio: 'select',
+  dropdown: 'select',
+  multiselect: 'multi_select',
+  'multi-select': 'multi_select',
+};
+
+const VALID_TYPES = new Set(['text', 'phone', 'email', 'select', 'multi_select', 'textarea']);
+
+function parseAndNormalizeCompleteness(text: string | undefined): CompletenessResult | null {
+  if (!text) return null;
+
+  try {
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+    if (!jsonMatch) return null;
+
+    const raw = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+
+    const normalized: Record<string, unknown> = {
+      ready: raw.ready ?? false,
+    };
+
+    const rawQuestions = raw.followUpQuestions ?? raw.follow_up_questions ?? raw.questions ?? [];
+    if (rawQuestions.length > 0) {
+      normalized.followUpQuestions = rawQuestions.map((q: Record<string, unknown>) => {
+        const question = q.question ?? q.label ?? q.text ?? q.title ?? '';
+
+        let type = String(q.type ?? 'text').toLowerCase();
+        if (TYPE_ALIASES[type]) type = TYPE_ALIASES[type];
+        if (!VALID_TYPES.has(type)) type = 'text';
+
+        return {
+          id: q.id ?? q.name ?? 'unknown',
+          question: String(question),
+          type,
+          required: q.required ?? false,
+          ...(q.options ? { options: q.options } : {}),
+        };
+      });
+    }
+
+    return completenessResultSchema.parse(normalized);
+  } catch (e) {
+    console.error('[discovery/evaluate] Normalization failed:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
 
 export async function evaluateCompleteness(
   model: LanguageModel,
@@ -63,23 +133,31 @@ Remaining question budget: ${MAX_TOTAL_QUESTIONS - questionsAskedSoFar}`;
     maxOutputTokens: 1024,
   });
 
-  const result = await generateText({
-    model,
-    system: EVAL_SYSTEM_PROMPT,
-    output: Output.object({ schema: completenessResultSchema }),
-    prompt: userPrompt,
-    maxOutputTokens: 1024,
-  });
-
-  if (!result.output) {
-    debug?.logResponse({ response: result.text, status: 'error', finishReason: 'no-structured-output' });
-    debug?.logGenerationSummary?.({ finishReason: 'no-structured-output', hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: result.text?.length });
+  let result;
+  try {
+    result = await generateText({
+      model,
+      system: EVAL_SYSTEM_PROMPT,
+      prompt: userPrompt,
+      maxOutputTokens: 1024,
+    });
+  } catch (error) {
+    console.error('[discovery/evaluate] AI call failed:', error instanceof Error ? error.message : error);
+    debug?.logResponse({ response: String(error), status: 'error', finishReason: 'api-error' });
     return { ready: true }; // Fail-open: proceed with what we have
   }
 
-  const outputJson = JSON.stringify(result.output, null, 2);
+  const output = parseAndNormalizeCompleteness(result.text);
+
+  if (!output) {
+    console.error('[discovery/evaluate] Failed to parse response:', result.text?.slice(0, 500));
+    debug?.logResponse({ response: result.text, status: 'error', finishReason: 'parse-failed' });
+    return { ready: true }; // Fail-open: proceed with what we have
+  }
+
+  const outputJson = JSON.stringify(output, null, 2);
   debug?.logResponse({ response: outputJson, status: 'complete', finishReason: result.finishReason });
   debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length });
 
-  return result.output;
+  return output;
 }

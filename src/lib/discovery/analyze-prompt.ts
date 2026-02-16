@@ -1,4 +1,4 @@
-import { generateText, Output } from 'ai';
+import { generateText } from 'ai';
 import type { LanguageModel } from 'ai';
 import { discoveryAnalysisSchema, type DiscoveryAnalysis } from './types';
 import { createDebugSession, isDebugEnabled } from '@/lib/chat/stream-debug';
@@ -28,7 +28,87 @@ RULES:
 
 QUESTION ID CONVENTIONS:
 - business_name, phone, address, email, website, hours, services, description, team, social_media
-- Use descriptive IDs for industry-specific: cuisine_type, menu_highlights, insurance, specializations`;
+- Use descriptive IDs for industry-specific: cuisine_type, menu_highlights, insurance, specializations
+
+Respond with a JSON object with this exact structure:
+{
+  "isBusinessSite": boolean,
+  "detectedName": "string or null",
+  "questions": [
+    {
+      "id": "string",
+      "question": "The question text to display",
+      "type": "text|phone|email|address_autocomplete|select|multi_select|textarea",
+      "required": boolean,
+      "options": ["only for select/multi_select"],
+      "prefilled": "optional default value"
+    }
+  ]
+}
+
+IMPORTANT: Each question MUST have a "question" field (not "label") with the display text. The type for phone must be "phone" (not "tel").`;
+
+// Map common model deviations to expected field names
+const TYPE_ALIASES: Record<string, string> = {
+  tel: 'phone',
+  telephone: 'phone',
+  number: 'text',
+  url: 'text',
+  checkbox: 'multi_select',
+  radio: 'select',
+  dropdown: 'select',
+  multiselect: 'multi_select',
+  'multi-select': 'multi_select',
+  address: 'address_autocomplete',
+};
+
+const VALID_TYPES = new Set(['text', 'phone', 'email', 'address_autocomplete', 'select', 'multi_select', 'textarea']);
+
+function parseAndNormalizeAnalysis(text: string | undefined): DiscoveryAnalysis | null {
+  if (!text) return null;
+
+  try {
+    // Extract JSON from response (may be wrapped in markdown code blocks)
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+    if (!jsonMatch) return null;
+
+    const raw = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+
+    // Normalize top-level fields
+    const normalized: Record<string, unknown> = {
+      isBusinessSite: raw.isBusinessSite ?? raw.is_business_site ?? true,
+      detectedName: raw.detectedName ?? raw.detectedBusinessName ?? raw.detected_name ?? raw.businessName ?? null,
+      questions: [],
+    };
+
+    // Normalize questions
+    const rawQuestions = raw.questions ?? [];
+    normalized.questions = rawQuestions.map((q: Record<string, unknown>) => {
+      // Map "label" -> "question", "defaultValue"/"placeholder" -> "prefilled"
+      const question = q.question ?? q.label ?? q.text ?? q.title ?? '';
+      const prefilled = q.prefilled ?? q.defaultValue ?? q.default_value ?? q.placeholder ?? undefined;
+
+      // Normalize type
+      let type = String(q.type ?? 'text').toLowerCase();
+      if (TYPE_ALIASES[type]) type = TYPE_ALIASES[type];
+      if (!VALID_TYPES.has(type)) type = 'text';
+
+      return {
+        id: q.id ?? q.name ?? 'unknown',
+        question: String(question),
+        type,
+        required: q.required ?? false,
+        ...(q.options ? { options: q.options } : {}),
+        ...(prefilled ? { prefilled: String(prefilled) } : {}),
+      };
+    });
+
+    return discoveryAnalysisSchema.parse(normalized);
+  } catch (e) {
+    console.error('[discovery/analyze] Normalization failed:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
 
 export async function analyzePromptForDiscovery(
   model: LanguageModel,
@@ -48,14 +128,15 @@ export async function analyzePromptForDiscovery(
   const result = await generateText({
     model,
     system: ANALYSIS_SYSTEM_PROMPT,
-    output: Output.object({ schema: discoveryAnalysisSchema }),
     prompt: userPrompt,
     maxOutputTokens: 2048,
   });
 
-  if (!result.output) {
-    debug?.logResponse({ response: result.text, status: 'error', finishReason: 'no-structured-output' });
-    debug?.logGenerationSummary?.({ finishReason: 'no-structured-output', hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: result.text?.length });
+  const output = parseAndNormalizeAnalysis(result.text);
+
+  if (!output) {
+    console.error('[discovery/analyze] Failed to parse response:', result.text?.slice(0, 500));
+    debug?.logResponse({ response: result.text, status: 'error', finishReason: 'parse-failed' });
     return { isBusinessSite: true, detectedName: null, questions: [] };
   }
 
@@ -66,22 +147,19 @@ export async function analyzePromptForDiscovery(
     'languages', 'menu_highlights', 'brands', 'treatments', 'programs',
   ]);
 
-  for (const q of result.output.questions) {
+  for (const q of output.questions) {
     if (q.type === 'select' && q.options && q.options.length > 0) {
-      // Force multi_select for known multi-pick question IDs
       if (ALWAYS_MULTI_SELECT_IDS.has(q.id)) {
         q.type = 'multi_select';
-      }
-      // Heuristic: select with 5+ options is likely multi_select
-      else if (q.options.length >= 5) {
+      } else if (q.options.length >= 5) {
         q.type = 'multi_select';
       }
     }
   }
 
-  const outputJson = JSON.stringify(result.output, null, 2);
+  const outputJson = JSON.stringify(output, null, 2);
   debug?.logResponse({ response: outputJson, status: 'complete', finishReason: result.finishReason });
   debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length });
 
-  return result.output;
+  return output;
 }
