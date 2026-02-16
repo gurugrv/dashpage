@@ -23,6 +23,7 @@ import type { Blueprint } from '@/lib/blueprint/types';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
+import { useIntake } from '@/hooks/useIntake';
 import { useModels } from '@/hooks/useModels';
 import { ARTIFACT_COMPLETION_MESSAGE, sanitizeAssistantMessage } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
@@ -134,6 +135,14 @@ export function Builder() {
   });
 
   const isBlueprintBusy = blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
+
+  const intake = useIntake({
+    provider: effectiveSelectedProvider ?? '',
+    model: effectiveSelectedModel ?? '',
+  });
+  const pendingBlueprintPromptRef = useRef<string | null>(null);
+  const pendingBlueprintConversationIdRef = useRef<string | null>(null);
+  const isIntakeActive = intake.phase !== 'idle' && intake.phase !== 'complete' && intake.phase !== 'skipped';
 
   const currentFilesRef = useRef<ProjectFiles>(currentFiles);
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
@@ -352,13 +361,15 @@ export function Builder() {
         streamingTextRef.current = '';
         setHasPartialMessage(false);
 
-        // All first-generation requests go through the blueprint pipeline
+        // All first-generation requests go through intake -> blueprint pipeline
         setMessages([{
           id: `user-${Date.now()}`,
           role: 'user',
           parts: [{ type: 'text', text: promptToSubmit }],
         }]);
-        await generateBlueprint(promptToSubmit, conversation.id);
+        pendingBlueprintPromptRef.current = promptToSubmit;
+        pendingBlueprintConversationIdRef.current = conversation.id;
+        await intake.startIntake(promptToSubmit);
       };
 
       submitWithPrompt();
@@ -398,9 +409,9 @@ export function Builder() {
       }
     }
 
-    // All first-generation requests go through the blueprint pipeline
-    const useBlueprint = messages.length === 0;
-    if (useBlueprint) {
+    // All first-generation requests go through intake -> blueprint pipeline
+    const isFirstMessage = messages.length === 0;
+    if (isFirstMessage) {
       const promptText = input;
       setInput('');
       setMessages([{
@@ -408,7 +419,10 @@ export function Builder() {
         role: 'user',
         parts: [{ type: 'text', text: promptText }],
       }]);
-      await generateBlueprint(promptText, conversationId);
+      // Start intake analysis instead of immediate blueprint
+      pendingBlueprintPromptRef.current = promptText;
+      pendingBlueprintConversationIdRef.current = conversationId;
+      await intake.startIntake(promptText);
       return;
     }
 
@@ -617,6 +631,41 @@ export function Builder() {
     resetBlueprint();
   }, [blueprintPhase, blueprint, resetBlueprint, setMessages]);
 
+  // When intake completes or is skipped, trigger blueprint generation
+  useEffect(() => {
+    if (
+      (intake.phase === 'complete' || intake.phase === 'skipped') &&
+      pendingBlueprintPromptRef.current &&
+      pendingBlueprintConversationIdRef.current
+    ) {
+      const prompt = pendingBlueprintPromptRef.current;
+      const convId = pendingBlueprintConversationIdRef.current;
+      pendingBlueprintPromptRef.current = null;
+      pendingBlueprintConversationIdRef.current = null;
+      generateBlueprint(prompt, convId);
+    }
+  }, [intake.phase, generateBlueprint]);
+
+  // Intake callbacks
+  const handleIntakeAnswer = useCallback((questionId: string, value: string) => {
+    intake.submitAnswer(questionId, value);
+  }, [intake]);
+
+  const handleIntakeAddressAnswer = useCallback((questionId: string, address: string, enrichment: import('@/lib/intake/types').PlacesEnrichment) => {
+    intake.submitAddressAnswer(questionId, address, enrichment);
+  }, [intake]);
+
+  const handleIntakeEvaluate = useCallback(() => {
+    intake.evaluateAndContinue();
+  }, [intake]);
+
+  const handleIntakeConfirm = useCallback((profile: import('@/lib/intake/types').BusinessProfileData) => {
+    const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
+    if (convId) {
+      intake.confirmProfile(convId, profile);
+    }
+  }, [intake, activeConversationId]);
+
   return (
     <>
       <ConversationSidebar
@@ -674,6 +723,15 @@ export function Builder() {
                   onDiscard={handleDiscardResume}
                 />
               ) : undefined}
+              intakePhase={intake.phase}
+              intakeQuestions={intake.questions}
+              intakeAnswers={intake.answers}
+              intakeProfile={intake.businessProfile}
+              intakeAllAnswered={intake.allCurrentQuestionsAnswered}
+              onIntakeAnswer={handleIntakeAnswer}
+              onIntakeAddressAnswer={handleIntakeAddressAnswer}
+              onIntakeEvaluate={handleIntakeEvaluate}
+              onIntakeConfirm={handleIntakeConfirm}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}

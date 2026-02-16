@@ -3,11 +3,17 @@
 import type { UIMessage } from '@ai-sdk/react';
 import { ChatInput } from '@/components/ChatInput';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 import type { BuildProgressState } from '@/hooks/useBuildProgress';
 import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
+import type { IntakePhase } from '@/hooks/useIntake';
 import type { Blueprint } from '@/lib/blueprint/types';
+import type { IntakeQuestion, BusinessProfileData, PlacesEnrichment } from '@/lib/intake/types';
 import { BlueprintCard } from '@/features/blueprint/blueprint-card';
 import { PageProgress } from '@/features/blueprint/page-progress';
+import { IntakeQuestionCard } from '@/features/intake/intake-question-card';
+import { IntakeLoadingIndicator } from '@/features/intake/intake-loading';
+import { BusinessProfileSummary } from '@/features/intake/business-profile-summary';
 import { ErrorBanner } from '@/features/prompt/error-banner';
 import { InterruptedBanner } from '@/features/prompt/interrupted-banner';
 import { MessageList } from '@/features/prompt/message-list';
@@ -37,6 +43,16 @@ interface PromptPanelProps {
   onOpenConversations: () => void;
   hasPartialMessage?: boolean;
   onContinueGeneration?: () => void;
+  // Intake props
+  intakePhase?: IntakePhase;
+  intakeQuestions?: IntakeQuestion[];
+  intakeAnswers?: Record<string, string>;
+  intakeProfile?: BusinessProfileData | null;
+  intakeAllAnswered?: boolean;
+  onIntakeAnswer?: (questionId: string, value: string) => void;
+  onIntakeAddressAnswer?: (questionId: string, address: string, enrichment: PlacesEnrichment) => void;
+  onIntakeEvaluate?: () => void;
+  onIntakeConfirm?: (profile: BusinessProfileData) => void;
   // Blueprint props
   isBlueprintBusy?: boolean;
   blueprintPhase?: BlueprintPhase;
@@ -72,6 +88,15 @@ export function PromptPanel({
   onOpenConversations,
   hasPartialMessage,
   onContinueGeneration,
+  intakePhase,
+  intakeQuestions,
+  intakeAnswers,
+  intakeProfile,
+  intakeAllAnswered,
+  onIntakeAnswer,
+  onIntakeAddressAnswer,
+  onIntakeEvaluate,
+  onIntakeConfirm,
   isBlueprintBusy,
   blueprintPhase,
   blueprint,
@@ -84,7 +109,8 @@ export function PromptPanel({
   isRetryingPages,
   resumeCard,
 }: PromptPanelProps) {
-  const effectiveIsLoading = isLoading || !!isBlueprintBusy;
+  const isIntakeActive = intakePhase && intakePhase !== 'idle' && intakePhase !== 'complete' && intakePhase !== 'skipped';
+  const effectiveIsLoading = isLoading || !!isBlueprintBusy || !!isIntakeActive;
 
   return (
     <div className="flex h-full flex-col">
@@ -103,12 +129,48 @@ export function PromptPanel({
           <MessageList
             messages={messages}
             isLoading={isLoading}
-            showExamplePrompts={showExamplePrompts && !isBlueprintBusy}
+            showExamplePrompts={showExamplePrompts && !isBlueprintBusy && !isIntakeActive}
             onExampleSelect={onExampleSelect}
             buildProgress={buildProgress}
             blueprintLoading={blueprintPhase === 'generating-blueprint'}
           />
 
+          {/* Intake flow UI */}
+          {(intakePhase === 'analyzing' || intakePhase === 'evaluating') && (
+            <IntakeLoadingIndicator />
+          )}
+
+          {intakePhase === 'asking' && intakeQuestions && (
+            <>
+              {intakeQuestions.map((q) => (
+                <IntakeQuestionCard
+                  key={q.id}
+                  question={q}
+                  answered={intakeAnswers?.[q.id]}
+                  onSubmit={(value) => onIntakeAnswer?.(q.id, value)}
+                  onAddressSelect={(addr, enrichment) => onIntakeAddressAnswer?.(q.id, addr, enrichment)}
+                  disabled={!!intakeAnswers?.[q.id]}
+                />
+              ))}
+              {intakeAllAnswered && (
+                <div className="px-4 py-2">
+                  <Button size="sm" onClick={onIntakeEvaluate}>
+                    Continue
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+
+          {intakePhase === 'confirming' && intakeProfile && onIntakeConfirm && (
+            <BusinessProfileSummary
+              profile={intakeProfile}
+              onConfirm={onIntakeConfirm}
+              onAddMore={() => {/* TODO: could add more fields */}}
+            />
+          )}
+
+          {/* Blueprint flow UI */}
           {blueprintPhase === 'awaiting-approval' && blueprint && (
             <BlueprintCard
               blueprint={blueprint}
