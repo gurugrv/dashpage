@@ -76,26 +76,10 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
     }
   }, [provider, model]);
 
-  // Start discovery: check for existing profiles, then analyze
+  // Start discovery: analyze prompt for business questions
   const startDiscovery = useCallback(async (prompt: string) => {
     setError(null);
     originalPromptRef.current = prompt;
-
-    // Check if there are existing business profiles
-    try {
-      const profilesRes = await fetch('/api/business-profiles');
-      if (profilesRes.ok) {
-        const profiles = await profilesRes.json();
-        if (profiles.length > 0) {
-          setExistingProfiles(profiles);
-          setPhase('picking');
-          return;
-        }
-      }
-    } catch {
-      // Continue to analysis if profiles fetch fails
-    }
-
     await runAnalysis(prompt);
   }, [runAnalysis]);
 

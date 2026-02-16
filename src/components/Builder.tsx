@@ -670,16 +670,6 @@ export function Builder() {
     }
   }, [discovery, activeConversationId]);
 
-  const handleDiscoveryPickProfile = useCallback((profile: import('@/hooks/useBusinessProfiles').StoredBusinessProfile) => {
-    const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
-    if (convId) {
-      discovery.selectExistingProfile(profile, convId);
-    }
-  }, [discovery, activeConversationId]);
-
-  const handleDiscoveryCreateNew = useCallback(() => {
-    discovery.skipPickerAndAnalyze();
-  }, [discovery]);
 
   return (
     <>
@@ -742,12 +732,9 @@ export function Builder() {
               discoveryQuestions={discovery.visibleQuestions}
               discoveryAnswers={discovery.answers}
               discoveryProfile={discovery.businessProfile}
-              discoveryExistingProfiles={discovery.existingProfiles}
               onDiscoveryAnswer={handleDiscoveryAnswer}
               onDiscoveryAddressAnswer={handleDiscoveryAddressAnswer}
               onDiscoveryConfirm={handleDiscoveryConfirm}
-              onDiscoveryPickProfile={handleDiscoveryPickProfile}
-              onDiscoveryCreateNew={handleDiscoveryCreateNew}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}

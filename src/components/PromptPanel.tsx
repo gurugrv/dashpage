@@ -8,13 +8,11 @@ import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintG
 import type { DiscoveryPhase } from '@/hooks/useDiscovery';
 import type { Blueprint } from '@/lib/blueprint/types';
 import type { DiscoveryQuestion, BusinessProfileData, PlacesEnrichment } from '@/lib/discovery/types';
-import type { StoredBusinessProfile } from '@/hooks/useBusinessProfiles';
 import { BlueprintCard } from '@/features/blueprint/blueprint-card';
 import { PageProgress } from '@/features/blueprint/page-progress';
 import { DiscoveryQuestionCard } from '@/features/discovery/discovery-question-card';
 import { DiscoveryLoadingIndicator } from '@/features/discovery/discovery-loading';
 import { BusinessProfileSummary } from '@/features/discovery/business-profile-summary';
-import { BusinessProfilePicker } from '@/features/discovery/business-profile-picker';
 import { ErrorBanner } from '@/features/prompt/error-banner';
 import { InterruptedBanner } from '@/features/prompt/interrupted-banner';
 import { MessageList } from '@/features/prompt/message-list';
@@ -49,12 +47,9 @@ interface PromptPanelProps {
   discoveryQuestions?: DiscoveryQuestion[];
   discoveryAnswers?: Record<string, string>;
   discoveryProfile?: BusinessProfileData | null;
-  discoveryExistingProfiles?: (BusinessProfileData & { id?: string })[];
   onDiscoveryAnswer?: (questionId: string, value: string) => void;
   onDiscoveryAddressAnswer?: (questionId: string, address: string, enrichment: PlacesEnrichment) => void;
   onDiscoveryConfirm?: (profile: BusinessProfileData) => void;
-  onDiscoveryPickProfile?: (profile: StoredBusinessProfile) => void;
-  onDiscoveryCreateNew?: () => void;
   // Blueprint props
   isBlueprintBusy?: boolean;
   blueprintPhase?: BlueprintPhase;
@@ -94,12 +89,9 @@ export function PromptPanel({
   discoveryQuestions,
   discoveryAnswers,
   discoveryProfile,
-  discoveryExistingProfiles,
   onDiscoveryAnswer,
   onDiscoveryAddressAnswer,
   onDiscoveryConfirm,
-  onDiscoveryPickProfile,
-  onDiscoveryCreateNew,
   isBlueprintBusy,
   blueprintPhase,
   blueprint,
@@ -139,14 +131,6 @@ export function PromptPanel({
           />
 
           {/* Discovery flow UI */}
-          {discoveryPhase === 'picking' && discoveryExistingProfiles && discoveryExistingProfiles.length > 0 && onDiscoveryPickProfile && onDiscoveryCreateNew && (
-            <BusinessProfilePicker
-              profiles={discoveryExistingProfiles as StoredBusinessProfile[]}
-              onSelect={onDiscoveryPickProfile}
-              onCreateNew={onDiscoveryCreateNew}
-            />
-          )}
-
           {(discoveryPhase === 'analyzing' || discoveryPhase === 'evaluating') && (
             <DiscoveryLoadingIndicator />
           )}
