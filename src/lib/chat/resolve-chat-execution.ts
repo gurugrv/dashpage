@@ -2,7 +2,7 @@ import { getSystemPromptParts, type SystemPromptParts } from '@/lib/prompts/syst
 import { buildTemporalContext, resolvePreferredTimeZone } from '@/lib/prompts/temporal-context';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
-import { resolveMaxOutputTokens as resolveMaxTokens, MAX_OUTPUT_SAFETY_CEILING } from '@/lib/chat/constants';
+import { resolveMaxOutputTokens as resolveMaxTokens } from '@/lib/chat/constants';
 import { ChatRequestError } from '@/lib/chat/errors';
 
 interface ResolveChatExecutionInput {
@@ -42,8 +42,7 @@ export async function resolveChatExecution({
     throw new ChatRequestError(`Unknown provider: ${provider}`);
   }
 
-  const resolvedMax = resolveMaxTokens(providerConfig, model);
-  const maxOutputTokens = Math.min(clientMaxTokens || resolvedMax, MAX_OUTPUT_SAFETY_CEILING);
+  const maxOutputTokens = resolveMaxTokens(providerConfig, model, clientMaxTokens);
 
   const preferredTimeZone = resolvePreferredTimeZone(savedTimeZone, browserTimeZone);
   const temporalContext = buildTemporalContext(preferredTimeZone);

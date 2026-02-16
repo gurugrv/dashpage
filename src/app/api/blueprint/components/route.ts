@@ -14,6 +14,7 @@ interface ComponentsRequestBody {
   blueprint: Blueprint;
   provider: string;
   model: string;
+  maxOutputTokens?: number;
   conversationId?: string;
 }
 
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { blueprint, provider, model, conversationId } = body;
+  const { blueprint, provider, model, maxOutputTokens: clientMaxTokens, conversationId } = body;
 
   if (!blueprint || !provider || !model) {
     return new Response(JSON.stringify({ error: 'blueprint, provider, and model are required' }), {
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model);
+  const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model, clientMaxTokens);
   const systemPrompt = getComponentsSystemPrompt(blueprint);
   const modelInstance = providerConfig.createModel(apiKey, model);
   const userPrompt = `Generate the shared header and footer HTML components for the "${blueprint.siteName}" website.`;

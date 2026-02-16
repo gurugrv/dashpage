@@ -127,6 +127,7 @@ interface PagesRequestBody {
   conversationId: string;
   provider: string;
   model: string;
+  maxOutputTokens?: number;
   blueprint?: Blueprint;
   headerHtml?: string;
   footerHtml?: string;
@@ -145,7 +146,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { conversationId, provider, model, headerHtml, footerHtml, headTags, skipPages } = body;
+  const { conversationId, provider, model, maxOutputTokens: clientMaxTokens, headerHtml, footerHtml, headTags, skipPages } = body;
   let blueprint = body.blueprint;
 
   if (!conversationId || !provider || !model) {
@@ -192,7 +193,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model);
+  const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model, clientMaxTokens);
   const allPages = blueprint.pages;
   const totalPages = allPages.length;
   const skipSet = new Set(skipPages ?? []);

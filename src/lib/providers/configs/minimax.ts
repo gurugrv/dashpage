@@ -11,11 +11,11 @@ export const minimaxProvider: ProviderConfig = {
     return client.chat(modelId);
   },
   staticModels: [
-    { id: 'MiniMax-M2.5', name: 'MiniMax M2.5', provider: 'MiniMax', maxOutputTokens: 16_384 },
-    { id: 'MiniMax-M2.5-highspeed', name: 'MiniMax M2.5 Highspeed', provider: 'MiniMax', maxOutputTokens: 16_384 },
-    { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', provider: 'MiniMax', maxOutputTokens: 16_384 },
-    { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', provider: 'MiniMax', maxOutputTokens: 16_384 },
-    { id: 'MiniMax-M2', name: 'MiniMax M2', provider: 'MiniMax', maxOutputTokens: 16_384 },
+    { id: 'MiniMax-M2.5', name: 'MiniMax M2.5', provider: 'MiniMax', maxOutputTokens: 131_072 },
+    { id: 'MiniMax-M2.5-highspeed', name: 'MiniMax M2.5 Highspeed', provider: 'MiniMax', maxOutputTokens: 131_072 },
+    { id: 'MiniMax-M2.1', name: 'MiniMax M2.1', provider: 'MiniMax', maxOutputTokens: 65_536 },
+    { id: 'MiniMax-M2.1-lightning', name: 'MiniMax M2.1 Lightning', provider: 'MiniMax', maxOutputTokens: 65_536 },
+    { id: 'MiniMax-M2', name: 'MiniMax M2', provider: 'MiniMax', maxOutputTokens: 65_536 },
   ],
   fetchModels: async (apiKey) => {
     const res = await fetch(`${BASE_URL}/models`, {
@@ -28,7 +28,7 @@ export const minimaxProvider: ProviderConfig = {
       id: model.id,
       name: model.id,
       provider: 'MiniMax',
-      maxOutputTokens: 16_384,
+      maxOutputTokens: 64_000,
     }));
   },
 };

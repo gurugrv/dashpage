@@ -33,6 +33,7 @@ interface UseBlueprintGenerationOptions {
   resolveStepModel: (step: 'planning' | 'research' | 'components' | 'pages') => {
     provider: string;
     model: string;
+    maxOutputTokens?: number;
   } | null;
   savedTimeZone?: string | null;
   browserTimeZone?: string;
@@ -237,6 +238,7 @@ export function useBlueprintGeneration({
           conversationId,
           provider: stepModel.provider,
           model: stepModel.model,
+          maxOutputTokens: stepModel.maxOutputTokens,
           savedTimeZone,
           browserTimeZone,
           ...(researchModel ? { researchProvider: researchModel.provider, researchModel: researchModel.model } : {}),
@@ -282,6 +284,7 @@ export function useBlueprintGeneration({
           blueprint: activeBlueprint,
           provider: stepModel.provider,
           model: stepModel.model,
+          maxOutputTokens: stepModel.maxOutputTokens,
           conversationId,
         }),
         signal: controller.signal,
@@ -427,6 +430,7 @@ export function useBlueprintGeneration({
           conversationId,
           provider: stepModel.provider,
           model: stepModel.model,
+          maxOutputTokens: stepModel.maxOutputTokens,
           blueprint: activeBlueprint,
           headerHtml: sharedHtml?.headerHtml,
           footerHtml: sharedHtml?.footerHtml,

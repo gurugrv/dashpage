@@ -29,7 +29,7 @@ export const openRouterProvider: ProviderConfig = {
         id: model.id,
         name: model.name,
         provider: 'OpenRouter',
-        maxOutputTokens: model.top_provider?.max_completion_tokens || 16_384,
+        maxOutputTokens: model.top_provider?.max_completion_tokens || 64_000,
       }));
   },
 };

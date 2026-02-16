@@ -9,12 +9,12 @@ export const deepinfraProvider: ProviderConfig = {
     return client(modelId);
   },
   staticModels: [
-    { id: 'meta-llama/Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B Instruct', provider: 'DeepInfra', maxOutputTokens: 16_384 },
-    { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct', provider: 'DeepInfra', maxOutputTokens: 16_384 },
-    { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3', provider: 'DeepInfra', maxOutputTokens: 16_384 },
-    { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1', provider: 'DeepInfra', maxOutputTokens: 16_384 },
-    { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B Instruct', provider: 'DeepInfra', maxOutputTokens: 16_384 },
-    { id: 'mistralai/Mixtral-8x7B-Instruct-v0.1', name: 'Mixtral 8x7B Instruct', provider: 'DeepInfra', maxOutputTokens: 16_384 },
+    { id: 'meta-llama/Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B Instruct', provider: 'DeepInfra', maxOutputTokens: 64_000 },
+    { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct', provider: 'DeepInfra', maxOutputTokens: 64_000 },
+    { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3', provider: 'DeepInfra', maxOutputTokens: 64_000 },
+    { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1', provider: 'DeepInfra', maxOutputTokens: 64_000 },
+    { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B Instruct', provider: 'DeepInfra', maxOutputTokens: 64_000 },
+    { id: 'mistralai/Mixtral-8x7B-Instruct-v0.1', name: 'Mixtral 8x7B Instruct', provider: 'DeepInfra', maxOutputTokens: 64_000 },
   ],
   fetchModels: async (apiKey) => {
     const res = await fetch('https://api.deepinfra.com/v1/openai/models', {
@@ -27,7 +27,7 @@ export const deepinfraProvider: ProviderConfig = {
       id: model.id,
       name: model.id,
       provider: 'DeepInfra',
-      maxOutputTokens: 16_384,
+      maxOutputTokens: 64_000,
     }));
   },
 };

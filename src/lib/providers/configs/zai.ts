@@ -12,11 +12,11 @@ export const zaiProvider: ProviderConfig = {
   },
   staticModels: [
     { id: 'glm-5', name: 'GLM 5', provider: 'Z.ai', maxOutputTokens: 128_000 },
-    { id: 'glm-4.7', name: 'GLM 4.7', provider: 'Z.ai', maxOutputTokens: 16_384 },
-    { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash', provider: 'Z.ai', maxOutputTokens: 16_384 },
-    { id: 'glm-4.6', name: 'GLM 4.6', provider: 'Z.ai', maxOutputTokens: 16_384 },
-    { id: 'glm-4.5', name: 'GLM 4.5', provider: 'Z.ai', maxOutputTokens: 16_384 },
-    { id: 'glm-4.5-flash', name: 'GLM 4.5 Flash (Free)', provider: 'Z.ai', maxOutputTokens: 16_384 },
+    { id: 'glm-4.7', name: 'GLM 4.7', provider: 'Z.ai', maxOutputTokens: 64_000 },
+    { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash', provider: 'Z.ai', maxOutputTokens: 64_000 },
+    { id: 'glm-4.6', name: 'GLM 4.6', provider: 'Z.ai', maxOutputTokens: 64_000 },
+    { id: 'glm-4.5', name: 'GLM 4.5', provider: 'Z.ai', maxOutputTokens: 64_000 },
+    { id: 'glm-4.5-flash', name: 'GLM 4.5 Flash (Free)', provider: 'Z.ai', maxOutputTokens: 64_000 },
   ],
   fetchModels: async (apiKey) => {
     const res = await fetch(`${BASE_URL}/models`, {
@@ -29,7 +29,7 @@ export const zaiProvider: ProviderConfig = {
       id: model.id,
       name: model.id,
       provider: 'Z.ai',
-      maxOutputTokens: 16_384,
+      maxOutputTokens: 64_000,
     }));
   },
 };

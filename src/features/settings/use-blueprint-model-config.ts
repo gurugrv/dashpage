@@ -57,7 +57,7 @@ function loadConfig(): BlueprintStepModels {
 
 interface ProviderInfo {
   name: string;
-  models: Array<{ id: string }>;
+  models: Array<{ id: string; maxOutputTokens?: number }>;
 }
 
 export function useBlueprintModelConfig(availableProviders: ProviderInfo[]) {
@@ -90,22 +90,34 @@ export function useBlueprintModelConfig(availableProviders: ProviderInfo[]) {
       step: BlueprintStep,
       mainProvider: string,
       mainModel: string,
-    ): { provider: string; model: string } => {
+    ): { provider: string; model: string; maxOutputTokens?: number } => {
       const override = config[step];
-      if (!override) return { provider: mainProvider, model: mainModel };
+      if (!override) {
+        const mainProv = availableProviders.find((p) => p.name === mainProvider);
+        const mainMod = mainProv?.models.find((m) => m.id === mainModel);
+        return { provider: mainProvider, model: mainModel, maxOutputTokens: mainMod?.maxOutputTokens };
+      }
 
       // Validate that the override provider and model still exist
       const provider = availableProviders.find(
         (p) => p.name === override.provider,
       );
-      if (!provider) return { provider: mainProvider, model: mainModel };
+      if (!provider) {
+        const mainProv = availableProviders.find((p) => p.name === mainProvider);
+        const mainMod = mainProv?.models.find((m) => m.id === mainModel);
+        return { provider: mainProvider, model: mainModel, maxOutputTokens: mainMod?.maxOutputTokens };
+      }
 
-      const modelExists = provider.models.some(
+      const modelInfo = provider.models.find(
         (m) => m.id === override.model,
       );
-      if (!modelExists) return { provider: mainProvider, model: mainModel };
+      if (!modelInfo) {
+        const mainProv = availableProviders.find((p) => p.name === mainProvider);
+        const mainMod = mainProv?.models.find((m) => m.id === mainModel);
+        return { provider: mainProvider, model: mainModel, maxOutputTokens: mainMod?.maxOutputTokens };
+      }
 
-      return { provider: override.provider, model: override.model };
+      return { provider: override.provider, model: override.model, maxOutputTokens: modelInfo.maxOutputTokens };
     },
     [config, availableProviders],
   );

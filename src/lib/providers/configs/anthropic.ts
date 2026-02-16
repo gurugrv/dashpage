@@ -32,7 +32,7 @@ export const anthropicProvider: ProviderConfig = {
       id: model.id,
       name: model.display_name || model.id,
       provider: 'Anthropic',
-      maxOutputTokens: tokenMap.get(model.id) ?? tokenMap.get(`anthropic/${model.id}`) ?? 16_384,
+      maxOutputTokens: tokenMap.get(model.id) ?? tokenMap.get(`anthropic/${model.id}`) ?? 64_000,
     }));
   },
 };

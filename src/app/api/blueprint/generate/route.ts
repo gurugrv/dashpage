@@ -11,12 +11,14 @@ import { repairAndParseJson } from '@/lib/blueprint/repair-json';
 import { researchSiteFacts } from '@/lib/blueprint/research';
 import { resolveApiKey } from '@/lib/keys/key-manager';
 import { PROVIDERS } from '@/lib/providers/registry';
+import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 
 interface BlueprintRequestBody {
   prompt: string;
   conversationId: string;
   provider: string;
   model: string;
+  maxOutputTokens?: number;
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   researchProvider?: string;
@@ -31,7 +33,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  const { prompt, conversationId, provider, model, savedTimeZone, browserTimeZone } = body;
+  const { prompt, conversationId, provider, model, maxOutputTokens: clientMaxTokens, savedTimeZone, browserTimeZone } = body;
 
   if (!prompt?.trim() || !conversationId) {
     return NextResponse.json({ error: 'prompt and conversationId are required' }, { status: 400 });
@@ -45,6 +47,11 @@ export async function POST(req: Request) {
       browserTimeZone,
     });
 
+    const providerConfig = PROVIDERS[provider];
+    const maxOutputTokens = providerConfig
+      ? resolveMaxOutputTokens(providerConfig, model, clientMaxTokens)
+      : clientMaxTokens ?? 16_384;
+
     const debugSession = createDebugSession({
       scope: 'blueprint-generate',
       model,
@@ -54,7 +61,7 @@ export async function POST(req: Request) {
     debugSession.logPrompt({
       systemPrompt,
       messages: [{ role: 'user', content: prompt }],
-      maxOutputTokens: 16384,
+      maxOutputTokens,
     });
 
     let blueprint: Blueprint;
@@ -68,7 +75,7 @@ export async function POST(req: Request) {
           system: systemPrompt,
           output: Output.object({ schema: blueprintSchema }),
           prompt,
-          maxOutputTokens: 16384,
+          maxOutputTokens,
         });
 
         rawText = result.text;
@@ -146,7 +153,7 @@ export async function POST(req: Request) {
           if (researchApiKey) {
             const researchProviderConfig = PROVIDERS[body.researchProvider as keyof typeof PROVIDERS];
             if (researchProviderConfig) {
-              researchModelInstance = researchProviderConfig.createModel(body.researchModel, researchApiKey);
+              researchModelInstance = researchProviderConfig.createModel(researchApiKey, body.researchModel);
               researchDebugProvider = body.researchProvider;
               researchDebugModel = body.researchModel;
             }
@@ -156,7 +163,7 @@ export async function POST(req: Request) {
         const siteFacts = await researchSiteFacts(
           researchModelInstance,
           blueprint.siteName,
-          blueprint.siteDescription,
+          prompt,
           { conversationId, provider: researchDebugProvider, model: researchDebugModel },
         );
         if (siteFacts) {

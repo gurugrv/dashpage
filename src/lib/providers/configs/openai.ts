@@ -31,7 +31,7 @@ export const openAIProvider: ProviderConfig = {
         id: model.id,
         name: model.id,
         provider: 'OpenAI',
-        maxOutputTokens: tokenMap.get(model.id) ?? tokenMap.get(`openai/${model.id}`) ?? 16_384,
+        maxOutputTokens: tokenMap.get(model.id) ?? tokenMap.get(`openai/${model.id}`) ?? 64_000,
       }));
   },
 };

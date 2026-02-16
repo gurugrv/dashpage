@@ -25,7 +25,7 @@ export const googleProvider: ProviderConfig = {
         id: model.name.replace('models/', ''),
         name: model.displayName,
         provider: 'Google',
-        maxOutputTokens: model.outputTokenLimit || 8_192,
+        maxOutputTokens: model.outputTokenLimit || 64_000,
       }));
   },
 };
