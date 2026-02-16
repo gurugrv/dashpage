@@ -8,15 +8,17 @@ datasource db {
 }
 
 model Conversation {
-  id        String     @id @default(cuid())
-  title     String     @default("New Conversation")
-  provider  String?    @map("provider")
-  model     String?    @map("model")
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  messages        Message[]
-  blueprint       Blueprint?
-  generationState GenerationState?
+  id                String            @id @default(cuid())
+  title             String            @default("New Conversation")
+  provider          String?           @map("provider")
+  model             String?           @map("model")
+  businessProfileId String?           @map("business_profile_id")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  messages          Message[]
+  blueprint         Blueprint?
+  generationState   GenerationState?
+  businessProfile   BusinessProfile?  @relation(fields: [businessProfileId], references: [id])
 
   @@map("conversations")
 }
@@ -77,4 +79,28 @@ model ApiKey {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("api_keys")
+}
+
+model BusinessProfile {
+  id             String   @id @default(cuid())
+  name           String
+  phone          String?
+  email          String?
+  website        String?
+  address        String?
+  lat            Float?
+  lng            Float?
+  placeId        String?  @map("place_id")
+  category       String?
+  categories     Json?
+  hours          Json?
+  services       Json?
+  socialMedia    Json?    @map("social_media")
+  additionalInfo String?  @map("additional_info")
+  googleMapsUri  String?  @map("google_maps_uri")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  conversations  Conversation[]
+
+  @@map("business_profiles")
 }
