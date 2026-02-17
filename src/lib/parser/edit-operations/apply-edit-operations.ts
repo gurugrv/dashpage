@@ -9,7 +9,6 @@ import type {
 } from '@/lib/parser/edit-operations/types';
 
 const FUZZY_THRESHOLD = 0.85;
-const AUTO_CORRECT_THRESHOLD = 0.75;
 
 /**
  * Find the line number (1-indexed) for a character position in a string.
@@ -208,7 +207,7 @@ function applyReplacement(
 }
 
 /**
- * Apply a sequence of edit operations with 5-tier matching.
+ * Apply a sequence of edit operations with 4-tier matching.
  * Continues through ALL operations even when some fail, maximizing applied changes.
  */
 export function applyEditOperations(html: string, operations: EditOperation[]): ApplyResult {
@@ -257,12 +256,12 @@ export function applyEditOperations(html: string, operations: EditOperation[]): 
       }
     }
 
-    // Tier 4+5: Fuzzy Levenshtein — single scan, two thresholds
+    // Tier 4: Fuzzy Levenshtein (≥85% similarity)
     if (expected === 1) {
-      const fuzzyResult = tryFuzzyMatch(result, search, AUTO_CORRECT_THRESHOLD);
+      const fuzzyResult = tryFuzzyMatch(result, search, FUZZY_THRESHOLD);
       if (fuzzyResult) {
         result = result.slice(0, fuzzyResult.index) + replace + result.slice(fuzzyResult.index + fuzzyResult.length);
-        matchTiers.push(fuzzyResult.similarity >= FUZZY_THRESHOLD ? 'fuzzy' : 'auto-correct');
+        matchTiers.push('fuzzy');
         continue;
       }
     }

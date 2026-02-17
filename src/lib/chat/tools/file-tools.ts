@@ -193,7 +193,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
 
     editFiles: tool({
       description:
-        'Edit one or more files using search/replace operations. Uses 5-tier matching: exact → whitespace-tolerant → token-based → fuzzy (≥85%) → auto-correct (≥75%). All operations are attempted even if some fail — successful edits are kept. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
+        'Edit one or more files using search/replace operations. Uses 4-tier matching: exact → whitespace-tolerant → token-based → fuzzy (≥85%). All operations are attempted even if some fail — successful edits are kept. Per-file atomicity: a failed file does not block successful ones. After 2 consecutive failures on the same file, consider using writeFiles instead.',
       inputSchema: z.object({
         edits: z.array(z.object({
           file: z.string().describe('The filename to edit'),

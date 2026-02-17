@@ -6,7 +6,7 @@ export interface EditOperation {
   expectedReplacements?: number;
 }
 
-export type MatchTier = 'exact' | 'whitespace' | 'token' | 'fuzzy' | 'auto-correct';
+export type MatchTier = 'exact' | 'whitespace' | 'token' | 'fuzzy';
 
 export interface BestMatch {
   text: string;
