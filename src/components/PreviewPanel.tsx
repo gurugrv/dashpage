@@ -83,9 +83,17 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
         downloadFiles[filename] = processed;
       }
 
-      const fileKeys = Object.keys(downloadFiles);
+      // Collect generated image paths referenced in HTML (e.g. /generated/uuid.jpg)
+      const generatedImagePaths = new Set<string>();
+      for (const content of Object.values(downloadFiles)) {
+        const matches = content.match(/\/generated\/[a-f0-9-]+\.jpg/g);
+        if (matches) matches.forEach((m) => generatedImagePaths.add(m));
+      }
 
-      if (fileKeys.length === 1) {
+      const fileKeys = Object.keys(downloadFiles);
+      const hasGeneratedImages = generatedImagePaths.size > 0;
+
+      if (fileKeys.length === 1 && !hasGeneratedImages) {
         const blob = new Blob([downloadFiles['index.html']], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
@@ -97,9 +105,30 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
         URL.revokeObjectURL(url);
       } else {
         const zip = new JSZip();
+
+        // Rewrite /generated/ paths to relative generated/ for portability
         for (const [path, content] of Object.entries(downloadFiles)) {
-          zip.file(path, content);
+          zip.file(path, hasGeneratedImages ? content.replace(/\/generated\//g, 'generated/') : content);
         }
+
+        // Fetch and bundle generated images
+        if (hasGeneratedImages) {
+          const imageFolder = zip.folder('generated')!;
+          await Promise.all(
+            [...generatedImagePaths].map(async (imgPath) => {
+              try {
+                const res = await fetch(imgPath);
+                if (!res.ok) return;
+                const data = await res.arrayBuffer();
+                const filename = imgPath.split('/').pop()!;
+                imageFolder.file(filename, data);
+              } catch {
+                // Skip images that fail to fetch
+              }
+            }),
+          );
+        }
+
         const blob = await zip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
