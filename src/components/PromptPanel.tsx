@@ -190,7 +190,7 @@ export function PromptPanel({
             isLoading={isLoading}
             onContinueGeneration={onContinueGeneration}
           />
-          <ErrorBanner error={error} onRetry={onRetry} />
+          <ErrorBanner error={error} onRetry={onRetry} onOpenSettings={onOpenSettings} />
         </div>
       </ScrollArea>
 
