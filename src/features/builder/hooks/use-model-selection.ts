@@ -42,25 +42,39 @@ export function useModelSelection(availableProviders: ProviderInfo[]) {
     }
   }, [selectedProvider, selectedModel]);
 
-  // Validate that saved selection still exists in available providers
+  // Validate that saved selection still exists in available providers.
+  // When a fallback is computed, update state/localStorage so they stay in sync.
   const effectiveSelectedProvider = useMemo(() => {
+    if (availableProviders.length === 0) return selectedProvider;
     const provider = selectedProvider ?? availableProviders[0]?.name ?? null;
-    // If the saved provider is no longer available, fall back to first available
     if (provider && !availableProviders.find((p) => p.name === provider)) {
       return availableProviders[0]?.name ?? null;
     }
     return provider;
   }, [selectedProvider, availableProviders]);
 
+  // Sync state when effective differs from selected (provider became unavailable)
+  useEffect(() => {
+    if (availableProviders.length > 0 && effectiveSelectedProvider && effectiveSelectedProvider !== selectedProvider) {
+      setSelectedProvider(effectiveSelectedProvider);
+    }
+  }, [effectiveSelectedProvider, selectedProvider, availableProviders.length]);
+
   const effectiveSelectedModel = useMemo(() => {
     const provider = availableProviders.find((p) => p.name === effectiveSelectedProvider);
     const model = selectedModel ?? provider?.models[0]?.id ?? null;
-    // If the saved model is no longer available for this provider, fall back to first available
     if (model && !provider?.models.find((m) => m.id === model)) {
       return provider?.models[0]?.id ?? null;
     }
     return model;
   }, [selectedModel, effectiveSelectedProvider, availableProviders]);
+
+  // Sync state when effective differs from selected (model became unavailable)
+  useEffect(() => {
+    if (availableProviders.length > 0 && effectiveSelectedModel && effectiveSelectedModel !== selectedModel) {
+      setSelectedModel(effectiveSelectedModel);
+    }
+  }, [effectiveSelectedModel, selectedModel, availableProviders.length]);
 
   const handleProviderChange = useCallback((provider: string) => {
     setSelectedProvider(provider);

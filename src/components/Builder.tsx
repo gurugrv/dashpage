@@ -231,36 +231,46 @@ export function Builder() {
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
-  const displayMessages: UIMessage[] = useMemo(() => messages.flatMap((message, index) => {
-    if (message.role !== 'assistant') return [message];
+  // Split message processing: completed messages recompute only when message count changes,
+  // while the last message recomputes on isLoading too (for streaming summary suppression).
+  const completedMessages = messages.length > 1 ? messages.slice(0, -1) : [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableCompletedMessages = useMemo(() => completedMessages, [messages.length]);
 
-    const { preface, summary, hasTools } = splitTextAroundTools(message.parts);
-    const isLastMessage = index === messages.length - 1;
-    const isCurrentlyStreaming = isLastMessage && isLoading;
-
-    const output: UIMessage[] = [];
-
-    if (preface) {
-      output.push({
-        ...message,
-        parts: [{ type: 'text', text: preface }],
-      });
-    }
-
-    if (!isCurrentlyStreaming) {
+  const completedDisplayMessages: UIMessage[] = useMemo(() => {
+    return stableCompletedMessages.flatMap((message) => {
+      if (message.role !== 'assistant') return [message];
+      const { preface, summary, hasTools } = splitTextAroundTools(message.parts);
+      const output: UIMessage[] = [];
+      if (preface) {
+        output.push({ ...message, parts: [{ type: 'text', text: preface }] });
+      }
       const completionText = summary || (hasTools ? ARTIFACT_COMPLETION_MESSAGE : '');
       if (completionText && completionText !== preface) {
-        output.push({
-          ...message,
-          id: `${message.id}-completion`,
-          parts: [{ type: 'text', text: completionText }],
-        });
+        output.push({ ...message, id: `${message.id}-completion`, parts: [{ type: 'text', text: completionText }] });
+      }
+      return output.length > 0 ? output : [];
+    });
+  }, [stableCompletedMessages]);
+
+  const displayMessages: UIMessage[] = useMemo(() => {
+    if (messages.length === 0) return [];
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'assistant') return [...completedDisplayMessages, lastMessage];
+
+    const { preface, summary, hasTools } = splitTextAroundTools(lastMessage.parts);
+    const output: UIMessage[] = [];
+    if (preface) {
+      output.push({ ...lastMessage, parts: [{ type: 'text', text: preface }] });
+    }
+    if (!isLoading) {
+      const completionText = summary || (hasTools ? ARTIFACT_COMPLETION_MESSAGE : '');
+      if (completionText && completionText !== preface) {
+        output.push({ ...lastMessage, id: `${lastMessage.id}-completion`, parts: [{ type: 'text', text: completionText }] });
       }
     }
-
-    if (output.length > 0) return output;
-    return [];
-  }), [messages, isLoading]);
+    return [...completedDisplayMessages, ...output];
+  }, [completedDisplayMessages, messages, isLoading]);
 
   const { savePartial } = useStreamingPersistence({
     activeConversationId,
@@ -374,7 +384,7 @@ export function Builder() {
 
         // All first-generation requests go through discovery -> blueprint pipeline
         setMessages([{
-          id: `user-${Date.now()}`,
+          id: crypto.randomUUID(),
           role: 'user',
           parts: [{ type: 'text', text: promptToSubmit }],
         }]);
@@ -426,7 +436,7 @@ export function Builder() {
       const promptText = input;
       setInput('');
       setMessages([{
-        id: `user-${Date.now()}`,
+        id: crypto.randomUUID(),
         role: 'user',
         parts: [{ type: 'text', text: promptText }],
       }]);

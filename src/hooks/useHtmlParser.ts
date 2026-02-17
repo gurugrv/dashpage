@@ -193,9 +193,12 @@ function extractStreamingCode(parts: UIMessage['parts']): string | null {
         if (!input || !('files' in input) || typeof input.files !== 'object' || input.files === null) continue;
 
         const files = input.files as Record<string, string>;
-        const values = Object.values(files);
-        if (values.length > 0 && typeof values[0] === 'string') {
-          return values[0];
+        const entries = Object.entries(files);
+        // Show the last file being streamed (most recently added entry)
+        for (let i = entries.length - 1; i >= 0; i--) {
+          if (typeof entries[i][1] === 'string' && entries[i][1].length > 0) {
+            return entries[i][1];
+          }
         }
       }
       continue;
@@ -268,6 +271,12 @@ export function useHtmlParser() {
       return;
     }
     lastProcessedRef.current = { messageId: lastMessage.id, partsLength, isLoading };
+
+    // Reset post-processed flag at stream start so stale state from previous generation
+    // doesn't cause early returns on the next one
+    if (isLoading && (!cached || cached.messageId !== lastMessage.id)) {
+      postProcessedRef.current = false;
+    }
 
     setIsGenerating(isLoading);
 

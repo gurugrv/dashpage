@@ -13,7 +13,7 @@ const HTML_LANDMARKS: Landmark[] = [
   { pattern: /<body[\s>]/i, phase: 'body-started', label: 'Building page structure...' },
   { pattern: /<nav[\s>]|<header[\s>]/i, phase: 'navigation', label: 'Creating navigation...' },
   { pattern: /<footer[\s>]/i, phase: 'footer', label: 'Adding footer...' },
-  { pattern: /<script[\s>](?!.*tailwind|.*cdn)/i, phase: 'scripts', label: 'Adding interactivity...' },
+  { pattern: /<script[\s>](?!.*(?:tailwind|cdn))/i, phase: 'scripts', label: 'Adding interactivity...' },
   { pattern: /<\/htmlOutput>/i, phase: 'html-complete', label: 'Finalizing...' },
   { pattern: /<\/fileArtifact>/i, phase: 'fileArtifact-complete', label: 'Finalizing...' },
 ]

@@ -28,8 +28,8 @@ export function createSearchTools() {
           if (results.length > 0) {
             return { success: true, results, source: 'brave' };
           }
-        } catch {
-          // Fall through to Tavily
+        } catch (err) {
+          console.warn('[webSearch] Brave search failed:', err instanceof Error ? err.message : err);
         }
 
         // Fallback to Tavily
@@ -38,8 +38,8 @@ export function createSearchTools() {
           if (results.length > 0) {
             return { success: true, results, source: 'tavily' };
           }
-        } catch {
-          // Both failed
+        } catch (err) {
+          console.warn('[webSearch] Tavily search failed:', err instanceof Error ? err.message : err);
         }
 
         return {

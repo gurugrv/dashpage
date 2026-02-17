@@ -81,9 +81,17 @@ export async function searchPhotos(
   if (options.orientation) params.set('orientation', options.orientation);
   if (options.size) params.set('size', options.size);
 
-  const response = await fetch(`https://api.pexels.com/v1/search?${params}`, {
-    headers: { Authorization: apiKey },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let response: Response;
+  try {
+    response = await fetch(`https://api.pexels.com/v1/search?${params}`, {
+      headers: { Authorization: apiKey },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`Pexels API error: ${response.status} ${response.statusText}`);

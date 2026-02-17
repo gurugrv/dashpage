@@ -291,7 +291,8 @@ export async function POST(req: Request) {
     const { tools, workingFiles } = createWebsiteTools(currentFiles ?? {});
     // continuePrompt is built dynamically per segment via buildContinuePrompt()
     const isEditing = fileCount > 0;
-    const detector = new BuildProgressDetector();
+    const primaryFile = Object.keys(currentFiles ?? {})[0] ?? 'index.html';
+    const detector = new BuildProgressDetector(primaryFile);
     const debugSession = createDebugSession({
       scope: 'chat',
       model,
@@ -408,7 +409,7 @@ export async function POST(req: Request) {
                     data: {
                       phase: isEditing ? 'edit-applying' as const : 'generating' as const,
                       label: progress.label,
-                      file: 'index.html',
+                      file: primaryFile,
                       percent: bumpPercent(Math.max(progress.percent, 5)),
                       timestamp: Date.now(),
                     },
@@ -448,7 +449,7 @@ export async function POST(req: Request) {
                   data: {
                     phase: isEditing ? 'edit-applying' as const : 'generating' as const,
                     label: progressLabels[toolName] ?? 'Processing...',
-                    file: 'index.html',
+                    file: primaryFile,
                     percent: bumpPercent(TOOL_START_PERCENT[toolName] ?? maxPercent),
                     timestamp: Date.now(),
                   },
@@ -521,7 +522,7 @@ export async function POST(req: Request) {
                   data: {
                     phase: isEditing ? 'edit-applying' as const : 'generating' as const,
                     label: endLabel,
-                    file: 'index.html',
+                    file: primaryFile,
                     percent: bumpPercent(TOOL_END_PERCENT[toolName] ?? maxPercent),
                     timestamp: Date.now(),
                   },
