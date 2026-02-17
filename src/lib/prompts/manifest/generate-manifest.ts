@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import type { ProjectFiles } from '@/types';
 
 /** Max file size (chars) to include in full instead of generating a manifest. */
@@ -95,36 +96,31 @@ export function extractBlocks(html: string, componentNames: Set<string>): BlockE
     });
   }
 
-  // Extract data-block elements
-  const tagRe = /<(nav|header|section|footer|aside|main)(\s[^>]*)?>([\s\S]*?)(?=<\/\1>)/gi;
-  let match;
-
-  while ((match = tagRe.exec(html)) !== null) {
-    const tag = match[1].toLowerCase();
-    const attrs = match[2] || '';
-    const inner = match[3];
-
-    const blockMatch = attrs.match(/data-block=["']([^"']+)["']/);
-    if (!blockMatch) continue; // skip elements without data-block
-
-    const id = blockMatch[1];
+  // Extract data-block elements using Cheerio (handles nesting correctly)
+  const $ = cheerio.load(html);
+  $('nav, header, section, footer, aside, main').each((_i, el) => {
+    const $el = $(el);
+    const tag = (el as unknown as { tagName: string }).tagName.toLowerCase();
+    const blockId = $el.attr('data-block');
+    if (!blockId) return; // skip elements without data-block
 
     // Skip if this block is a component (already listed as placeholder)
-    if (componentNames.has(id)) continue;
+    if (componentNames.has(blockId)) return;
 
+    const inner = $el.html() || '';
     const summary = summarizeContent(inner);
 
     // For nav elements, extract link targets
     if (tag === 'nav') {
       const navLinks = extractNavLinks(`<nav>${inner}</nav>`);
       if (navLinks.length > 0) {
-        blocks.push({ id, tag, summary: `${summary} -> [${navLinks.join(', ')}]` });
-        continue;
+        blocks.push({ id: blockId, tag, summary: `${summary} -> [${navLinks.join(', ')}]` });
+        return;
       }
     }
 
-    blocks.push({ id, tag, summary });
-  }
+    blocks.push({ id: blockId, tag, summary });
+  });
 
   return blocks;
 }
