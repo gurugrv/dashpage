@@ -7,6 +7,7 @@ import type { PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 interface PageProgressProps {
   pageStatuses: PageGenerationStatus[];
   componentsStatus?: 'generating' | 'complete';
+  assetsStatus?: 'generating' | 'complete';
   isRetrying?: boolean;
   onCancel?: () => void;
 }
@@ -17,17 +18,21 @@ const TOOL_ICONS: Record<string, typeof Globe> = {
   fetchUrl: Globe,
 };
 
-export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCancel }: PageProgressProps) {
+export function PageProgress({ pageStatuses, componentsStatus, assetsStatus, isRetrying, onCancel }: PageProgressProps) {
   const completedPages = pageStatuses.filter((p) => p.status === 'complete').length;
   const generatingCount = pageStatuses.filter((p) => p.status === 'generating').length;
   const currentPage = completedPages + generatingCount;
   const totalPages = pageStatuses.length;
 
-  // Include components step in progress calculation
+  // Include components + assets steps in progress calculation
   const hasComponentsStep = !!componentsStatus;
   const componentsComplete = componentsStatus === 'complete';
-  const totalSteps = totalPages + (hasComponentsStep ? 1 : 0);
-  const completedSteps = completedPages + (componentsComplete ? 1 : 0);
+  const hasAssetsStep = !!assetsStatus;
+  const assetsComplete = assetsStatus === 'complete';
+  const extraSteps = (hasComponentsStep ? 1 : 0) + (hasAssetsStep ? 1 : 0);
+  const extraCompleted = (componentsComplete ? 1 : 0) + (assetsComplete ? 1 : 0);
+  const totalSteps = totalPages + extraSteps;
+  const completedSteps = completedPages + extraCompleted;
   const percent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
   return (
@@ -38,11 +43,13 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
           <span className="text-sm font-medium">
             {hasComponentsStep && !componentsComplete
               ? 'Preparing shared styles & components...'
-              : isRetrying
-                ? `Retrying failed pages (${currentPage} of ${totalPages})`
-                : totalPages === 1
-                  ? 'Generating your site...'
-                  : `Generating pages (${currentPage} of ${totalPages})`}
+              : assetsStatus === 'generating'
+                ? 'Generating shared assets...'
+                : isRetrying
+                  ? `Retrying failed pages (${currentPage} of ${totalPages})`
+                  : totalPages === 1
+                    ? 'Generating your site...'
+                    : `Generating pages (${currentPage} of ${totalPages})`}
           </span>
           {onCancel && (
             <Button size="xs" variant="ghost" onClick={onCancel}>
@@ -88,6 +95,29 @@ export function PageProgress({ pageStatuses, componentsStatus, isRetrying, onCan
                 }`}
               >
                 Shared styles, header & footer
+              </span>
+            </div>
+          )}
+
+          {/* Shared assets step */}
+          {hasAssetsStep && (
+            <div
+              className="flex items-center gap-2"
+              style={{ animation: 'fadeSlideIn 0.3s ease-out both' }}
+            >
+              {assetsStatus === 'generating' ? (
+                <Loader2 className="size-3.5 animate-spin text-primary"  />
+              ) : (
+                <Check className="size-3.5 text-green-600 dark:text-green-500" style={{ animation: 'fadeSlideIn 0.2s ease-out' }} />
+              )}
+              <span
+                className={`text-xs ${
+                  assetsComplete
+                    ? 'text-muted-foreground'
+                    : 'text-foreground font-medium'
+                }`}
+              >
+                Shared CSS & scripts
               </span>
             </div>
           )}

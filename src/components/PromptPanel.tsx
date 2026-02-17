@@ -175,6 +175,7 @@ export function PromptPanel({
             <PageProgress
               pageStatuses={pageStatuses ?? []}
               componentsStatus={(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site') && !componentsReady ? 'generating' : 'complete'}
+              assetsStatus={blueprintPhase === 'generating-assets' ? 'generating' : blueprintPhase === 'generating-pages' ? 'complete' : undefined}
               isRetrying={isRetryingPages}
               onCancel={onBlueprintCancel}
             />
