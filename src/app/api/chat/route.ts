@@ -19,6 +19,8 @@ interface ChatRequestBody {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   conversationId?: string;
+  imageProvider?: 'pexels' | 'together';
+  imageModel?: string;
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
@@ -342,6 +344,8 @@ export async function POST(req: Request) {
     savedTimeZone,
     browserTimeZone,
     conversationId: clientConversationId,
+    imageProvider,
+    imageModel,
   } = body;
 
   try {
@@ -401,7 +405,7 @@ export async function POST(req: Request) {
     const isAnthropicDirect = resolvedProvider === 'anthropic';
 
     const fileCount = Object.keys(currentFiles ?? {}).length;
-    const { tools, workingFiles } = createWebsiteTools(currentFiles ?? {});
+    const { tools, workingFiles } = createWebsiteTools(currentFiles ?? {}, { imageProvider, imageModel });
     // continuePrompt is built dynamically per segment via buildContinuePrompt()
     const isEditing = fileCount > 0;
     const primaryFile = Object.keys(currentFiles ?? {})[0] ?? 'index.html';

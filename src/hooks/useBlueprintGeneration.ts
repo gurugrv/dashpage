@@ -40,6 +40,8 @@ interface UseBlueprintGenerationOptions {
   savedTimeZone?: string | null;
   browserTimeZone?: string;
   onFilesReady: (files: ProjectFiles) => void;
+  imageProvider?: 'pexels' | 'together';
+  imageModel?: string;
 }
 
 interface PageStatusEvent {
@@ -129,6 +131,8 @@ export function useBlueprintGeneration({
   savedTimeZone,
   browserTimeZone,
   onFilesReady,
+  imageProvider,
+  imageModel,
 }: UseBlueprintGenerationOptions) {
   const [phase, setPhase] = useState<BlueprintPhase>('idle');
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
@@ -326,6 +330,8 @@ export function useBlueprintGeneration({
           model: stepModel.model,
           maxOutputTokens: stepModel.maxOutputTokens,
           conversationId,
+          imageProvider,
+          imageModel,
         }),
         signal: controller.signal,
       });
@@ -403,7 +409,7 @@ export function useBlueprintGeneration({
       setPhase('error');
       return null;
     }
-  }, [resolveStepModel]);
+  }, [resolveStepModel, imageProvider, imageModel]);
 
   /** Remove <a> tags pointing to HTML files not present in the file set */
   const removeDeadNavLinks = (files: ProjectFiles): ProjectFiles => {
@@ -486,6 +492,8 @@ export function useBlueprintGeneration({
           skipPages,
           stylesCss: sharedAssets?.stylesCss,
           scriptsJs: sharedAssets?.scriptsJs,
+          imageProvider,
+          imageModel,
         }),
         signal: controller.signal,
       });
@@ -658,7 +666,7 @@ export function useBlueprintGeneration({
       setError(err instanceof Error ? err.message : 'Page generation failed');
       setPhase('error');
     }
-  }, [blueprint, resolveStepModel, onFilesReady, flushPendingRafs]);
+  }, [blueprint, resolveStepModel, onFilesReady, flushPendingRafs, imageProvider, imageModel]);
 
   const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
 
@@ -707,6 +715,8 @@ export function useBlueprintGeneration({
           maxOutputTokens: stepModel.maxOutputTokens,
           conversationId,
           componentHtml,
+          imageProvider,
+          imageModel,
         }),
         signal: controller.signal,
       });
@@ -758,7 +768,7 @@ export function useBlueprintGeneration({
       console.warn('Assets generation failed, continuing with deterministic styles:', err);
       return null; // Non-fatal — fall back to deterministic styles
     }
-  }, [resolveStepModel]);
+  }, [resolveStepModel, imageProvider, imageModel]);
 
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
     // Build shared styles synchronously from design system — no AI call needed

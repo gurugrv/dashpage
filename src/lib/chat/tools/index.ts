@@ -10,6 +10,8 @@ import { createSearchTools } from './search-tools';
 interface WebsiteToolsOptions {
   /** Restrict to a subset of tool names. When set, only matching tools are included. */
   toolSubset?: Set<string>;
+  imageProvider?: 'pexels' | 'together';
+  imageModel?: string;
 }
 
 export function createWebsiteTools(currentFiles: ProjectFiles, options?: WebsiteToolsOptions): { tools: ToolSet; workingFiles: ProjectFiles } {
@@ -21,7 +23,10 @@ export function createWebsiteTools(currentFiles: ProjectFiles, options?: Website
   const allTools: ToolSet = {
     ...createFileTools(workingFiles, fileSnapshots),
     ...createBlockTools(workingFiles, fileSnapshots),
-    ...createImageTools(),
+    ...createImageTools({
+      imageProvider: options?.imageProvider,
+      imageModel: options?.imageModel,
+    }),
     ...createIconTools(),
     ...createWebTools(),
     ...createSearchTools(),

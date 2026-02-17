@@ -48,3 +48,7 @@ next-env.d.ts
 
 # playwright MCP logs
 .playwright-mcp/
+
+# AI-generated images
+/public/generated/*
+!/public/generated/.gitkeep

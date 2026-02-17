@@ -1,6 +1,8 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { searchPhotos } from '@/lib/images/pexels';
+import { generateImages } from '@/lib/images/together';
+import { resolveApiKey } from '@/lib/keys/key-manager';
 
 function wordSet(query: string): Set<string> {
   return new Set(query.toLowerCase().trim().split(/\s+/).filter(Boolean));
@@ -36,7 +38,24 @@ const imageQuerySchema = z.object({
     .describe('landscape for heroes/banners, portrait for people/cards, square for avatars/thumbnails.'),
 });
 
-export function createImageTools() {
+interface ImageToolOptions {
+  imageProvider?: 'pexels' | 'together';
+  imageModel?: string;
+}
+
+function orientationToDimensions(orientation?: 'landscape' | 'portrait' | 'square'): { width: number; height: number } {
+  switch (orientation) {
+    case 'landscape': return { width: 1024, height: 768 };
+    case 'portrait': return { width: 768, height: 1024 };
+    case 'square':
+    default: return { width: 1024, height: 1024 };
+  }
+}
+
+export function createImageTools(options?: ImageToolOptions) {
+  const provider = options?.imageProvider ?? 'pexels';
+  const model = options?.imageModel ?? 'black-forest-labs/FLUX.1-dev';
+
   const usedQueries: string[] = [];
   const usedPhotoIds = new Set<number>();
 
@@ -48,7 +67,8 @@ export function createImageTools() {
     return null;
   }
 
-  async function fetchForQuery(
+  // ── Pexels fetch (existing) ──────────────────────────────────────────
+  async function fetchFromPexels(
     query: string,
     count: number,
     orientation?: 'landscape' | 'portrait' | 'square',
@@ -92,10 +112,72 @@ export function createImageTools() {
     }
   }
 
+  // ── Together.ai generation ──────────────────────────────────────────
+  async function fetchFromTogether(
+    query: string,
+    count: number,
+    orientation?: 'landscape' | 'portrait' | 'square',
+  ) {
+    const similar = isTooSimilar(query);
+    if (similar) {
+      return {
+        query,
+        success: false as const,
+        error: `Too similar to previous search "${similar}". Use a different subject.`,
+      };
+    }
+
+    try {
+      const apiKey = await resolveApiKey('Together');
+      if (!apiKey) {
+        return {
+          query,
+          success: false as const,
+          error: 'Together.ai API key not configured. Use placeholder images.',
+        };
+      }
+
+      const { width, height } = orientationToDimensions(orientation);
+
+      // Generate `count` images with slightly varied prompts for variety
+      const prompts = Array.from({ length: count }, (_, i) => ({
+        prompt: count > 1 ? `${query}, variation ${i + 1}` : query,
+        width,
+        height,
+      }));
+
+      const images = await generateImages(apiKey, prompts, model);
+
+      const normalized = query.toLowerCase().trim();
+      usedQueries.push(normalized);
+
+      return {
+        query,
+        success: true as const,
+        images: images.map((img) => ({
+          url: img.url,
+          alt: img.alt,
+          width: img.width,
+          height: img.height,
+        })),
+      };
+    } catch (error) {
+      return {
+        query,
+        success: false as const,
+        error: `Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Use placeholder.`,
+      };
+    }
+  }
+
+  const fetchForQuery = provider === 'together' ? fetchFromTogether : fetchFromPexels;
+  const description = provider === 'together'
+    ? 'Generate AI images for the website. Pass ALL image needs in one call. Returns { results: [{ query, success, images }] } — one entry per query. Use DIFFERENT queries per image for variety. Call ONCE with all queries before writing HTML.'
+    : 'Batch-search stock photos from Pexels. Pass ALL image needs in one call. Returns { results: [{ query, success, images }] } — one entry per query. Use DIFFERENT queries per image for variety. Call ONCE with all queries before writing HTML.';
+
   return {
     searchImages: tool({
-      description:
-        'Batch-search stock photos from Pexels. Pass ALL image needs in one call. Returns { results: [{ query, success, images }] } — one entry per query. Use DIFFERENT queries per image for variety. Call ONCE with all queries before writing HTML.',
+      description,
       inputSchema: z.object({
         queries: z
           .array(imageQuerySchema)
@@ -104,7 +186,6 @@ export function createImageTools() {
           .describe('Array of image searches to run in parallel. Each has query, count, and optional orientation.'),
       }),
       execute: async ({ queries }) => {
-        // Run all fetches in parallel
         const results = await Promise.all(
           queries.map((q) => fetchForQuery(q.query, q.count, q.orientation)),
         );

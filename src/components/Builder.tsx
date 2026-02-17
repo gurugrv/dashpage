@@ -25,6 +25,7 @@ import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
 import { useHtmlParser } from '@/hooks/useHtmlParser';
 import { useDiscovery } from '@/hooks/useDiscovery';
+import { useImageGenConfig } from '@/hooks/useImageGenConfig';
 import { useModels } from '@/hooks/useModels';
 import { ARTIFACT_COMPLETION_MESSAGE, sanitizeAssistantMessage } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
@@ -102,6 +103,10 @@ export function Builder() {
     resolveMaxOutputTokens,
   } = useModelSelection(availableProviders);
 
+  const { config: imageGenConfig, setConfig: setImageGenConfig } = useImageGenConfig();
+  const imageGenConfigRef = useRef(imageGenConfig);
+  useEffect(() => { imageGenConfigRef.current = imageGenConfig; }, [imageGenConfig]);
+
   const {
     config: blueprintModelConfig,
     setStepModel: setBlueprintStepModel,
@@ -138,6 +143,8 @@ export function Builder() {
     savedTimeZone: getSavedTimeZone(),
     browserTimeZone: getBrowserTimeZone(),
     onFilesReady: setFiles,
+    imageProvider: imageGenConfig.provider,
+    imageModel: imageGenConfig.model,
   });
 
   const isBlueprintBusy = blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
@@ -494,6 +501,8 @@ export function Builder() {
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
           conversationId,
+          imageProvider: imageGenConfigRef.current.provider,
+          imageModel: imageGenConfigRef.current.model,
         },
       },
     );
@@ -550,6 +559,8 @@ export function Builder() {
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
           conversationId: activeConversationIdRef.current,
+          imageProvider: imageGenConfigRef.current.provider,
+          imageModel: imageGenConfigRef.current.model,
         },
       },
     );
@@ -784,6 +795,8 @@ export function Builder() {
                   savedTimeZone: getSavedTimeZone(),
                   browserTimeZone: getBrowserTimeZone(),
                   conversationId: activeConversationIdRef.current,
+                  imageProvider: imageGenConfigRef.current.provider,
+                  imageModel: imageGenConfigRef.current.model,
                 },
               })}
               provider={effectiveSelectedProvider}
@@ -863,6 +876,8 @@ export function Builder() {
           blueprintModelConfig={blueprintModelConfig}
           onSetBlueprintStepModel={setBlueprintStepModel}
           onClearBlueprintStepModel={clearBlueprintStepModel}
+          imageGenConfig={imageGenConfig}
+          onImageGenConfigChange={setImageGenConfig}
         />
       </div>
     </>

@@ -11,6 +11,14 @@ import type { ProviderConfig } from '@/lib/providers/types';
 
 export type { ModelInfo, ProviderConfig } from '@/lib/providers/types';
 
+// Together.ai — image generation only, no LLM models
+const togetherProvider: ProviderConfig = {
+  name: 'Together',
+  envKey: 'TOGETHER_API_KEY',
+  createModel: () => { throw new Error('Together.ai is image-only, no LLM models') as never; },
+  staticModels: [],
+};
+
 export const PROVIDERS: Record<string, ProviderConfig> = {
   OpenRouter: openRouterProvider,
   Anthropic: anthropicProvider,
@@ -21,4 +29,5 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
   MiniMax: minimaxProvider,
   Moonshot: moonshotProvider,
   'Z.ai': zaiProvider,
+  Together: togetherProvider,
 };

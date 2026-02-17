@@ -17,6 +17,8 @@ interface ComponentsRequestBody {
   model: string;
   maxOutputTokens?: number;
   conversationId?: string;
+  imageProvider?: 'pexels' | 'together';
+  imageModel?: string;
 }
 
 export async function POST(req: Request) {
@@ -96,7 +98,7 @@ export async function POST(req: Request) {
         maxOutputTokens,
       });
 
-      const { tools, workingFiles } = createWebsiteTools({});
+      const { tools, workingFiles } = createWebsiteTools({}, { imageProvider: body.imageProvider, imageModel: body.imageModel });
       const toolCallNames = new Map<string, string>();
       let hasFileOutput = false;
       const FILE_PRODUCING_TOOLS = new Set(['writeFile', 'writeFiles', 'editDOM', 'editFiles']);

@@ -138,6 +138,8 @@ interface PagesRequestBody {
   stylesCss?: string;
   scriptsJs?: string;
   skipPages?: string[];
+  imageProvider?: 'pexels' | 'together';
+  imageModel?: string;
 }
 
 export async function POST(req: Request) {
@@ -277,7 +279,7 @@ export async function POST(req: Request) {
 
         // Fresh tool set per page — exclude edit tools not needed during generation
         const PAGE_GEN_TOOLS = new Set(['writeFile', 'writeFiles', 'readFile', 'searchImages', 'searchIcons', 'webSearch', 'fetchUrl']);
-        const { tools: pageTools, workingFiles } = createWebsiteTools({}, { toolSubset: PAGE_GEN_TOOLS });
+        const { tools: pageTools, workingFiles } = createWebsiteTools({}, { toolSubset: PAGE_GEN_TOOLS, imageProvider: body.imageProvider, imageModel: body.imageModel });
 
         sendEvent({
           type: 'page-status',

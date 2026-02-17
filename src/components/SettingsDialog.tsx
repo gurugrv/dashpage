@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Loader2, Settings, Key, Cpu, Check, ChevronDown, Search, X } from 'lucide-react';
+import { Loader2, Settings, Key, Cpu, Check, ChevronDown, Search, X, ImageIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,8 @@ import type {
   BlueprintStepModels,
   StepModelOverride,
 } from '@/features/settings/use-blueprint-model-config';
+import { ImageGenSettings } from '@/features/settings/image-gen-settings';
+import type { ImageGenConfig } from '@/hooks/useImageGenConfig';
 import { cn } from '@/lib/utils';
 
 interface SettingsDialogProps {
@@ -38,6 +40,8 @@ interface SettingsDialogProps {
   blueprintModelConfig: BlueprintStepModels;
   onSetBlueprintStepModel: (step: BlueprintStep, override: StepModelOverride) => void;
   onClearBlueprintStepModel: (step: BlueprintStep) => void;
+  imageGenConfig: ImageGenConfig;
+  onImageGenConfigChange: (update: Partial<ImageGenConfig>) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +278,8 @@ export function SettingsDialog({
   blueprintModelConfig,
   onSetBlueprintStepModel,
   onClearBlueprintStepModel,
+  imageGenConfig,
+  onImageGenConfigChange,
 }: SettingsDialogProps) {
   const {
     providers,
@@ -311,7 +317,7 @@ export function SettingsDialog({
 
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-6 pb-6">
           <Tabs defaultValue="keys" className="flex flex-col flex-1 min-h-0">
-            <TabsList className="grid w-full grid-cols-2 mb-4 shrink-0">
+            <TabsList className="grid w-full grid-cols-3 mb-4 shrink-0">
               <TabsTrigger value="keys" className="text-xs gap-1.5">
                 <Key className="size-3.5" />
                 API Keys
@@ -319,6 +325,10 @@ export function SettingsDialog({
               <TabsTrigger value="models" className="text-xs gap-1.5">
                 <Cpu className="size-3.5" />
                 Models
+              </TabsTrigger>
+              <TabsTrigger value="images" className="text-xs gap-1.5">
+                <ImageIcon className="size-3.5" />
+                Images
               </TabsTrigger>
             </TabsList>
 
@@ -370,6 +380,13 @@ export function SettingsDialog({
                       })}
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="images" className="mt-0 flex-1 min-h-0 overflow-auto -mx-6 px-6">
+                  <ImageGenSettings
+                    config={imageGenConfig}
+                    onChange={onImageGenConfigChange}
+                  />
                 </TabsContent>
               </>
             )}
