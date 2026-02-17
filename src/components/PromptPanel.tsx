@@ -171,7 +171,7 @@ export function PromptPanel({
             />
           )}
 
-          {(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site') && (
+          {(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-assets' || blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site') && (
             <PageProgress
               pageStatuses={pageStatuses ?? []}
               componentsStatus={(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site') && !componentsReady ? 'generating' : 'complete'}
