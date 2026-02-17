@@ -281,7 +281,7 @@ export function Builder() {
   const displayMessages: UIMessage[] = useMemo(() => {
     if (messages.length === 0) return [];
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role !== 'assistant') return [...completedDisplayMessages, lastMessage];
+    if (lastMessage.role !== 'assistant') return [...completedDisplayMessages, lastMessage, ...statusMessages];
 
     const { preface, summary, hasTools } = splitTextAroundTools(lastMessage.parts);
     const output: UIMessage[] = [];
@@ -650,14 +650,21 @@ export function Builder() {
 
     const text = phaseMessages[blueprintPhase];
     if (text) {
-      setStatusMessages((prev) => [
-        ...prev,
-        {
-          id: `blueprint-phase-${blueprintPhase}-${Date.now()}`,
-          role: 'assistant' as const,
-          parts: [{ type: 'text' as const, text }],
-        },
-      ]);
+      setStatusMessages((prev) => {
+        // Keep only non-phase messages (e.g. completion) and the awaiting-approval message;
+        // replace any previous in-progress phase message with the new one
+        const kept = prev.filter((m) =>
+          !m.id.startsWith('blueprint-phase-') || m.id.includes('awaiting-approval')
+        );
+        return [
+          ...kept,
+          {
+            id: `blueprint-phase-${blueprintPhase}-${Date.now()}`,
+            role: 'assistant' as const,
+            parts: [{ type: 'text' as const, text }],
+          },
+        ];
+      });
     }
   }, [blueprintPhase]);
 
@@ -693,9 +700,8 @@ export function Builder() {
       content = `Generated ${htmlPages.length}-page website: ${htmlPages.join(', ')}`;
     }
 
-    // Show completion message in chat immediately
-    setStatusMessages((prev) => [
-      ...prev,
+    // Show completion message in chat, replacing all phase progress messages
+    setStatusMessages([
       {
         id: `blueprint-complete-${Date.now()}`,
         role: 'assistant' as const,

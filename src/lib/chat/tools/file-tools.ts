@@ -129,10 +129,14 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
             fixedKey = fixedKey.replace('_components_', '_components/');
           }
           if (!fixedKey.includes('.')) {
-            // Try underscore convention first: "index_html" -> "index.html"
-            const underscored = fixedKey.replace(/_([a-z]+)$/, '.$1');
+            // Strip leading underscores before converting: _styles_css -> styles_css -> styles.css
+            // Models hallucinate leading underscores for non-HTML asset files
+            const stripped = fixedKey.replace(/^_+/, '');
+            const target = stripped || fixedKey; // fallback if all underscores
+            // Try underscore convention: "styles_css" -> "styles.css"
+            const underscored = target.replace(/_([a-z]+)$/, '.$1');
             // If regex matched, use it; otherwise default to .html
-            fixedKey = underscored !== fixedKey ? underscored : `${fixedKey}.html`;
+            fixedKey = underscored !== target ? underscored : `${fixedKey}.html`;
           }
           normalized[fixedKey] = value;
         }
@@ -179,8 +183,11 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
         // Strip wrapping quotes hallucinated by some models, lowercase
         let fixedName = filename.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
         if (!fixedName.includes('.')) {
-          const underscored = fixedName.replace(/_([a-z]+)$/, '.$1');
-          fixedName = underscored !== fixedName ? underscored : `${fixedName}.html`;
+          // Strip leading underscores: _styles_css -> styles_css -> styles.css
+          const stripped = fixedName.replace(/^_+/, '');
+          const target = stripped || fixedName;
+          const underscored = target.replace(/_([a-z]+)$/, '.$1');
+          fixedName = underscored !== target ? underscored : `${fixedName}.html`;
         }
 
         const MIN_HTML_LENGTH = 50;

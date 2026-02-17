@@ -10,6 +10,7 @@ export interface ImageGenConfig {
 }
 
 export const IMAGE_GEN_MODELS = [
+  { id: 'Rundiffusion/Juggernaut-Lightning-Flux', name: 'Juggernaut Lightning (Cheapest)', price: '~$0.002/img' },
   { id: 'black-forest-labs/FLUX.1-schnell', name: 'FLUX Schnell (Fast)', price: '~$0.003/img' },
   { id: 'black-forest-labs/FLUX.1-dev', name: 'FLUX Dev (Balanced)', price: '~$0.025/img' },
   { id: 'black-forest-labs/FLUX.1.1-pro', name: 'FLUX 1.1 Pro (Best)', price: '~$0.04/img' },

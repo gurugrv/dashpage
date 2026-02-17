@@ -179,14 +179,29 @@ export async function POST(req: Request) {
         usage,
       });
 
-      // Normalize filenames
+      // Normalize filenames — find styles.css and scripts.js even if the model
+      // used variant names (e.g. _styles.css, style.css, _style.css)
       const normalizedFiles: Record<string, string> = {};
       for (const [key, value] of Object.entries(workingFiles)) {
         normalizedFiles[key.toLowerCase()] = value;
       }
 
-      const stylesCss = normalizedFiles['styles.css'];
-      const scriptsJs = normalizedFiles['scripts.js'];
+      // Fuzzy lookup: try exact match first, then common model hallucination variants
+      const findAsset = (exact: string, variants: string[]): string | undefined => {
+        if (normalizedFiles[exact]) return normalizedFiles[exact];
+        for (const v of variants) {
+          if (normalizedFiles[v]) return normalizedFiles[v];
+        }
+        // Last resort: find any key containing the base name
+        const base = exact.replace('.', '');  // "styles.css" -> "stylescss"
+        for (const [key, value] of Object.entries(normalizedFiles)) {
+          if (key.replace(/[_.\-/]/g, '') === base) return value;
+        }
+        return undefined;
+      };
+
+      const stylesCss = findAsset('styles.css', ['_styles.css', 'style.css', '_style.css']);
+      const scriptsJs = findAsset('scripts.js', ['_scripts.js', 'script.js', '_script.js']);
 
       if (!stylesCss || !scriptsJs) {
         console.error('Assets generation did not produce styles.css and/or scripts.js. Available files:', Object.keys(workingFiles));
