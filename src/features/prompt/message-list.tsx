@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import { Loader2 } from 'lucide-react';
 import { BuildProgress } from '@/components/BuildProgress';
@@ -83,11 +83,14 @@ export function MessageList({
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, []);
+
+  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+  useEffect(() => { if (!isLoading) scrollToBottom(); }, [isLoading, scrollToBottom]);
 
   return (
     <div ref={scrollRef} className="flex flex-col">
