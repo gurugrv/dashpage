@@ -30,9 +30,12 @@ export function validateArtifact(files: ProjectFiles): ValidationResult {
       return { valid: false, reason: 'Empty or whitespace-only filename' };
     }
 
-    // No nested paths — flat filenames only
+    // Allow _components/ prefix (one level deep), reject other nested paths
     if (key.includes('/') || key.includes('\\')) {
-      return { valid: false, reason: `Nested path "${key}" not allowed` };
+      const isComponentFile = key.startsWith('_components/') && !key.includes('..') && key.split('/').length === 2;
+      if (!isComponentFile) {
+        return { valid: false, reason: `Nested path "${key}" not allowed` };
+      }
     }
 
     if (!ALLOWED_EXTENSIONS.has(getExtension(key))) {
