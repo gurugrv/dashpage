@@ -218,6 +218,38 @@ const KEYWORD_STRATEGY_MAP: Record<string, StyleSeed['strategy'][]> = {
   'real estate': ['LIGHT', 'HIGH-CONTRAST'],
   construction: ['MUTED', 'HIGH-CONTRAST'],
   architecture: ['HIGH-CONTRAST', 'MUTED'],
+  // Automotive & transport
+  automotive: ['HIGH-CONTRAST', 'BOLD'],
+  car: ['HIGH-CONTRAST', 'BOLD'],
+  // Travel & hospitality
+  travel: ['LIGHT', 'MUTED'],
+  hospitality: ['MUTED', 'LIGHT'],
+  // Manufacturing & trades
+  manufacturing: ['HIGH-CONTRAST', 'MUTED'],
+  plumber: ['HIGH-CONTRAST', 'MUTED'],
+  electrician: ['HIGH-CONTRAST', 'MUTED'],
+  contractor: ['HIGH-CONTRAST', 'MUTED'],
+  // Medical & dental
+  dental: ['LIGHT', 'MUTED'],
+  medical: ['LIGHT', 'MUTED'],
+  clinic: ['LIGHT', 'MUTED'],
+  // Personal care
+  salon: ['MUTED', 'LIGHT'],
+  barbershop: ['MUTED', 'BOLD'],
+  // E-commerce variants
+  ecommerce: ['LIGHT', 'BOLD'],
+  'e-commerce': ['LIGHT', 'BOLD'],
+  shop: ['LIGHT', 'BOLD'],
+  store: ['LIGHT', 'BOLD'],
+  // Pets
+  pet: ['BOLD', 'LIGHT'],
+  veterinary: ['LIGHT', 'MUTED'],
+  // Religious & community
+  church: ['MUTED', 'LIGHT'],
+  religious: ['MUTED', 'LIGHT'],
+  // Events & celebrations
+  wedding: ['LIGHT', 'MUTED'],
+  event: ['BOLD', 'LIGHT'],
 };
 
 export function getWeightedStyleSeed(userPrompt: string): StyleSeed {

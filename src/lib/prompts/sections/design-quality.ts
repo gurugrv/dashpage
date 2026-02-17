@@ -41,7 +41,13 @@ Apply colors to :root CSS custom properties (all in HSL):
 
 Gradient rules: prefer solid colors; use gradients only to reinforce mood. Analogous colors in the same temperature family. Maximum 2 stops.
 
-Push into the design seed's hue zone and find unexpected color stories. A bakery doesn't need warm browns — try dusty sage with terracotta accents. A law firm doesn't need navy — try warm charcoal with aged brass. The best palettes feel inevitable in hindsight but surprising at first glance.
+Push into the design seed's hue zone and find unexpected color stories:
+- A bakery doesn't need warm browns — try dusty sage with terracotta accents
+- A law firm doesn't need navy — try warm charcoal with aged brass or deep plum with silver
+- A spa doesn't need pink + gold — try forest green with copper or warm stone with sage
+- A SaaS product doesn't need flat blue — try dark mode with a single vivid accent
+- A dental clinic doesn't need minty green — try warm coral with cream or soft gold with charcoal
+The best palettes feel inevitable in hindsight but surprising at first glance.
 </color_system>
 
 <typography>
