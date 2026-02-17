@@ -443,7 +443,7 @@ export async function POST(req: Request) {
 
         // Track whether file-producing tools were called (for incomplete generation detection)
         let hasFileOutput = false;
-        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editBlock', 'editFiles', 'deleteFile']);
+        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'writeFile', 'editBlock', 'editFiles', 'deleteFile']);
 
         // Tool-aware monotonic progress tracker
         const TOOL_START_PERCENT: Record<string, number> = {

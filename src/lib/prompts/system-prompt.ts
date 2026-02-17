@@ -48,7 +48,7 @@ export function getSystemPromptParts(
   modelId?: string,
   businessProfile?: BusinessProfileData | null,
 ): SystemPromptParts {
-  const isFirstGeneration = !currentFiles?.['index.html'];
+  const isFirstGeneration = !currentFiles || !Object.keys(currentFiles).some(f => f.endsWith('.html'));
   const toolSection = TOOL_OUTPUT_FORMAT_SECTION;
 
   const stable = `${IDENTITY_LINE}

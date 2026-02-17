@@ -313,8 +313,10 @@ export function useHtmlParser() {
       lastValidFilesRef.current,
     );
 
-    // If post-processed files were applied for this message, skip tool extraction
-    if (!isLoading && postProcessedMessageRef.current === lastMessage.id) {
+    // If post-processed files were applied for this message, skip tool extraction.
+    // Check regardless of isLoading — once post-processed files arrive mid-stream,
+    // subsequent processMessages calls must not overwrite them with raw tool output.
+    if (postProcessedMessageRef.current === lastMessage.id) {
       return; // post-processed files already applied via setFiles
     }
 
