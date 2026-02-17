@@ -29,15 +29,17 @@ No test framework is configured (no Jest/Vitest/Playwright).
 
 ## Architecture
 
-**Stack:** Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui + Prisma 7 + Vercel AI SDK 6
+**Stack:** Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui + Prisma 7 + Vercel AI SDK 6 + Google Places API
 
 **Path alias:** `@/*` maps to `./src/*`
 
-### Two Generation Modes
+### Three-Phase Generation Flow
+
+**Discovery phase** (optional) - AI analyzes the user's prompt to detect business sites. If detected, presents targeted questions (contact info, services, hours) with Google Places address autocomplete. Collected data persists as a `BusinessProfile` for reuse. State machine in `useDiscovery` hook (phases: idle → picking → analyzing → asking → evaluating → confirming → complete/skipped).
 
 **Chat mode** (single-page) - Conversational prompt-and-iterate. AI uses tools to generate/edit one HTML file. Route: `POST /api/chat`.
 
-**Blueprint mode** (multi-page) - Structured planning then parallel page generation. AI generates a Blueprint JSON (site structure, design system, pages), user reviews/edits it, then pages are generated in parallel. Routes: `POST /api/blueprint/{generate,components,pages}`.
+**Blueprint mode** (multi-page) - Structured planning then parallel page generation. AI generates a Blueprint JSON (site structure, design system, pages), user reviews/edits it, then pages are generated in parallel. Different models can be configured per step (planning, research, components, pages). Routes: `POST /api/blueprint/{generate,components,pages}`.
 
 ### Data Flow (Chat Mode)
 
@@ -109,7 +111,7 @@ Tools defined in `src/lib/chat/tools/` - each file exports a factory function. C
 - `src/lib/chat/tools/` - Tool factories: `file-tools.ts`, `block-tools.ts`, `image-tools.ts`, `icon-tools.ts`, `web-tools.ts`, `search-tools.ts`, `index.ts`
 - `src/lib/blocks/` - Post-generation pipeline: `validate-blocks.ts` (auto-assign data-block attrs), `extract-components.ts` (shared nav/footer extraction)
 - `src/lib/providers/registry.ts` - Imports all provider configs, exports `PROVIDERS` record
-- `src/lib/providers/configs/` - Individual provider configs (openrouter, anthropic, google, openai, deepinfra, minimax, moonshot, zai)
+- `src/lib/providers/configs/` - Individual provider configs (openrouter, anthropic, google, openai, deepinfra, minimax, moonshot, zai, cerebras)
 - `src/lib/prompts/system-prompt.ts` - Modular system prompt builder
 - `src/lib/prompts/sections/` - Prompt sections: base-rules, ui-ux-guidelines, design-quality, tool-output-format, context-blocks
 - `src/lib/parser/html-extractor.ts` - Streaming `<htmlOutput>` tag parser (legacy fallback)
@@ -127,7 +129,15 @@ Tools defined in `src/lib/chat/tools/` - each file exports a factory function. C
 - `src/hooks/useModels.ts` - Fetches + caches available models per provider
 - `src/features/builder/hooks/` - `use-streaming-persistence.ts`, `use-conversation-actions.ts`, `use-model-selection.ts`
 - `src/features/blueprint/` - Blueprint UI: `blueprint-card.tsx`, `font-picker.tsx`, `page-progress.tsx`
-- `src/features/settings/` - API key management UI + `use-provider-keys.ts`
+- `src/lib/discovery/` - Business discovery: `analyze-prompt.ts`, `evaluate-completeness.ts`, `build-business-context.ts`, `types.ts`
+- `src/lib/places/google-places.ts` - Google Places API integration for address enrichment
+- `src/lib/providers/openrouter-fetch.ts` - Custom fetch with reasoning token control
+- `src/lib/chat/model-pricing.ts` - LiteLLM pricing data for cost estimates
+- `src/hooks/useDiscovery.ts` - Discovery flow state machine (8 phases)
+- `src/hooks/useBusinessProfiles.ts` - Business profile CRUD
+- `src/hooks/useBlueprintGeneration.ts` - Blueprint generation with page status tracking
+- `src/features/discovery/` - Discovery UI: question cards, address autocomplete, profile picker, summary
+- `src/features/settings/` - API key management UI + `use-provider-keys.ts`, `use-blueprint-model-config.ts`
 - `src/features/prompt/` - Prompt panel sub-components
 - `src/features/preview/` - Preview panel sub-components
 
@@ -144,21 +154,29 @@ Tools defined in `src/lib/chat/tools/` - each file exports a factory function. C
 - `GET|PATCH|DELETE /api/conversations/[id]` - Single conversation CRUD
 - `GET|POST /api/conversations/[id]/messages` - Messages for a conversation
 - `POST /api/conversations/[id]/messages/partial` - Persist partial assistant output
+- `POST /api/conversations/[id]/messages/batch` - Atomic batch message persistence
 - `GET|DELETE /api/conversations/[id]/generation-state` - Blueprint generation state
 - `GET|POST|DELETE /api/keys` - API key management (encrypted storage)
+- `POST|GET /api/business-profiles` - Business profile create/list
+- `GET|PATCH|DELETE /api/business-profiles/[id]` - Business profile CRUD
+- `POST /api/discovery/analyze` - AI prompt analysis for business detection
+- `POST /api/discovery/evaluate` - Completeness evaluation of collected data
+- `POST /api/places/details` - Google Places address enrichment
+- `GET /api/places/config` - Google Places configuration check
 
 ### Database
 
-PostgreSQL via Docker (`docker-compose.yml`: postgres:17, credentials builder/builder, db ai_builder). Prisma 7 with `@prisma/adapter-pg` driver adapter. Generated client at `src/generated/prisma/` (gitignored). Schema at `prisma/schema.prisma`. Five models:
-- `Conversation` - title, provider, model, timestamps
-- `Message` - role, content, `htmlArtifact` (JSON ProjectFiles), `isPartial` flag
+PostgreSQL via Docker (`docker-compose.yml`: postgres:17, credentials builder/builder, db ai_builder). Prisma 7 with `@prisma/adapter-pg` driver adapter. Generated client at `src/generated/prisma/` (gitignored). Schema at `prisma/schema.prisma`. Six models:
+- `Conversation` - title, provider, model, businessProfileId, timestamps
+- `Message` - role, content, `htmlArtifact` (JSON ProjectFiles), `isPartial` flag, `finishId`
 - `Blueprint` - conversationId (unique), data (JSON blueprint spec)
 - `GenerationState` - conversationId (unique), mode (chat/blueprint), phase, autoSegment, blueprintId, componentHtml, sharedStyles, completedPages, pageStatuses
 - `ApiKey` - provider (unique), encryptedKey
+- `BusinessProfile` - name, phone, email, website, address, lat/lng, placeId, category, hours, services, socialMedia, additionalInfo, googleMapsUri
 
 ## Environment
 
-Copy `.env.example` to `.env.local`. Required: `DATABASE_URL`, `KEYS_ENCRYPTION_SECRET`. At least one LLM provider key (OpenRouter recommended - one key covers all models). Set `DEBUG_AI_STREAM_OUTPUT=true` to log full AI prompts/responses via `createStreamDebugLogger()`. The `.env` file is loaded by `prisma.config.ts` via `dotenv/config`.
+Copy `.env.example` to `.env.local`. Required: `DATABASE_URL`, `KEYS_ENCRYPTION_SECRET`. At least one LLM provider key (OpenRouter recommended - one key covers all models). Optional: `GOOGLE_PLACES_API_KEY` + `NEXT_PUBLIC_GOOGLE_PLACES_KEY` for address autocomplete in discovery. Set `DEBUG_AI_STREAM_OUTPUT=true` to log full AI prompts/responses via `createStreamDebugLogger()`. The `.env` file is loaded by `prisma.config.ts` via `dotenv/config`.
 
 ## Detailed Plan
 
