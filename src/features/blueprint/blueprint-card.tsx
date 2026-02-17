@@ -266,6 +266,12 @@ export function BlueprintCard({
             {factsSource.tagline && (
               <FactRow label="Tagline" value={factsSource.tagline} field="tagline" isEditing={isEditing} onChange={updateFact} />
             )}
+            {factsSource.socialMedia && (
+              <FactRow label="Social" value={factsSource.socialMedia} field="socialMedia" isEditing={isEditing} onChange={updateFact} />
+            )}
+            {factsSource.additionalInfo && (
+              <FactRow label="Info" value={factsSource.additionalInfo} field="additionalInfo" isEditing={isEditing} onChange={updateFact} />
+            )}
             {factsSource.services && factsSource.services.length > 0 && !isEditing && (
               <div className="flex items-start gap-2 pl-5">
                 <span className="w-14 shrink-0 text-xs font-medium text-muted-foreground">Services</span>
