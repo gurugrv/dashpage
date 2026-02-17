@@ -50,6 +50,7 @@ interface PromptPanelProps {
   onDiscoveryAnswer?: (questionId: string, value: string) => void;
   onDiscoveryAddressAnswer?: (questionId: string, address: string, enrichment: PlacesEnrichment) => void;
   onDiscoveryConfirm?: (profile: BusinessProfileData) => void;
+  onDiscoveryAddMore?: () => void;
   // Blueprint props
   isBlueprintBusy?: boolean;
   blueprintPhase?: BlueprintPhase;
@@ -93,6 +94,7 @@ export function PromptPanel({
   onDiscoveryAnswer,
   onDiscoveryAddressAnswer,
   onDiscoveryConfirm,
+  onDiscoveryAddMore,
   isBlueprintBusy,
   blueprintPhase,
   blueprint,
@@ -156,7 +158,7 @@ export function PromptPanel({
             <BusinessProfileSummary
               profile={discoveryProfile}
               onConfirm={onDiscoveryConfirm}
-              onAddMore={() => {/* TODO: could add more fields */}}
+              onAddMore={onDiscoveryAddMore ?? (() => {})}
             />
           )}
 

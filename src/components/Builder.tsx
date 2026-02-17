@@ -834,6 +834,7 @@ export function Builder() {
               onDiscoveryAnswer={handleDiscoveryAnswer}
               onDiscoveryAddressAnswer={handleDiscoveryAddressAnswer}
               onDiscoveryConfirm={handleDiscoveryConfirm}
+              onDiscoveryAddMore={discovery.evaluateAndContinue}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}
