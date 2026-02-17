@@ -10,6 +10,7 @@ import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
 import { extractComponents } from '@/lib/blocks/extract-components';
+import { postProcessPages } from '@/lib/blueprint/post-process-pages';
 import type { Blueprint } from '@/lib/blueprint/types';
 import { createOpenRouterModel } from '@/lib/providers/configs/openrouter';
 
@@ -669,6 +670,21 @@ export async function POST(req: Request) {
         } catch (err) {
           console.warn('[blueprint-pages] extractComponents error:', err);
         }
+      }
+
+      // Post-process: deduplicate CSS, JS, and inline styles
+      if (stylesCss) completedPagesMap['styles.css'] = stylesCss;
+      if (scriptsJs) completedPagesMap['scripts.js'] = scriptsJs;
+      try {
+        postProcessPages(completedPagesMap);
+        if (completedPagesMap['styles.css'] || completedPagesMap['scripts.js']) {
+          sendEvent({
+            type: 'post-processed',
+            files: completedPagesMap,
+          });
+        }
+      } catch (err) {
+        console.warn('[blueprint-pages] postProcessPages error:', err);
       }
 
       sendEvent({

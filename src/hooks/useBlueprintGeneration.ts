@@ -80,7 +80,12 @@ interface ComponentsExtractedEvent {
   files: Record<string, string>;
 }
 
-type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent | CodeDeltaEvent | ComponentsExtractedEvent;
+interface PostProcessedEvent {
+  type: 'post-processed';
+  files: Record<string, string>;
+}
+
+type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent | CodeDeltaEvent | ComponentsExtractedEvent | PostProcessedEvent;
 
 interface ComponentStatusEvent {
   type: 'component-status';
@@ -591,6 +596,9 @@ export function useBlueprintGeneration({
               // Server extracted shared nav/footer into _components/ files
               // and replaced inline copies with placeholders — adopt the updated file map
               filesAccumulatorRef.current = { ...event.files };
+            } else if (event.type === 'post-processed' && event.files) {
+              // Server post-processed the pages (CSS/JS dedup)
+              filesAccumulatorRef.current = { ...filesAccumulatorRef.current, ...event.files };
             } else if (event.type === 'pipeline-status' && event.status === 'complete') {
               // Flush any pending RAF updates so final state is consistent
               flushPendingRafs();

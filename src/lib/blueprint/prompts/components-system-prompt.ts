@@ -72,7 +72,7 @@ ${allPages}
 
 <output_format>
 Call writeFiles with exactly two files:
-- "header.html" — containing ONLY the <header>...</header> element (with inline <script> for mobile toggle)
+- "header.html" — containing ONLY the <header>...</header> element (use data-menu-toggle and data-mobile-menu attributes for JS hooks)
 - "footer.html" — containing ONLY the <footer>...</footer> element
 
 Do NOT output raw HTML as text. You MUST use the writeFiles tool.
@@ -82,8 +82,8 @@ Do NOT output raw HTML as text. You MUST use the writeFiles tool.
 - Sticky/fixed at top with subtle shadow (shadow-sm or shadow-md)
 - Site name "${blueprint.siteName}" as logo/brand text styled with --color-primary and font-heading
 - Desktop: horizontal nav with all links, use Tailwind for layout (flex, gap, etc.)
-- Mobile: hamburger menu button (3-line icon) that toggles a dropdown/slide nav
-- Include an inline <script> for the hamburger toggle (addEventListener, classList.toggle)
+- Mobile: hamburger menu button (3-line icon) with data-menu-toggle attribute that toggles a dropdown/slide nav (with data-mobile-menu attribute)
+- Do NOT include inline <script> — a shared scripts.js handles mobile menu toggle via data-menu-toggle/data-mobile-menu attributes
 - Use design system CSS custom properties: bg-[var(--color-bg)], text-[var(--color-text)], etc.
 - Hover states on all links with transition
 - Current page highlighting: add a data-current-page attribute on the <header> element so pages can mark themselves. Use a class convention like [data-current-page="index.html"] a[href="index.html"] for active styling.
@@ -116,7 +116,7 @@ WORKFLOW: Call searchIcons with ALL icon queries in one call (e.g. queries: [{qu
 1. Use ONLY Tailwind utility classes and CSS custom properties (var(--color-*), var(--font-*), etc.).
 2. Do NOT output <!DOCTYPE>, <html>, <head>, or <body> tags — just the raw <header> and <footer> elements.
 2b. The shared <header> MUST have a data-block attribute (e.g. data-block="main-nav") and the <footer> MUST have a data-block attribute (e.g. data-block="site-footer").
-3. The header MUST include inline <script> for mobile hamburger toggle functionality.
+3. The header MUST use data-* attributes for JavaScript hooks (data-menu-toggle on hamburger button, data-mobile-menu on the menu container). A shared scripts.js file handles all interactivity — do NOT include inline <script> blocks.
 4. Use real SVG icons from the searchIcons tool for the hamburger icon, close icon, and any social icons.
 5. Make sure all navigation links use the exact href values from the navigation spec.
 6. Both components must be fully responsive and mobile-first.

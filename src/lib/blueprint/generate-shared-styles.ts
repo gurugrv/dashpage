@@ -85,7 +85,8 @@ tailwind.config = {
     },
   },
 };
-</script>`;
+</script>
+<script src="scripts.js" defer></script>`;
 
   return { stylesCss, headTags };
 }
