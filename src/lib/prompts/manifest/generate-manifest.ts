@@ -3,6 +3,8 @@ import type { ProjectFiles } from '@/types';
 
 /** Max file size (chars) to include in full instead of generating a manifest. */
 const SMALL_FILE_THRESHOLD = 4000;
+/** Higher threshold for edit mode — AI already has context, include more detail. */
+const EDIT_MODE_THRESHOLD = 12000;
 
 /**
  * Extract CSS custom properties from :root {} blocks.
@@ -229,8 +231,9 @@ export function extractSiteOverview(files: ProjectFiles): string {
  * Small files are included in full; larger files get a structural summary.
  * For multi-page sites, includes a site-level overview.
  */
-export function generateManifest(files: ProjectFiles): { perFile: string; siteOverview: string } {
+export function generateManifest(files: ProjectFiles, options?: { editMode?: boolean }): { perFile: string; siteOverview: string } {
   const entries: string[] = [];
+  const threshold = options?.editMode ? EDIT_MODE_THRESHOLD : SMALL_FILE_THRESHOLD;
 
   // Collect component names for block extraction
   const componentNames = new Set<string>();
@@ -241,7 +244,7 @@ export function generateManifest(files: ProjectFiles): { perFile: string; siteOv
   }
 
   for (const [filename, content] of Object.entries(files)) {
-    if (content.length <= SMALL_FILE_THRESHOLD) {
+    if (content.length <= threshold) {
       entries.push(`<file name="${filename}" size="${content.length}">\n${content}\n</file>`);
       continue;
     }
@@ -251,6 +254,15 @@ export function generateManifest(files: ProjectFiles): { perFile: string; siteOv
     const blocks = extractBlocks(content, componentNames);
 
     let manifest = `<file name="${filename}" size="${content.length}">`;
+
+    // For large files over threshold in edit mode, include <style> and <head> content
+    // so the AI has design tokens and Tailwind config without needing readFile
+    if (options?.editMode) {
+      const headMatch = content.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+      if (headMatch) {
+        manifest += `\n  <head_content>\n${headMatch[1].trim()}\n  </head_content>`;
+      }
+    }
 
     if (tokens.length > 0) {
       manifest += `\n  <design_tokens>\n${tokens.map((t) => `    ${t}`).join('\n')}\n  </design_tokens>`;

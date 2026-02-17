@@ -276,8 +276,10 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
             workingFiles[edit.file] = currentHtml;
             fileSnapshots[edit.file] = currentHtml;
           } else if (fileSuccess === 'partial') {
-            // Commit partial changes to working files but keep old snapshot for rollback
+            // Commit partial changes to working files AND update snapshot
+            // so a subsequent total failure rolls back to the partial (not stale) state
             workingFiles[edit.file] = currentHtml;
+            fileSnapshots[edit.file] = currentHtml;
           } else {
             // Total failure — restore from last-known-good snapshot
             if (fileSnapshots[edit.file] !== undefined) {
@@ -323,6 +325,50 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
           success: allSuccess ? (true as const) : allFailed ? (false as const) : ('partial' as const),
           results,
         };
+      },
+    }),
+
+    deleteFile: tool({
+      description:
+        'Delete a file from the project. Use when the user asks to remove a page. Cannot delete index.html or _components/ files that are still referenced by page placeholders.',
+      inputSchema: z.object({
+        file: z.string().describe('Filename to delete, e.g. "about.html"'),
+      }),
+      execute: async ({ file: rawFile }) => {
+        const file = rawFile.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
+
+        if (!workingFiles[file]) {
+          return {
+            success: false as const,
+            error: `File "${file}" not found. Available files: ${availableFilesList(workingFiles)}.`,
+          };
+        }
+
+        if (file === 'index.html') {
+          return {
+            success: false as const,
+            error: 'Cannot delete index.html — every project must have a homepage.',
+          };
+        }
+
+        // Prevent deleting component files that are still referenced
+        if (file.startsWith('_components/')) {
+          const componentName = file.replace('_components/', '').replace('.html', '');
+          const placeholder = `<!-- @component:${componentName} -->`;
+          const referencingPages = Object.entries(workingFiles)
+            .filter(([f, content]) => !f.startsWith('_components/') && content.includes(placeholder))
+            .map(([f]) => f);
+          if (referencingPages.length > 0) {
+            return {
+              success: false as const,
+              error: `Cannot delete "${file}" — still referenced by: ${referencingPages.join(', ')}. Remove the component placeholders first.`,
+            };
+          }
+        }
+
+        delete workingFiles[file];
+        delete fileSnapshots[file];
+        return { success: true as const, file, remainingFiles: Object.keys(workingFiles) };
       },
     }),
 

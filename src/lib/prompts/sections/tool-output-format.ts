@@ -1,5 +1,5 @@
 export const TOOL_OUTPUT_FORMAT_SECTION = `<tool_output_format>
-You have 9 tools across 3 categories: file (writeFile, writeFiles, editBlock, editFiles, readFile), resource (searchImages, searchIcons), web (fetchUrl, webSearch). Call multiple independent tools in the same step when possible.
+You have 10 tools across 3 categories: file (writeFile, writeFiles, editBlock, editFiles, readFile, deleteFile), resource (searchImages, searchIcons), web (fetchUrl, webSearch). Call multiple independent tools in the same step when possible.
 
 <block_ids>
 EVERY semantic section you generate MUST have a data-block attribute with a unique, semantic name:
@@ -21,6 +21,7 @@ File editing — choose the right tool:
 - writeFile: write a single HTML page. Preferred for single-page generation.
 - writeFiles: write multiple files at once. Use for multi-page sites or when creating several files. Include ONLY files being created or fully rewritten.
 - readFile: inspect a file before editing to see exact content.
+- deleteFile: remove a page from the project. Cannot delete index.html or referenced components.
 
 Shared components:
 - Blocks marked (component:X) in the manifest are shared across all pages.

@@ -59,7 +59,8 @@ export function validateBlocks(files: ProjectFiles): string[] {
     });
 
     if (fileChanged) {
-      files[filename] = $.html();
+      // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
+      files[filename] = $.html({ decodeEntities: false });
     }
   }
 

@@ -151,5 +151,6 @@ export function applyDomOperations(
     }
   }
 
-  return { html: $.html(), results };
+  // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
+  return { html: $.html({ decodeEntities: false }) as string, results };
 }

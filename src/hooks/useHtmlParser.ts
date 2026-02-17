@@ -141,13 +141,21 @@ function extractFilesFromToolParts(
         files[normalizedKey] = normalizedKey.endsWith('.html') ? stripHtmlPreamble(value) : value;
       }
     }
-    // editBlock output: { success: true, file: string, content: string }
+    // deleteFile output: { success: true, file: string, remainingFiles: string[] }
+    else if (part.toolName === 'deleteFile' && 'remainingFiles' in output) {
+      if (!files) files = { ...baseFiles };
+      producedFiles = true;
+      const fileName = output.file as string;
+      delete files[fileName];
+    }
+    // editBlock output: { success: true, file: string, content: string, _fullContent?: string }
     else if ('file' in output && 'content' in output) {
       if (!files) files = { ...baseFiles };
       producedFiles = true;
       const fileName = output.file as string;
-      const content = output.content as string;
-      files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
+      // Prefer _fullContent (untruncated) over content (may be truncated for AI context savings)
+      const rawContent = ((output._fullContent ?? output.content) as string);
+      files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(rawContent) : rawContent;
     }
     // editFiles output: { success: true|"partial", results: [{ file, success, content, _fullContent }] }
     else if ('results' in output && Array.isArray(output.results)) {
@@ -243,7 +251,7 @@ export function useHtmlParser() {
   const streamingCodeRef = useRef<string | null>(null);
   const lastValidFilesRef = useRef<ProjectFiles>({});
   const lastProcessedRef = useRef<{ messageId: string; partsLength: number; isLoading: boolean } | null>(null);
-  const postProcessedRef = useRef(false);
+  const postProcessedMessageRef = useRef<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
   const updateLastValid = useCallback((files: ProjectFiles) => {
@@ -272,10 +280,10 @@ export function useHtmlParser() {
     }
     lastProcessedRef.current = { messageId: lastMessage.id, partsLength, isLoading };
 
-    // Reset post-processed flag at stream start so stale state from previous generation
+    // Reset post-processed tracking at stream start so stale state from previous generation
     // doesn't cause early returns on the next one
     if (isLoading && (!cached || cached.messageId !== lastMessage.id)) {
-      postProcessedRef.current = false;
+      postProcessedMessageRef.current = null;
     }
 
     setIsGenerating(isLoading);
@@ -305,9 +313,8 @@ export function useHtmlParser() {
       lastValidFilesRef.current,
     );
 
-    // Clear post-processed flag at stream end regardless of extraction path
-    if (!isLoading && postProcessedRef.current) {
-      postProcessedRef.current = false;
+    // If post-processed files were applied for this message, skip tool extraction
+    if (!isLoading && postProcessedMessageRef.current === lastMessage.id) {
       return; // post-processed files already applied via setFiles
     }
 
@@ -341,8 +348,8 @@ export function useHtmlParser() {
     // No tool activity, no text HTML — nothing to extract for preview
   }, [updateLastValid]);
 
-  const setFiles = useCallback((files: ProjectFiles) => {
-    postProcessedRef.current = true;
+  const setFiles = useCallback((files: ProjectFiles, messageId?: string) => {
+    postProcessedMessageRef.current = messageId ?? null;
     setCurrentFiles(files);
     updateLastValid(files);
   }, [updateLastValid]);

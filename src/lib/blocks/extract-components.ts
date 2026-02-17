@@ -67,9 +67,12 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
     f => f.endsWith('.html') && !f.startsWith('_components/'),
   );
 
-  // Only extract when 2+ pages and no components yet
+  // Need at least 2 pages for component extraction
   if (pageFiles.length < 2) return [];
-  if (Object.keys(files).some(f => f.startsWith('_components/'))) return [];
+
+  const existingComponents = new Set(
+    Object.keys(files).filter(f => f.startsWith('_components/')),
+  );
 
   const extracted: ExtractedComponent[] = [];
 
@@ -88,7 +91,8 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
       const blockId = el.attr('data-block');
       if (!blockId) continue; // validateBlocks should have assigned one
 
-      const outerHtml = $.html(el);
+      // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
+      const outerHtml: string = $.html(el, { decodeEntities: false });
       blocksByPage.push({
         page,
         blockId,
@@ -96,10 +100,35 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
       });
     }
 
-    // Need the element on all (or most) pages to qualify as shared
     if (blocksByPage.length < 2) continue;
 
-    // Check similarity: compare all against the first page's version
+    // Check if a component already exists for this tag's blockId
+    const existingBlockId = blocksByPage[0].blockId;
+    const existingComponentFile = `_components/${existingBlockId}.html`;
+
+    if (existingComponents.has(existingComponentFile)) {
+      // Component already exists — inject placeholders into any new pages that have
+      // a structurally similar element but haven't been componentized yet
+      const canonicalHtml = files[existingComponentFile];
+      for (const entry of blocksByPage) {
+        // Skip pages that already have the placeholder
+        if (files[entry.page].includes(`<!-- @component:${existingBlockId} -->`)) continue;
+
+        // Check structural similarity against the canonical component
+        if (similarity(canonicalHtml, entry.outerHtml) >= 0.9) {
+          const $ = cheerio.load(files[entry.page]);
+          const el = $(`[data-block="${entry.blockId}"]`);
+          if (el.length > 0) {
+            el.replaceWith(`<!-- @component:${existingBlockId} -->`);
+            // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
+            files[entry.page] = $.html({ decodeEntities: false });
+          }
+        }
+      }
+      continue;
+    }
+
+    // No existing component — run full extraction logic
     const reference = blocksByPage[0];
     const allSimilar = blocksByPage.every(
       b => similarity(reference.outerHtml, b.outerHtml) >= 0.9,
@@ -127,7 +156,8 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
       const el = $(`[data-block="${entry.blockId}"]`);
       if (el.length > 0) {
         el.replaceWith(`<!-- @component:${blockId} -->`);
-        files[entry.page] = $.html();
+        // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
+        files[entry.page] = $.html({ decodeEntities: false });
       }
     }
   }

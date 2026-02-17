@@ -33,14 +33,15 @@ Tool selection:
 - editBlock (selector): fine-grained changes within a block — change a heading, update an image, tweak classes.
 - editFiles: text-level search/replace for small string changes. MUST call readFile first for exact content.
 - Use readFile before editBlock replace for exact content.
-- writeFiles: full page rewrites or new pages only.${componentBlock}${crossPageBlock}
+- writeFiles: full page rewrites or new pages only.
+- deleteFile: remove a page when the user asks to delete one.${componentBlock}${crossPageBlock}
 </edit_guidance>`;
 }
 
 export function buildCurrentWebsiteBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
-  const { perFile, siteOverview } = generateManifest(currentFiles);
+  const { perFile, siteOverview } = generateManifest(currentFiles, { editMode: true });
   const fileCount = Object.keys(currentFiles).length;
   const isMultiPage = fileCount > 1;
 

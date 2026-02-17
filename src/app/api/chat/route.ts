@@ -1,6 +1,6 @@
 import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, stepCountIs, streamText, type FinishReason, type UIMessageChunk } from 'ai';
 import type { UIMessage } from 'ai';
-import { ChatRequestError } from '@/lib/chat/errors';
+import { ChatRequestError, classifyStreamError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { createDebugSession } from '@/lib/chat/stream-debug';
@@ -118,6 +118,7 @@ const TOOL_LABELS: Record<string, string> = {
   searchIcons: 'Adding icons',
   fetchUrl: 'Loading content',
   webSearch: 'Researching content',
+  deleteFile: 'Deleting file',
 };
 
 function summarizeToolInput(toolName: string, input: unknown): string | undefined {
@@ -153,6 +154,8 @@ function summarizeToolInput(toolName: string, input: unknown): string | undefine
       return edits ? edits.map(e => e.file).filter(Boolean).join(', ') : undefined;
     }
     case 'readFile':
+      return typeof inp.file === 'string' ? inp.file : undefined;
+    case 'deleteFile':
       return typeof inp.file === 'string' ? inp.file : undefined;
     default:
       return undefined;
@@ -207,6 +210,8 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
     }
     case 'readFile':
       return typeof out.length === 'number' ? `${out.length} chars` : 'File read';
+    case 'deleteFile':
+      return typeof out.file === 'string' ? `Deleted ${out.file}` : 'File deleted';
     default:
       return undefined;
   }
@@ -315,17 +320,22 @@ export async function POST(req: Request) {
     });
 
     const stream = createUIMessageStream({
+      onError: (error) => {
+        console.error('[chat] Stream error:', error);
+        return JSON.stringify(classifyStreamError(error));
+      },
       execute: async ({ writer }) => {
         let continuationMessages = [...messages];
         let finalFinishReason: FinishReason | undefined;
         const toolCallNames = new Map<string, string>();
         let prevSegmentText = '';  // Track previous segment for degenerate loop detection
         let totalTokensUsed = 0;
+        let totalPromptTokens = 0;
         const totalTokenBudget = resolvedMaxOutputTokens * MAX_TOTAL_OUTPUT_TOKENS_MULTIPLIER;
 
         // Track whether file-producing tools were called (for incomplete generation detection)
         let hasFileOutput = false;
-        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editBlock', 'editFiles']);
+        const FILE_PRODUCING_TOOLS = new Set(['writeFiles', 'editBlock', 'editFiles', 'deleteFile']);
 
         // Tool-aware monotonic progress tracker
         const TOOL_START_PERCENT: Record<string, number> = {
@@ -338,6 +348,7 @@ export async function POST(req: Request) {
           writeFiles: 32,
           editBlock: 32,
           editFiles: 32,
+          deleteFile: 32,
         };
         const TOOL_END_PERCENT: Record<string, number> = {
           searchImages: 28,
@@ -349,6 +360,7 @@ export async function POST(req: Request) {
           writeFiles: 92,
           editBlock: 90,
           editFiles: 90,
+          deleteFile: 90,
         };
         let maxPercent = 0;
 
@@ -442,6 +454,7 @@ export async function POST(req: Request) {
                   searchIcons: 'Adding icons...',
                   fetchUrl: 'Loading content...',
                   webSearch: 'Researching content...',
+                  deleteFile: 'Deleting file...',
                 };
 
                 writer.write({
@@ -515,6 +528,7 @@ export async function POST(req: Request) {
                   readFile: 'File read',
                   editBlock: 'Edits applied',
                   editFiles: 'Edits applied',
+                  deleteFile: 'File deleted',
                 };
                 const endLabel = TOOL_END_LABELS[toolName] ?? 'Processing...';
                 writer.write({
@@ -558,6 +572,9 @@ export async function POST(req: Request) {
             const usage = await result.usage;
             if (usage?.outputTokens) {
               totalTokensUsed += usage.outputTokens;
+            }
+            if (usage?.inputTokens) {
+              totalPromptTokens += usage.inputTokens;
             }
 
             // Log Anthropic cache stats if available
@@ -650,6 +667,11 @@ export async function POST(req: Request) {
               extractComponents(workingFiles);
             } catch (postProcessErr) {
               console.warn('[chat] Post-generation pipeline error (validateBlocks/extractComponents):', postProcessErr);
+              writer.write({
+                type: 'data-postProcessWarning',
+                data: { message: postProcessErr instanceof Error ? postProcessErr.message : 'Post-processing encountered an issue' },
+                transient: true,
+              });
             }
 
             // Stream post-processed files to client so it has block IDs + extracted components
@@ -667,6 +689,7 @@ export async function POST(req: Request) {
             finishReason: finalFinishReason,
             hasFileOutput,
             toolCallCount: toolCallNames.size,
+            usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed },
           });
 
           // Send finish immediately so client can update UI without waiting for DB cleanup
@@ -686,6 +709,7 @@ export async function POST(req: Request) {
               finishReason: 'aborted',
               hasFileOutput,
               toolCallCount: toolCallNames.size,
+              usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed },
             });
             return;
           }

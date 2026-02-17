@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
+import { toast } from 'sonner';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
@@ -153,9 +154,11 @@ export function Builder() {
   const partialSavedRef = useRef(false);
   const streamingTextRef = useRef('');
 
+  const latestAssistantMessageIdRef = useRef<string | null>(null);
+
   // Wrapper that keeps ref in sync — avoids one-render-behind useEffect
-  const setFilesWithRef = useCallback((files: ProjectFiles) => {
-    setFiles(files);
+  const setFilesWithRef = useCallback((files: ProjectFiles, messageId?: string) => {
+    setFiles(files, messageId);
     currentFilesRef.current = files;
   }, [setFiles]);
 
@@ -170,6 +173,16 @@ export function Builder() {
     regenerate,
   } = useChat({
     transport: chatTransport,
+    onError: (error) => {
+      try {
+        const payload = JSON.parse(error.message);
+        if (payload && typeof payload.category === 'string') {
+          Object.assign(error, { streamError: payload });
+        }
+      } catch {
+        // Not structured JSON — leave error.message as-is
+      }
+    },
     onData: (part) => {
       if (part.type === 'data-buildProgress') {
         handleProgressData(part.data as BuildProgressData);
@@ -178,10 +191,19 @@ export function Builder() {
         handleToolActivity(part.data as ToolActivityEvent);
       }
       if (part.type === 'data-postProcessedFiles') {
-        setFilesWithRef(part.data as ProjectFiles);
+        setFilesWithRef(part.data as ProjectFiles, latestAssistantMessageIdRef.current ?? undefined);
+      }
+      if (part.type === 'data-postProcessWarning') {
+        toast.warning('Post-processing had an issue', {
+          description: (part.data as { message: string }).message,
+        });
       }
     },
-    onFinish: async ({ message }) => {
+    onFinish: async ({ message, isError }) => {
+      if (isError) {
+        streamingTextRef.current = '';
+        return;
+      }
       const convId = streamConversationIdRef.current ?? activeConversationIdRef.current;
       const files = currentFilesRef.current;
 
@@ -389,6 +411,16 @@ export function Builder() {
       submitWithPrompt();
     }
   }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, updateModel, resetProgress, setMessages, generateBlueprint, effectiveSelectedProvider, effectiveSelectedModel]);
+
+  // Track latest assistant message ID for post-processed race condition fix
+  useEffect(() => {
+    if (messages.length > 0) {
+      const last = messages[messages.length - 1];
+      if (last.role === 'assistant') {
+        latestAssistantMessageIdRef.current = last.id;
+      }
+    }
+  }, [messages]);
 
   useEffect(() => {
     processMessages(messages, isLoading);

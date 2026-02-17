@@ -53,11 +53,21 @@ export function createBlockTools(workingFiles: ProjectFiles, fileSnapshots: Proj
           .describe('Class name (for addClass, removeClass)'),
       }),
       execute: async ({ file: rawFile, blockId, selector, action, content, value, attr, className }) => {
-        const file = rawFile.replace(/^['"](.+)['"]$/, '$1');
+        let file = rawFile.replace(/^['"](.+)['"]$/, '$1');
+        let redirected = false;
+
+        // Auto-redirect: if targeting a component blockId in a page file, switch to the component file
+        if (blockId && !file.startsWith('_components/')) {
+          const componentFile = isComponentBlock(blockId, workingFiles);
+          if (componentFile && workingFiles[componentFile]) {
+            file = componentFile;
+            redirected = true;
+          }
+        }
+
         const source = workingFiles[file];
 
         if (!source) {
-          // Check if targeting a component block in a page file
           if (blockId) {
             const componentFile = isComponentBlock(blockId, workingFiles);
             if (componentFile) {
@@ -178,10 +188,32 @@ export function createBlockTools(workingFiles: ProjectFiles, fileSnapshots: Proj
               break;
           }
 
-          const newHtml = $.html();
+          // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
+          const newHtml: string = $.html({ decodeEntities: false });
           workingFiles[file] = newHtml;
           fileSnapshots[file] = newHtml;
-          return { success: true as const, file, content: newHtml };
+
+          // Truncate large output to save AI context (same pattern as editFiles)
+          const TRUNCATE_THRESHOLD = 20_000;
+          const SUMMARY_LINES = 50;
+          let responseContent = newHtml;
+          let _fullContent: string | undefined;
+
+          if (newHtml.length > TRUNCATE_THRESHOLD) {
+            const lines = newHtml.split('\n');
+            const head = lines.slice(0, SUMMARY_LINES).join('\n');
+            const tail = lines.slice(-SUMMARY_LINES).join('\n');
+            responseContent = `${head}\n\n/* ... ${lines.length - SUMMARY_LINES * 2} lines omitted (${newHtml.length} chars total) ... */\n\n${tail}`;
+            _fullContent = newHtml;
+          }
+
+          return {
+            success: true as const,
+            file,
+            content: responseContent,
+            _fullContent,
+            ...(redirected ? { redirected: true as const } : {}),
+          };
         } catch (err) {
           return {
             success: false as const,
