@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { blueprintSchema } from '@/lib/blueprint/types';
 import type { Prisma } from '@/generated/prisma/client';
 
 export async function GET(
@@ -36,10 +37,18 @@ export async function PATCH(
     return NextResponse.json({ error: 'blueprint is required' }, { status: 400 });
   }
 
+  const parsed = blueprintSchema.safeParse(body.blueprint);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid blueprint', details: parsed.error.issues },
+      { status: 400 },
+    );
+  }
+
   try {
     await prisma.blueprint.update({
       where: { conversationId },
-      data: { data: body.blueprint as Prisma.InputJsonValue },
+      data: { data: parsed.data as unknown as Prisma.InputJsonValue },
     });
     return NextResponse.json({ ok: true });
   } catch {

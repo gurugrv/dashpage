@@ -1,6 +1,6 @@
 import type { ProjectFiles } from '@/types';
 
-const ALLOWED_EXTENSIONS = new Set(['.html', '.css', '.js']);
+const ALLOWED_EXTENSIONS = new Set(['.html', '.css', '.js', '.json', '.svg', '.xml', '.txt', '.webmanifest', '.ico']);
 const MAX_FILE_COUNT = 25;
 const MAX_FILE_BYTES = 500_000; // 500KB per file
 
@@ -39,7 +39,7 @@ export function validateArtifact(files: ProjectFiles): ValidationResult {
     }
 
     if (!ALLOWED_EXTENSIONS.has(getExtension(key))) {
-      return { valid: false, reason: `File "${key}" has disallowed extension (only .html, .css, .js)` };
+      return { valid: false, reason: `File "${key}" has disallowed extension (allowed: ${[...ALLOWED_EXTENSIONS].join(', ')})` };
     }
 
     if (new Blob([files[key]]).size > MAX_FILE_BYTES) {

@@ -94,6 +94,7 @@ function tryWhitespaceMatch(
 /**
  * Tier 3: Token-based match.
  * Extracts word tokens (ignoring all whitespace), matches token sequences.
+ * Fix #15: Requires at least 3 tokens OR 20+ chars to avoid false positives on short strings.
  */
 function tryTokenMatch(
   source: string,
@@ -101,6 +102,9 @@ function tryTokenMatch(
 ): { index: number; length: number } | null {
   const searchTokens = search.match(/\S+/g);
   if (!searchTokens || searchTokens.length === 0) return null;
+
+  // Guard against false positives on short search strings (Fix #15)
+  if (searchTokens.length < 3 && search.length < 20) return null;
 
   // Build a regex that matches the token sequence with flexible whitespace
   const escapedTokens = searchTokens.map((t) =>
@@ -112,6 +116,70 @@ function tryTokenMatch(
   if (!match) return null;
 
   return { index: match.index, length: match[0].length };
+}
+
+/**
+ * Tier 2 multi-match: Whitespace-tolerant match for expectedReplacements > 1.
+ * Returns all match positions if exactly `expected` matches found, null otherwise.
+ */
+function tryWhitespaceMatchAll(
+  source: string,
+  search: string,
+  expected: number,
+): Array<{ index: number; length: number }> | null {
+  const trimmed = search.trim();
+  if (!trimmed) return null;
+
+  const normalizedSource = normalizeHtmlWhitespace(source);
+  const normalizedSearch = normalizeHtmlWhitespace(trimmed);
+
+  const matches: Array<{ index: number; length: number }> = [];
+  let pos = 0;
+  while (pos < normalizedSource.length) {
+    const idx = normalizedSource.indexOf(normalizedSearch, pos);
+    if (idx === -1) break;
+
+    const actualStart = findOriginalPosition(source, idx);
+    const actualEnd = findOriginalPosition(source, idx + normalizedSearch.length);
+    if (actualStart === -1 || actualEnd === -1) break;
+
+    matches.push({ index: actualStart, length: actualEnd - actualStart });
+    pos = idx + normalizedSearch.length;
+  }
+
+  return matches.length === expected ? matches : null;
+}
+
+/**
+ * Tier 3 multi-match: Token-based match for expectedReplacements > 1.
+ * Returns all match positions if exactly `expected` matches found, null otherwise.
+ */
+function tryTokenMatchAll(
+  source: string,
+  search: string,
+  expected: number,
+): Array<{ index: number; length: number }> | null {
+  const searchTokens = search.match(/\S+/g);
+  if (!searchTokens || searchTokens.length === 0) return null;
+
+  // Same guard as single-match (Fix #15)
+  if (searchTokens.length < 3 && search.length < 20) return null;
+
+  const escapedTokens = searchTokens.map((t) =>
+    t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+  );
+  const pattern = escapedTokens.join('\\s+');
+  const regex = new RegExp(pattern, 'g');
+
+  const matches: Array<{ index: number; length: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(source)) !== null) {
+    matches.push({ index: match.index, length: match[0].length });
+    // Advance past the match to avoid infinite loops on zero-length matches
+    if (match[0].length === 0) regex.lastIndex++;
+  }
+
+  return matches.length === expected ? matches : null;
 }
 
 /**
@@ -265,6 +333,17 @@ export function applyEditOperations(html: string, operations: EditOperation[]): 
         matchTiers.push('whitespace');
         continue;
       }
+    } else {
+      const wsResults = tryWhitespaceMatchAll(result, search, expected);
+      if (wsResults) {
+        // Apply in reverse order to preserve earlier offsets
+        for (let i = wsResults.length - 1; i >= 0; i--) {
+          const m = wsResults[i];
+          result = result.slice(0, m.index) + replace + result.slice(m.index + m.length);
+        }
+        matchTiers.push('whitespace');
+        continue;
+      }
     }
 
     // Tier 3: Token-based
@@ -275,9 +354,20 @@ export function applyEditOperations(html: string, operations: EditOperation[]): 
         matchTiers.push('token');
         continue;
       }
+    } else {
+      const tokenResults = tryTokenMatchAll(result, search, expected);
+      if (tokenResults) {
+        // Apply in reverse order to preserve earlier offsets
+        for (let i = tokenResults.length - 1; i >= 0; i--) {
+          const m = tokenResults[i];
+          result = result.slice(0, m.index) + replace + result.slice(m.index + m.length);
+        }
+        matchTiers.push('token');
+        continue;
+      }
     }
 
-    // Tier 4: Fuzzy Levenshtein (≥85% similarity)
+    // Tier 4: Fuzzy Levenshtein (≥85% similarity) — single match only, too risky for multi-replace
     if (expected === 1) {
       const fuzzyResult = tryFuzzyMatch(result, search, FUZZY_THRESHOLD);
       if (fuzzyResult) {

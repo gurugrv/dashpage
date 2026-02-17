@@ -208,6 +208,7 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
           file: string;
           success: true | 'partial' | false;
           content?: string;
+          _fullContent?: string;
           error?: string;
           appliedCount?: number;
           failedOperations?: unknown;
@@ -280,10 +281,30 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
             }
           }
 
+          // For successful edits, split content: truncated summary for AI context,
+          // full content in _fullContent for client parser (Fix #13: context bloat)
+          const TRUNCATE_THRESHOLD = 20_000; // 20KB
+          const SUMMARY_LINES = 50;
+          let content: string | undefined;
+          let _fullContent: string | undefined;
+
+          if (fileSuccess !== false) {
+            if (currentHtml.length > TRUNCATE_THRESHOLD) {
+              const lines = currentHtml.split('\n');
+              const head = lines.slice(0, SUMMARY_LINES).join('\n');
+              const tail = lines.slice(-SUMMARY_LINES).join('\n');
+              content = `${head}\n\n/* ... ${lines.length - SUMMARY_LINES * 2} lines omitted (${currentHtml.length} chars total) ... */\n\n${tail}`;
+              _fullContent = currentHtml;
+            } else {
+              content = currentHtml;
+            }
+          }
+
           results.push({
             file: edit.file,
             success: fileSuccess,
-            content: fileSuccess !== false ? currentHtml : undefined,
+            content,
+            _fullContent,
             error: fileError,
             failedOperations,
             matchTiers,

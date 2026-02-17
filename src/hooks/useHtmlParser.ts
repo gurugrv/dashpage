@@ -149,15 +149,17 @@ function extractFilesFromToolParts(
       const content = output.content as string;
       files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
     }
-    // editFiles output: { success: true|"partial", results: [{ file, success, content }] }
+    // editFiles output: { success: true|"partial", results: [{ file, success, content, _fullContent }] }
     else if ('results' in output && Array.isArray(output.results)) {
       for (const result of output.results as Array<Record<string, unknown>>) {
-        if (result.success !== false && result.content && result.file) {
+        if (result.success !== false && result.file) {
+          // Prefer _fullContent (untruncated) over content (may be truncated for AI context savings)
+          const rawContent = (result._fullContent ?? result.content) as string | undefined;
+          if (!rawContent) continue;
           if (!files) files = { ...baseFiles };
           producedFiles = true;
           const fileName = result.file as string;
-          const content = result.content as string;
-          files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(content) : content;
+          files[fileName] = fileName.endsWith('.html') ? stripHtmlPreamble(rawContent) : rawContent;
         }
       }
     }
