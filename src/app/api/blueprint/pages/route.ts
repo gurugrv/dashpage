@@ -576,7 +576,10 @@ export async function POST(req: Request) {
           prisma.generationState.update({
             where: { conversationId },
             data: { completedPages: completedPagesMap },
-          }).catch((err) => { console.error('[blueprint/pages] Failed to persist completedPages:', err); });
+          }).catch((err) => {
+            // P2025 = record not found; expected if generation state was already cleaned up
+            if (err?.code !== 'P2025') console.error('[blueprint/pages] Failed to persist completedPages:', err);
+          });
         } else {
           hasErrors = true;
           sendEvent({
