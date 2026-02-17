@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 // Types
 // ---------------------------------------------------------------------------
 
-export type BlueprintStep = 'discovery' | 'planning' | 'research' | 'components' | 'pages';
+export type BlueprintStep = 'discovery' | 'planning' | 'research' | 'components' | 'assets' | 'pages';
 
 export interface StepModelOverride {
   provider: string;
@@ -26,6 +26,7 @@ const DEFAULT_CONFIG: BlueprintStepModels = {
   planning: null,
   research: null,
   components: null,
+  assets: null,
   pages: null,
 };
 
@@ -46,6 +47,7 @@ function loadConfig(): BlueprintStepModels {
       planning: parsed.planning ?? null,
       research: parsed.research ?? null,
       components: parsed.components ?? null,
+      assets: parsed.assets ?? null,
       pages: parsed.pages ?? null,
     };
   } catch {

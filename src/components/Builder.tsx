@@ -110,7 +110,7 @@ export function Builder() {
   } = useBlueprintModelConfig(availableProviders);
 
   const resolveBlueprintStepModel = useCallback(
-    (step: 'discovery' | 'planning' | 'research' | 'components' | 'pages') => {
+    (step: 'discovery' | 'planning' | 'research' | 'components' | 'assets' | 'pages') => {
       if (!effectiveSelectedProvider || !effectiveSelectedModel) return null;
       return resolveRawStepModel(step, effectiveSelectedProvider, effectiveSelectedModel);
     },
@@ -632,6 +632,7 @@ export function Builder() {
       'generating-blueprint': 'Analyzing your requirements and planning the site structure...',
       'awaiting-approval': 'Here\'s the site blueprint. Review the pages, design system, and structure, then approve to start building.',
       'generating-components': 'Building shared components (header & footer) for your site...',
+      'generating-assets': 'Generating shared styles and scripts for your site...',
       'generating-pages': 'Generating your pages — this may take a moment...',
       'generating-site': 'Building your site — generating components and pages in parallel...',
     };

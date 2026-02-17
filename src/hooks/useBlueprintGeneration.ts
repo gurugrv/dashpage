@@ -10,6 +10,7 @@ export type BlueprintPhase =
   | 'generating-blueprint'
   | 'awaiting-approval'
   | 'generating-components'
+  | 'generating-assets'
   | 'generating-pages'
   | 'generating-site'
   | 'complete'
@@ -31,7 +32,7 @@ export interface PageGenerationStatus {
 }
 
 interface UseBlueprintGenerationOptions {
-  resolveStepModel: (step: 'planning' | 'research' | 'components' | 'pages') => {
+  resolveStepModel: (step: 'planning' | 'research' | 'components' | 'assets' | 'pages') => {
     provider: string;
     model: string;
     maxOutputTokens?: number;
