@@ -63,7 +63,7 @@ AI generates HTML via tool calls, not raw text output. One unified tool set (`cr
 
 - `writeFiles` / `writeFile` - Create/rewrite complete HTML files
 - `editBlock` - Block-ID or CSS selector targeting via Cheerio (replace, replaceInner, setText, setAttribute, addClass, removeClass, remove, insertBefore, insertAfter). Primary editing tool.
-- `editFiles` - Search/replace operations with 5-tier matching (exact → whitespace-tolerant → token-based → fuzzy ≥85% → auto-correct ≥75%)
+- `editFiles` - Search/replace operations with 4-tier matching (exact → whitespace-tolerant → token-based → fuzzy ≥85%)
 - `readFile` - Read file contents before editing
 - `searchImages` - Batch photo search (Pexels)
 - `searchIcons` - Batch SVG icon search
@@ -86,7 +86,7 @@ Tools defined in `src/lib/chat/tools/` - each file exports a factory function. C
 
 **Shared components** - For multi-page sites, duplicate nav/footer are extracted to `_components/` files. Preview and download inject components from placeholders. The `editBlock` tool redirects edits on component blocks to the `_components/` file.
 
-**Edit operations with fallback** - editFiles search/replace uses 5-tier matching. If operations fail, `editFailed` flag signals Builder to request a full HTML replacement.
+**Edit operations with fallback** - editFiles search/replace uses 4-tier matching. If operations fail, `editFailed` flag signals Builder to request a full HTML replacement.
 
 **Auto-continue** - Server-side loop in `/api/chat` appends assistant + continue prompt and re-requests (up to 3 segments). Client-side `useAutoContinue` hook enables manual continue button if needed. Degenerate loop detection tracks previous segment text to avoid repeats.
 
