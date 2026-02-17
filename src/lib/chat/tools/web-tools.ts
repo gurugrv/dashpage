@@ -18,7 +18,7 @@ const BLOCKED_IP_PREFIXES = [
   '172.28.', '172.29.', '172.30.', '172.31.',
   '192.168.',   // Private Class C
   '169.254.',   // Link-local / cloud metadata
-  'fd',         // IPv6 private
+  'fd00:',      // IPv6 ULA (unique local address)
   'fe80:',      // IPv6 link-local
 ];
 

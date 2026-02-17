@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, type MutableRefObject } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
-import { sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
+import { ARTIFACT_COMPLETION_MESSAGE, sanitizeAssistantMessageWithFallback } from '@/lib/chat/sanitize-assistant-message';
 import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 
 interface UseStreamingPersistenceOptions {
-  currentFiles: ProjectFiles;
   activeConversationId: string | null;
   messages: UIMessage[];
   isLoading: boolean;
@@ -18,7 +17,6 @@ interface UseStreamingPersistenceOptions {
 }
 
 export function useStreamingPersistence({
-  currentFiles,
   activeConversationId,
   messages,
   isLoading,
@@ -27,10 +25,6 @@ export function useStreamingPersistence({
   partialSavedRef,
   streamingTextRef,
 }: UseStreamingPersistenceOptions) {
-  useEffect(() => {
-    currentFilesRef.current = currentFiles;
-  }, [currentFiles, currentFilesRef]);
-
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId, activeConversationIdRef]);
@@ -54,14 +48,19 @@ export function useStreamingPersistence({
 
     const convId = activeConversationIdRef.current;
     const text = streamingTextRef.current;
-    if (!convId || !text) return;
-
-    partialSavedRef.current = true;
     const files = currentFilesRef.current;
     const htmlArtifact = isPersistableArtifact(files) ? files : null;
+
+    // Save if there's text OR a persistable artifact (tool-only responses)
+    if (!convId || (!text && !htmlArtifact)) return;
+
+    partialSavedRef.current = true;
+    const content = text
+      ? sanitizeAssistantMessageWithFallback(text, Boolean(htmlArtifact))
+      : ARTIFACT_COMPLETION_MESSAGE;
     const payload = JSON.stringify({
       role: 'assistant',
-      content: sanitizeAssistantMessageWithFallback(text, Boolean(htmlArtifact)),
+      content,
       htmlArtifact,
     });
     const url = `/api/conversations/${convId}/messages/partial`;
@@ -92,10 +91,10 @@ export function useStreamingPersistence({
   }, [isLoading, savePartial]);
 
   useEffect(() => () => {
-    if (streamingTextRef.current && !partialSavedRef.current) {
+    if ((streamingTextRef.current || isPersistableArtifact(currentFilesRef.current)) && !partialSavedRef.current) {
       savePartial(true);
     }
-  }, [savePartial, streamingTextRef, partialSavedRef]);
+  }, [savePartial, streamingTextRef, partialSavedRef, currentFilesRef]);
 
   return { savePartial };
 }

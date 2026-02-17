@@ -148,8 +148,15 @@ export function Builder() {
 
   const currentFilesRef = useRef<ProjectFiles>(currentFiles);
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
+  const streamConversationIdRef = useRef<string | null>(null);
   const partialSavedRef = useRef(false);
   const streamingTextRef = useRef('');
+
+  // Wrapper that keeps ref in sync — avoids one-render-behind useEffect
+  const setFilesWithRef = useCallback((files: ProjectFiles) => {
+    setFiles(files);
+    currentFilesRef.current = files;
+  }, [setFiles]);
 
   const {
     messages,
@@ -170,13 +177,11 @@ export function Builder() {
         handleToolActivity(part.data as ToolActivityEvent);
       }
       if (part.type === 'data-postProcessedFiles') {
-        const files = part.data as ProjectFiles;
-        setFiles(files);
-        currentFilesRef.current = files;
+        setFilesWithRef(part.data as ProjectFiles);
       }
     },
     onFinish: async ({ message }) => {
-      const convId = activeConversationIdRef.current;
+      const convId = streamConversationIdRef.current ?? activeConversationIdRef.current;
       const files = currentFilesRef.current;
 
       // Always persist the complete message even if a partial was saved
@@ -258,7 +263,6 @@ export function Builder() {
   }), [messages, isLoading]);
 
   const { savePartial } = useStreamingPersistence({
-    currentFiles,
     activeConversationId,
     messages,
     isLoading,
@@ -273,7 +277,7 @@ export function Builder() {
     activeConversationId,
     setActiveConversationId,
     setMessages: (nextMessages: UIMessage[]) => setMessages(nextMessages),
-    setFiles,
+    setFiles: setFilesWithRef,
     resetProgress,
     setHasPartialMessage,
     resetBlueprint,
@@ -436,6 +440,7 @@ export function Builder() {
     resetProgress();
     partialSavedRef.current = false;
     streamingTextRef.current = '';
+    streamConversationIdRef.current = conversationId;
     setHasPartialMessage(false);
 
     const messageText = input;
@@ -451,7 +456,7 @@ export function Builder() {
           maxOutputTokens: resolveMaxOutputTokens(),
           savedTimeZone: getSavedTimeZone(),
           browserTimeZone: getBrowserTimeZone(),
-          conversationId: activeConversationIdRef.current,
+          conversationId,
         },
       },
     );
@@ -495,6 +500,7 @@ export function Builder() {
     setHasPartialMessage(false);
     partialSavedRef.current = false;
     streamingTextRef.current = '';
+    streamConversationIdRef.current = convId;
 
     await sendMessage(
       { text: continuePrompt },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import type { ProjectFiles } from '@/types';
 import type { StoredMessage } from '@/features/builder/types';
@@ -52,6 +52,8 @@ export function useConversationActions({
   onRestoreModel,
   onRestoreGenerationState,
 }: UseConversationActionsOptions) {
+  const selectAbortRef = useRef<AbortController | null>(null);
+
   const handleCreateConversation = useCallback(async () => {
     const conversation = await service.create();
     setActiveConversationId(conversation.id);
@@ -67,6 +69,12 @@ export function useConversationActions({
   const handleSelectConversation = useCallback(async (id: string) => {
     if (id === activeConversationId) return;
 
+    // Abort any in-flight fetches from a previous conversation switch
+    selectAbortRef.current?.abort();
+    const controller = new AbortController();
+    selectAbortRef.current = controller;
+    const { signal } = controller;
+
     setActiveConversationId(id);
     setFiles({});
     resetProgress();
@@ -74,25 +82,31 @@ export function useConversationActions({
 
     // Restore model from conversation metadata
     try {
-      const convResponse = await fetch(`/api/conversations/${id}`);
+      const convResponse = await fetch(`/api/conversations/${id}`, { signal });
+      if (signal.aborted) return;
       if (convResponse.ok) {
         const conv = await convResponse.json();
         onRestoreModel?.(conv.provider ?? null, conv.model ?? null);
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
       // Non-critical — keep current model
     }
 
     try {
-      const response = await fetch(`/api/conversations/${id}/messages`);
+      const response = await fetch(`/api/conversations/${id}/messages`, { signal });
+      if (signal.aborted) return;
       const messages = await response.json() as StoredMessage[];
 
       if (!Array.isArray(messages) || messages.length === 0) {
+        if (signal.aborted) return;
         setMessages([]);
         setFiles({});
         setHasPartialMessage(false);
         return;
       }
+
+      if (signal.aborted) return;
 
       const uiMessages: UIMessage[] = messages.map((message) => ({
         id: message.id,
@@ -127,6 +141,8 @@ export function useConversationActions({
         setFiles({});
       }
 
+      if (signal.aborted) return;
+
       // Check for interrupted generation state, but skip if a completed artifact already exists
       // (stale generation state can linger if the DELETE raced with navigation)
       if (hasArtifact) {
@@ -135,18 +151,21 @@ export function useConversationActions({
         onRestoreGenerationState?.(null);
       } else {
         try {
-          const stateRes = await fetch(`/api/conversations/${id}/generation-state`);
+          const stateRes = await fetch(`/api/conversations/${id}/generation-state`, { signal });
+          if (signal.aborted) return;
           if (stateRes.ok) {
             const state = await stateRes.json() as ResumableGenerationState;
             onRestoreGenerationState?.(state);
           } else {
             onRestoreGenerationState?.(null);
           }
-        } catch {
+        } catch (err) {
+          if ((err as Error).name === 'AbortError') return;
           onRestoreGenerationState?.(null);
         }
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
       setMessages([]);
       setFiles({});
       setHasPartialMessage(false);

@@ -616,8 +616,12 @@ export async function POST(req: Request) {
 
           // Post-generation: validate blocks and extract components on workingFiles
           if (hasFileOutput && Object.keys(workingFiles).some(f => f.endsWith('.html'))) {
-            validateBlocks(workingFiles);
-            extractComponents(workingFiles);
+            try {
+              validateBlocks(workingFiles);
+              extractComponents(workingFiles);
+            } catch (postProcessErr) {
+              console.warn('[chat] Post-generation pipeline error (validateBlocks/extractComponents):', postProcessErr);
+            }
 
             // Stream post-processed files to client so it has block IDs + extracted components
             writer.write({

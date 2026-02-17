@@ -9,6 +9,7 @@ import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
+import { extractComponents } from '@/lib/blocks/extract-components';
 import type { Blueprint } from '@/lib/blueprint/types';
 
 const MAX_PAGE_CONTINUATIONS = 2;
@@ -626,6 +627,22 @@ export async function POST(req: Request) {
       for (const result of results) {
         if (result.status === 'rejected') {
           hasErrors = true;
+        }
+      }
+
+      // Extract shared components (nav/footer) across all completed pages
+      if (Object.keys(completedPagesMap).length >= 2) {
+        try {
+          extractComponents(completedPagesMap);
+          // Send updated files (with _components/ entries) to the client
+          if (Object.keys(completedPagesMap).some(f => f.startsWith('_components/'))) {
+            sendEvent({
+              type: 'components-extracted',
+              files: completedPagesMap,
+            });
+          }
+        } catch (err) {
+          console.warn('[blueprint-pages] extractComponents error:', err);
         }
       }
 
