@@ -185,44 +185,37 @@ export function Builder() {
       const convId = streamConversationIdRef.current ?? activeConversationIdRef.current;
       const files = currentFilesRef.current;
 
-      // Always persist the complete message even if a partial was saved
-      // (handles race where Stop is pressed at natural completion).
-      // The messages POST route cleans up any isPartial rows when
-      // persisting a complete assistant message with an artifact.
+      // Persist all messages atomically via batch endpoint.
+      // Uses message.id as finishId for idempotency — retries are safe.
+      // The batch route cleans up any isPartial rows in the same transaction.
 
       if (convId) {
         const htmlArtifact = isPersistableArtifact(files) ? files : null;
         const { preface, summary } = splitTextAroundTools(message.parts);
 
-        if (message.role === 'assistant' && htmlArtifact) {
-          // Persist preface (explanation) without artifact
-          if (preface) {
-            await fetch(`/api/conversations/${convId}/messages`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'assistant', content: preface, htmlArtifact: null }),
-            });
-          }
+        const batch: Array<{ role: string; content: string; htmlArtifact: Record<string, string> | null }> = [];
 
-          // Persist summary (or default) with artifact
+        if (message.role === 'assistant' && htmlArtifact) {
+          if (preface) {
+            batch.push({ role: 'assistant', content: preface, htmlArtifact: null });
+          }
           const summaryText = summary || ARTIFACT_COMPLETION_MESSAGE;
           if (summaryText !== preface) {
-            await fetch(`/api/conversations/${convId}/messages`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: 'assistant', content: summaryText, htmlArtifact }),
-            });
+            batch.push({ role: 'assistant', content: summaryText, htmlArtifact });
           }
         } else {
-          // No artifact — persist all text
           const fullText = [preface, summary].filter(Boolean).join('\n\n').trim();
           if (fullText) {
-            await fetch(`/api/conversations/${convId}/messages`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: message.role, content: fullText, htmlArtifact }),
-            });
+            batch.push({ role: message.role, content: fullText, htmlArtifact });
           }
+        }
+
+        if (batch.length > 0) {
+          await fetch(`/api/conversations/${convId}/messages/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ finishId: message.id, messages: batch }),
+          });
         }
       }
 

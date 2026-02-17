@@ -64,10 +64,12 @@ model Message {
   content        String
   htmlArtifact   Json?        @map("html_artifact")
   isPartial      Boolean      @default(false) @map("is_partial")
+  finishId       String?      @map("finish_id")
   createdAt      DateTime     @default(now()) @map("created_at")
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@index([conversationId, finishId])
   @@map("messages")
 }
 
