@@ -65,48 +65,52 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
   }, [srcDoc]);
 
   const handleDownload = useCallback(async () => {
-    const activeFiles = files['index.html'] ? files : lastValidFiles;
-    if (!activeFiles['index.html']) return;
+    try {
+      const activeFiles = files['index.html'] ? files : lastValidFiles;
+      if (!activeFiles['index.html']) return;
 
-    // Bake components into page files for download, exclude _components/ from output
-    const downloadFiles: Record<string, string> = {};
-    for (const [filename, content] of Object.entries(activeFiles)) {
-      if (filename.startsWith('_components/')) continue;
-      let processed = content;
-      for (const [compFile, compContent] of Object.entries(activeFiles)) {
-        if (!compFile.startsWith('_components/')) continue;
-        const compName = compFile.replace('_components/', '').replace('.html', '');
-        processed = processed.replace(`<!-- @component:${compName} -->`, compContent);
+      // Bake components into page files for download, exclude _components/ from output
+      const downloadFiles: Record<string, string> = {};
+      for (const [filename, content] of Object.entries(activeFiles)) {
+        if (filename.startsWith('_components/')) continue;
+        let processed = content;
+        for (const [compFile, compContent] of Object.entries(activeFiles)) {
+          if (!compFile.startsWith('_components/')) continue;
+          const compName = compFile.replace('_components/', '').replace('.html', '');
+          processed = processed.replace(`<!-- @component:${compName} -->`, compContent);
+        }
+        downloadFiles[filename] = processed;
       }
-      downloadFiles[filename] = processed;
-    }
 
-    const fileKeys = Object.keys(downloadFiles);
+      const fileKeys = Object.keys(downloadFiles);
 
-    if (fileKeys.length === 1) {
-      const blob = new Blob([downloadFiles['index.html']], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'website.html';
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-    } else {
-      const zip = new JSZip();
-      for (const [path, content] of Object.entries(downloadFiles)) {
-        zip.file(path, content);
+      if (fileKeys.length === 1) {
+        const blob = new Blob([downloadFiles['index.html']], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'website.html';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+      } else {
+        const zip = new JSZip();
+        for (const [path, content] of Object.entries(downloadFiles)) {
+          zip.file(path, content);
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'website.zip';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'website.zip';
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
     }
   }, [files, lastValidFiles]);
 
@@ -164,16 +168,16 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
           const hash = typeof e.data.hash === 'string' ? e.data.hash : '';
           setSelectedPage(e.data.page);
           // After page switch, scroll to hash target in the new page
-          if (hash) {
-            requestAnimationFrame(() => {
-              setTimeout(() => {
-                const id = hash.slice(1);
-                if (id && iframeRef.current?.contentDocument) {
-                  const target = iframeRef.current.contentDocument.getElementById(id);
-                  if (target) target.scrollIntoView({ behavior: 'smooth' });
-                }
-              }, 100); // small delay for srcdoc to render
-            });
+          if (hash && iframeRef.current) {
+            const iframe = iframeRef.current;
+            const scrollToHash = () => {
+              const id = hash.slice(1);
+              if (id && iframe.contentDocument) {
+                const target = iframe.contentDocument.getElementById(id);
+                if (target) target.scrollIntoView({ behavior: 'smooth' });
+              }
+            };
+            iframe.addEventListener('load', scrollToHash, { once: true });
           }
         }
       }

@@ -53,6 +53,7 @@ export function useBuildProgress() {
   }, [])
 
   const handleToolActivity = useCallback((event: ToolActivityEvent) => {
+    const MAX_TOOL_ACTIVITIES = 50
     setProgress((prev) => {
       const next = [...prev.toolActivities]
       const idx = next.findIndex((a) => a.toolCallId === event.toolCallId)
@@ -61,6 +62,7 @@ export function useBuildProgress() {
       } else {
         next.push(event)
       }
+      if (next.length > MAX_TOOL_ACTIVITIES) next.splice(0, next.length - MAX_TOOL_ACTIVITIES)
       return { ...prev, toolActivities: next }
     })
   }, [])

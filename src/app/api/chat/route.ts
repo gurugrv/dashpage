@@ -22,14 +22,17 @@ interface ChatRequestBody {
 }
 
 const MAX_CONTINUATION_SEGMENTS = 3;
+const MAX_TOTAL_OUTPUT_TOKENS_MULTIPLIER = 3; // Total budget = resolvedMaxOutputTokens * multiplier
 
 function extractLastSection(segmentText: string): string | null {
-  // Look for the last id="..." or <!-- ... Section --> pattern
-  const idMatches = segmentText.match(/id=["']([^"']+)["']/g);
-  if (idMatches && idMatches.length > 0) {
-    const last = idMatches[idMatches.length - 1];
-    const match = last.match(/id=["']([^"']+)["']/);
-    if (match) return match[1];
+  // Look for the last data-block or semantic section id, not all HTML id attributes
+  const sectionIdMatches = segmentText.match(
+    /(?:data-block=["']([^"']+)["']|<(?:section|header|footer|main|nav|aside)[^>]+id=["']([^"']+)["'])/gi,
+  );
+  if (sectionIdMatches && sectionIdMatches.length > 0) {
+    const last = sectionIdMatches[sectionIdMatches.length - 1];
+    const match = last.match(/(?:data-block=["']([^"']+)["']|id=["']([^"']+)["'])/i);
+    if (match) return match[1] ?? match[2];
   }
   const commentMatches = segmentText.match(/<!--\s*(.+?)\s*(?:Section|section)\s*-->/g);
   if (commentMatches && commentMatches.length > 0) {
@@ -316,6 +319,8 @@ export async function POST(req: Request) {
         let finalFinishReason: FinishReason | undefined;
         const toolCallNames = new Map<string, string>();
         let prevSegmentText = '';  // Track previous segment for degenerate loop detection
+        let totalTokensUsed = 0;
+        const totalTokenBudget = resolvedMaxOutputTokens * MAX_TOTAL_OUTPUT_TOKENS_MULTIPLIER;
 
         // Track whether file-producing tools were called (for incomplete generation detection)
         let hasFileOutput = false;
@@ -548,6 +553,12 @@ export async function POST(req: Request) {
 
             finalFinishReason = await result.finishReason;
 
+            // Track cumulative token usage
+            const usage = await result.usage;
+            if (usage?.outputTokens) {
+              totalTokensUsed += usage.outputTokens;
+            }
+
             // Log Anthropic cache stats if available
             if (isAnthropicDirect) {
               const metadata = await result.providerMetadata;
@@ -570,9 +581,20 @@ export async function POST(req: Request) {
             // Detect degenerate loops: if this segment produced nearly identical output
             // to the previous one (model stuck repeating garbage), stop continuing
             if (prevSegmentText && segmentText.length > 0) {
-              const similarity = segmentText === prevSegmentText
-                || (segmentText.length < 200 && prevSegmentText.length < 200);
-              if (similarity) {
+              const isDegenerate = (() => {
+                if (segmentText === prevSegmentText) return true;
+                if (segmentText.length < 200 && prevSegmentText.length < 200) return true;
+                // Check prefix similarity for longer segments
+                const len = Math.min(segmentText.length, prevSegmentText.length, 500);
+                const sliceA = segmentText.slice(0, len);
+                const sliceB = prevSegmentText.slice(0, len);
+                let matches = 0;
+                for (let i = 0; i < len; i++) {
+                  if (sliceA[i] === sliceB[i]) matches++;
+                }
+                return matches / len > 0.8;
+              })();
+              if (isDegenerate) {
                 debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: 'Degenerate loop detected — stopping auto-continue' });
                 break;
               }
@@ -580,6 +602,12 @@ export async function POST(req: Request) {
             prevSegmentText = segmentText;
 
             if (segment + 1 >= MAX_CONTINUATION_SEGMENTS) {
+              break;
+            }
+
+            // Enforce total token budget across segments
+            if (totalTokensUsed >= totalTokenBudget) {
+              debugSession.logToolResult?.({ toolCallId: 'auto-continue', error: `Total token budget exhausted (${totalTokensUsed}/${totalTokenBudget})` });
               break;
             }
 

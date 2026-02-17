@@ -118,6 +118,7 @@ export function useBlueprintGeneration({
   const pendingToolActivitiesRef = useRef<ToolActivitySSEEvent[]>([]);
 
   const MAX_PAGE_RETRIES = 1;
+  const MAX_COMPONENT_RETRIES = 1;
 
   /** Cancel any pending RAF handles without flushing state */
   const cancelPendingRafs = useCallback(() => {
@@ -347,8 +348,8 @@ export function useBlueprintGeneration({
               }
             }
           } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== 'Components generation failed' && !parseErr.message.startsWith('Failed to generate')) {
-              // Skip malformed SSE JSON, but re-throw component errors
+            if (parseErr instanceof SyntaxError) {
+              // Malformed SSE JSON — skip
               continue;
             }
             throw parseErr;
@@ -601,6 +602,20 @@ export function useBlueprintGeneration({
 
   const sharedStylesRef = useRef<{ stylesCss: string; headTags: string } | null>(null);
 
+  const generateComponentsWithRetry = useCallback(async (
+    activeBlueprint: Blueprint,
+    conversationId?: string,
+    retryCount = 0,
+  ): Promise<{ headerHtml: string; footerHtml: string } | null> => {
+    const result = await generateComponents(activeBlueprint, conversationId);
+    if (result) return result;
+    // Retry once on non-abort failure (phase will be 'error' if it failed)
+    if (retryCount < MAX_COMPONENT_RETRIES) {
+      return generateComponentsWithRetry(activeBlueprint, conversationId, retryCount + 1);
+    }
+    return null;
+  }, [generateComponents]);
+
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
     // Build shared styles synchronously from design system — no AI call needed
     const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
@@ -611,11 +626,11 @@ export function useBlueprintGeneration({
       // Single-page sites skip the components step (no shared header/footer)
       await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags);
     } else {
-      const components = await generateComponents(activeBlueprint, conversationId);
+      const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
       if (!components) return; // Error already set by generateComponents
       await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags);
     }
-  }, [generateComponents, generatePages]);
+  }, [generateComponentsWithRetry, generatePages]);
 
   const resumeFromState = useCallback(async (
     conversationId: string,
@@ -645,7 +660,7 @@ export function useBlueprintGeneration({
       await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags, completedFilenames);
     } else if (!state.componentHtml) {
       // Need to regenerate components first, then pages
-      const components = await generateComponents(activeBlueprint, conversationId);
+      const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
       if (!components) return;
 
       await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags, completedFilenames);
@@ -662,7 +677,7 @@ export function useBlueprintGeneration({
         completedFilenames,
       );
     }
-  }, [generateComponents, generatePages]);
+  }, [generateComponentsWithRetry, generatePages]);
 
   const updateBlueprint = useCallback((updated: Blueprint, conversationId: string) => {
     setBlueprint(updated);

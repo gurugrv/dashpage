@@ -124,6 +124,10 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
         for (const [key, value] of Object.entries(files)) {
           // Strip wrapping single/double quotes (hallucinated by some models)
           let fixedKey = key.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
+          // Convert _components_header_html -> _components/header.html
+          if (fixedKey.startsWith('_components_') && !fixedKey.includes('/')) {
+            fixedKey = fixedKey.replace('_components_', '_components/');
+          }
           if (!fixedKey.includes('.')) {
             // Try underscore convention first: "index_html" -> "index.html"
             const underscored = fixedKey.replace(/_([a-z]+)$/, '.$1');
