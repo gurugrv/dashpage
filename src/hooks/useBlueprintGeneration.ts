@@ -11,6 +11,7 @@ export type BlueprintPhase =
   | 'awaiting-approval'
   | 'generating-components'
   | 'generating-pages'
+  | 'generating-site'
   | 'complete'
   | 'error';
 
@@ -73,7 +74,12 @@ interface CodeDeltaEvent {
   delta: string;
 }
 
-type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent | CodeDeltaEvent;
+interface ComponentsExtractedEvent {
+  type: 'components-extracted';
+  files: Record<string, string>;
+}
+
+type SSEEvent = PageStatusEvent | PipelineStatusEvent | ToolActivitySSEEvent | CodeDeltaEvent | ComponentsExtractedEvent;
 
 interface ComponentStatusEvent {
   type: 'component-status';
@@ -94,6 +100,24 @@ interface ComponentToolActivityEvent {
 
 type ComponentSSEEvent = ComponentStatusEvent | ComponentToolActivityEvent;
 
+/** Replace placeholder comments with actual component HTML */
+function mergeComponentsIntoPages(
+  files: ProjectFiles,
+  components: { headerHtml: string; footerHtml: string },
+): ProjectFiles {
+  const result: ProjectFiles = {};
+  for (const [filename, html] of Object.entries(files)) {
+    if (!filename.endsWith('.html') || filename.startsWith('_components/')) {
+      result[filename] = html;
+      continue;
+    }
+    result[filename] = html
+      .replace(/<!-- @component:header -->/g, components.headerHtml)
+      .replace(/<!-- @component:footer -->/g, components.footerHtml);
+  }
+  return result;
+}
+
 export function useBlueprintGeneration({
   resolveStepModel,
   savedTimeZone,
@@ -112,6 +136,7 @@ export function useBlueprintGeneration({
   const blueprintStreamingCodeRef = useRef<Record<string, string>>({});
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const parallelModeRef = useRef(false);
   const filesAccumulatorRef = useRef<ProjectFiles>({});
   const streamingCodeRafRef = useRef<number>(0);
   const toolActivityRafRef = useRef<number>(0);
@@ -197,6 +222,7 @@ export function useBlueprintGeneration({
     setRetryAttempt(0);
     setComponentToolActivities([]);
     setBlueprintStreamingCode(null);
+    parallelModeRef.current = false;
     filesAccumulatorRef.current = {};
     blueprintStreamingCodeRef.current = {};
     sharedStylesRef.current = null;
@@ -270,12 +296,19 @@ export function useBlueprintGeneration({
       return null;
     }
 
-    setPhase('generating-components');
+    if (!parallelModeRef.current) {
+      setPhase('generating-components');
+    }
     setError(null);
     setComponentToolActivities([]);
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // In parallel mode, reuse the controller set by approveAndGenerate
+    const controller = parallelModeRef.current
+      ? abortControllerRef.current ?? new AbortController()
+      : new AbortController();
+    if (!parallelModeRef.current) {
+      abortControllerRef.current = controller;
+    }
 
     try {
       const response = await fetch('/api/blueprint/components', {
@@ -405,7 +438,9 @@ export function useBlueprintGeneration({
       return;
     }
 
-    setPhase('generating-pages');
+    if (!parallelModeRef.current) {
+      setPhase('generating-pages');
+    }
     setError(null);
 
     // Pre-populate accumulator with already-completed pages (for resume)
@@ -420,8 +455,13 @@ export function useBlueprintGeneration({
     }));
     setPageStatuses(initialStatuses);
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    // In parallel mode, reuse the controller set by approveAndGenerate
+    const controller = parallelModeRef.current
+      ? abortControllerRef.current ?? new AbortController()
+      : new AbortController();
+    if (!parallelModeRef.current) {
+      abortControllerRef.current = controller;
+    }
 
     try {
       const response = await fetch('/api/blueprint/pages', {
@@ -543,18 +583,25 @@ export function useBlueprintGeneration({
               if (event.status === 'complete' && event.html) {
                 filesAccumulatorRef.current[event.filename] = event.html;
               }
+            } else if (event.type === 'components-extracted' && event.files) {
+              // Server extracted shared nav/footer into _components/ files
+              // and replaced inline copies with placeholders — adopt the updated file map
+              filesAccumulatorRef.current = { ...event.files };
             } else if (event.type === 'pipeline-status' && event.status === 'complete') {
               // Flush any pending RAF updates so final state is consistent
               flushPendingRafs();
-              // Merge shared styles.css into files if available
-              let files = { ...filesAccumulatorRef.current };
-              if (sharedStylesRef.current) {
-                files['styles.css'] = sharedStylesRef.current.stylesCss;
+              if (!parallelModeRef.current) {
+                // Sequential mode: deliver files immediately
+                let files = { ...filesAccumulatorRef.current };
+                if (sharedStylesRef.current) {
+                  files['styles.css'] = sharedStylesRef.current.stylesCss;
+                }
+                files = removeDeadNavLinks(files);
+                onFilesReady(files);
+                setRetryAttempt(0);
+                setPhase('complete');
               }
-              files = removeDeadNavLinks(files);
-              onFilesReady(files);
-              setRetryAttempt(0);
-              setPhase('complete');
+              // In parallel mode, approveAndGenerate/resumeFromState handles phase + delivery
             } else if (event.type === 'pipeline-status' && event.status === 'error') {
               const completedFilenames = Object.keys(filesAccumulatorRef.current);
 
@@ -626,11 +673,50 @@ export function useBlueprintGeneration({
       // Single-page sites skip the components step (no shared header/footer)
       await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags);
     } else {
-      const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
-      if (!components) return; // Error already set by generateComponents
-      await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags);
+      // Run components and pages in parallel with placeholder injection
+      parallelModeRef.current = true;
+      setPhase('generating-site');
+
+      // Single shared controller for both parallel streams
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const [components] = await Promise.all([
+        generateComponentsWithRetry(activeBlueprint, conversationId),
+        generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags),
+      ]);
+
+      parallelModeRef.current = false;
+
+      // Merge components into page HTML (replace placeholders)
+      const hasPages = Object.keys(filesAccumulatorRef.current).length > 0;
+      if (components && hasPages) {
+        const merged = mergeComponentsIntoPages(filesAccumulatorRef.current, components);
+        filesAccumulatorRef.current = merged;
+        let files = { ...merged };
+        if (sharedStylesRef.current) {
+          files['styles.css'] = sharedStylesRef.current.stylesCss;
+        }
+        files = removeDeadNavLinks(files);
+        onFilesReady(files);
+        setPhase('complete');
+      } else if (hasPages) {
+        // Components failed but pages succeeded — deliver pages without shared components
+        // (placeholders remain as HTML comments, invisible to users)
+        let files = { ...filesAccumulatorRef.current };
+        if (sharedStylesRef.current) {
+          files['styles.css'] = sharedStylesRef.current.stylesCss;
+        }
+        files = removeDeadNavLinks(files);
+        onFilesReady(files);
+        setError('Shared components failed to generate — pages delivered without shared header/footer');
+        setPhase('complete');
+      } else {
+        setError('Site generation failed');
+        setPhase('error');
+      }
     }
-  }, [generateComponentsWithRetry, generatePages]);
+  }, [generateComponentsWithRetry, generatePages, onFilesReady]);
 
   const resumeFromState = useCallback(async (
     conversationId: string,
@@ -659,11 +745,44 @@ export function useBlueprintGeneration({
       // Single-page sites skip the components step
       await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags, completedFilenames);
     } else if (!state.componentHtml) {
-      // Need to regenerate components first, then pages
-      const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
-      if (!components) return;
+      // Need components + remaining pages — run in parallel
+      parallelModeRef.current = true;
+      setPhase('generating-site');
 
-      await generatePages(conversationId, activeBlueprint, components, sharedStyles.headTags, completedFilenames);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const [components] = await Promise.all([
+        generateComponentsWithRetry(activeBlueprint, conversationId),
+        generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags, completedFilenames),
+      ]);
+
+      parallelModeRef.current = false;
+
+      const hasPages = Object.keys(filesAccumulatorRef.current).length > 0;
+      if (components && hasPages) {
+        const merged = mergeComponentsIntoPages(filesAccumulatorRef.current, components);
+        filesAccumulatorRef.current = merged;
+        let files = { ...merged };
+        if (sharedStylesRef.current) {
+          files['styles.css'] = sharedStylesRef.current.stylesCss;
+        }
+        files = removeDeadNavLinks(files);
+        onFilesReady(files);
+        setPhase('complete');
+      } else if (hasPages) {
+        let files = { ...filesAccumulatorRef.current };
+        if (sharedStylesRef.current) {
+          files['styles.css'] = sharedStylesRef.current.stylesCss;
+        }
+        files = removeDeadNavLinks(files);
+        onFilesReady(files);
+        setError('Shared components failed to generate — pages delivered without shared header/footer');
+        setPhase('complete');
+      } else {
+        setError('Site generation failed');
+        setPhase('error');
+      }
     } else {
       // Components exist, just resume page generation
       setHeaderHtml(state.componentHtml.headerHtml);
@@ -677,7 +796,7 @@ export function useBlueprintGeneration({
         completedFilenames,
       );
     }
-  }, [generateComponentsWithRetry, generatePages]);
+  }, [generateComponentsWithRetry, generatePages, onFilesReady]);
 
   const updateBlueprint = useCallback((updated: Blueprint, conversationId: string) => {
     setBlueprint(updated);

@@ -77,15 +77,11 @@ Generate a responsive header with:
 - Use design system tokens: bg-[var(--color-bg)], text-[var(--color-text)], etc.
 - Sticky/fixed at top with subtle shadow
 </header_spec>`
-      : `<header_spec>
-Generate a responsive header with:
-- Site name "${blueprint.siteName}" as logo/brand text (styled with --color-primary and font-heading)
-- Desktop: horizontal nav with all links from shared_navigation, highlight current page (${page.filename})
-- Mobile: hamburger menu button that toggles a dropdown/slide nav (include the JS)
-- Use design system tokens: bg-[var(--color-bg)], text-[var(--color-text)], etc.
-- Sticky/fixed at top with subtle shadow
-ALL pages in this site use these EXACT same nav links, so keep the structure consistent.
-</header_spec>`;
+      : `<header_placeholder>
+Place exactly this HTML comment at the very start of <body>:
+<!-- @component:header -->
+Do NOT generate any header or navigation HTML. A shared header component will be injected here automatically after generation.
+</header_placeholder>`;
 
   const footerSection = hasSharedFooter
     ? `<shared_footer>
@@ -100,22 +96,23 @@ Generate a footer with:
 - Copyright line with current year
 - Use design system tokens for colors
 </footer_spec>`
-      : `<footer_spec>
-Generate a footer with:
-- Site name and footer tagline
-- Navigation links from shared_navigation
-- Copyright line with current year
-- Use design system tokens for colors
-Keep the footer structure simple and consistent — all pages share the same footer.
-</footer_spec>`;
+      : `<footer_placeholder>
+Place exactly this HTML comment at the very end of <body> (just before </body>):
+<!-- @component:footer -->
+Do NOT generate any footer HTML. A shared footer component will be injected here automatically after generation.
+</footer_placeholder>`;
 
   const headerRequirement = hasSharedHeader
     ? '3. Embed the shared header HTML VERBATIM at the start of <body> — do not modify it in any way.'
-    : '3. Generate header per header_spec at start of <body>.';
+    : isSinglePage
+      ? '3. Generate header per header_spec at start of <body>.'
+      : '3. Place the <!-- @component:header --> placeholder comment at the start of <body>. Do NOT generate header HTML.';
 
   const footerRequirement = hasSharedFooter
     ? '5. Embed the shared footer HTML VERBATIM at the end of <body> — do not modify it in any way.'
-    : '5. Generate footer per footer_spec at end of <body>.';
+    : isSinglePage
+      ? '5. Generate footer per footer_spec at end of <body>.'
+      : '5. Place the <!-- @component:footer --> placeholder comment at the end of <body>. Do NOT generate footer HTML.';
 
   const designSystemSection = headTags
     ? `<shared_head>

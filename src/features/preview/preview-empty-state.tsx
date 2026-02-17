@@ -546,8 +546,8 @@ function BlueprintWireframe({
   device?: DeviceSize;
   palette?: PaletteColors;
 }) {
-  const isComponentsPhase = blueprintPhase === 'generating-components';
-  const isPagesPhase = blueprintPhase === 'generating-pages';
+  const isComponentsPhase = blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site';
+  const isPagesPhase = blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site';
   const isBlueprintPhase = blueprintPhase === 'generating-blueprint';
   const isApproval = blueprintPhase === 'awaiting-approval';
 

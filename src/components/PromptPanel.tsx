@@ -169,10 +169,10 @@ export function PromptPanel({
             />
           )}
 
-          {(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-pages') && (
+          {(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site') && (
             <PageProgress
               pageStatuses={pageStatuses ?? []}
-              componentsStatus={blueprintPhase === 'generating-components' ? 'generating' : 'complete'}
+              componentsStatus={blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site' ? 'generating' : 'complete'}
               isRetrying={isRetryingPages}
               onCancel={onBlueprintCancel}
             />

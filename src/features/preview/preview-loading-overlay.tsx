@@ -63,8 +63,8 @@ function OverlayRing({
 }
 
 function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPhase: BlueprintPhase; pageStatuses?: PageGenerationStatus[] }) {
-  const isComponentsPhase = blueprintPhase === 'generating-components';
-  const isPagesPhase = blueprintPhase === 'generating-pages';
+  const isComponentsPhase = blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site';
+  const isPagesPhase = blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site';
 
   const completed = pageStatuses?.filter((p) => p.status === 'complete').length ?? 0;
   const generatingPages = pageStatuses?.filter((p) => p.status === 'generating') ?? [];
