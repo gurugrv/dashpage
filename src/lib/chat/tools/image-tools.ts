@@ -21,22 +21,28 @@ function jaccardSimilarity(a: string, b: string): number {
 
 const SIMILARITY_THRESHOLD = 0.6;
 
-const imageQuerySchema = z.object({
-  query: z
-    .string()
-    .describe('Descriptive search query, 2-5 words (e.g. "modern office workspace", "fresh pasta dish")'),
-  count: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(5)
-    .catch(2)
-    .describe('Number of results for this query (1-5). Default 2.'),
-  orientation: z
-    .enum(['landscape', 'portrait', 'square'])
-    .optional()
-    .describe('landscape for heroes/banners, portrait for people/cards, square for avatars/thumbnails.'),
-});
+function buildImageQuerySchema(isAIGen: boolean) {
+  return z.object({
+    query: z
+      .string()
+      .describe(
+        isAIGen
+          ? 'Detailed image generation prompt, 10-30 words. Describe the subject, setting, style, mood, lighting, and composition. Example: "A sleek modern coffee shop interior with warm wood tables, soft pendant lighting, latte art on a marble counter, bright and airy atmosphere, editorial photography style"'
+          : 'Descriptive search query, 2-5 words (e.g. "modern office workspace", "fresh pasta dish")',
+      ),
+    count: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(5)
+      .catch(isAIGen ? 1 : 2)
+      .describe(isAIGen ? 'Number of images to generate (1-5). Default 1.' : 'Number of results for this query (1-5). Default 2.'),
+    orientation: z
+      .enum(['landscape', 'portrait', 'square'])
+      .optional()
+      .describe('landscape for heroes/banners, portrait for people/cards, square for avatars/thumbnails.'),
+  });
+}
 
 interface ImageToolOptions {
   imageProvider?: 'pexels' | 'together';
@@ -139,9 +145,8 @@ export function createImageTools(options?: ImageToolOptions) {
 
       const { width, height } = orientationToDimensions(orientation);
 
-      // Generate `count` images with slightly varied prompts for variety
       const prompts = Array.from({ length: count }, (_, i) => ({
-        prompt: count > 1 ? `${query}, variation ${i + 1}` : query,
+        prompt: count > 1 ? `${query}, angle ${i + 1} of ${count}` : query,
         width,
         height,
       }));
@@ -170,9 +175,10 @@ export function createImageTools(options?: ImageToolOptions) {
     }
   }
 
-  const fetchForQuery = provider === 'together' ? fetchFromTogether : fetchFromPexels;
-  const description = provider === 'together'
-    ? 'Generate AI images for the website. Pass ALL image needs in one call. Returns { results: [{ query, success, images }] } — one entry per query. Use DIFFERENT queries per image for variety. Call ONCE with all queries before writing HTML.'
+  const isAIGen = provider === 'together';
+  const fetchForQuery = isAIGen ? fetchFromTogether : fetchFromPexels;
+  const description = isAIGen
+    ? 'Generate AI images for the website using FLUX. Write DETAILED prompts (10-30 words) describing subject, setting, style, mood, lighting. Pass ALL image needs in one call. Returns { results: [{ query, success, images }] } — one entry per query. Use UNIQUE, SPECIFIC prompts per image. Call ONCE with all queries before writing HTML.'
     : 'Batch-search stock photos from Pexels. Pass ALL image needs in one call. Returns { results: [{ query, success, images }] } — one entry per query. Use DIFFERENT queries per image for variety. Call ONCE with all queries before writing HTML.';
 
   return {
@@ -180,7 +186,7 @@ export function createImageTools(options?: ImageToolOptions) {
       description,
       inputSchema: z.object({
         queries: z
-          .array(imageQuerySchema)
+          .array(buildImageQuerySchema(isAIGen))
           .min(1)
           .max(12)
           .describe('Array of image searches to run in parallel. Each has query, count, and optional orientation.'),
