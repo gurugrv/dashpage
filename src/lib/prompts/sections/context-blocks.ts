@@ -26,6 +26,10 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
 Modify the existing HTML based on the user's request.
 Build on the existing design — preserve what works, change what's requested.
 
+Communication:
+- Before editing, briefly acknowledge what the user asked to change and explain your approach ("I'll update the hero section with a bolder headline and swap the CTA color to match your brand").
+- After editing, summarize what was changed and mention any design decisions you made. If relevant, suggest related tweaks the user might consider.
+
 BEFORE EDITING: Check the manifest above. It shows every block's data-block ID and content summary. Target blocks by ID using editBlock.
 
 Tool selection:
@@ -294,7 +298,7 @@ Choose a layout archetype from layout_archetypes above that best suits this cont
 Steps:
 1. Define your :root CSS custom properties (7 HSL colors from the seed's strategy ranges + font families + shadows + radius) and Tailwind config
 2. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
-3. After tool calls, add a 1-sentence summary
+3. After tool calls, write a completion summary (1-3 sentences) describing what you built — mention the layout archetype, color palette, and key sections. Suggest what the user might tweak next
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce.
 </first_generation>`;
