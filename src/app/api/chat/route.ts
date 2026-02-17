@@ -175,20 +175,10 @@ function summarizeToolOutput(toolName: string, output: unknown): string | undefi
       if (results) return `${results.length} result${results.length !== 1 ? 's' : ''}${source ? ` from ${source}` : ''}`;
       return undefined;
     }
-    case 'searchImages': {
-      const total = out.totalImages as number | undefined;
-      if (total != null) return `${total} image${total !== 1 ? 's' : ''} found`;
-      const images = out.images as unknown[] | undefined;
-      if (images) return images.length > 0 ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : 'No images found';
-      return undefined;
-    }
-    case 'searchIcons': {
-      const total = out.totalIcons as number | undefined;
-      if (total != null) return `${total} icon${total !== 1 ? 's' : ''} found`;
-      const icons = out.icons as unknown[] | undefined;
-      if (icons) return icons.length > 0 ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : 'No icons found';
-      return undefined;
-    }
+    case 'searchImages':
+      return 'Images added';
+    case 'searchIcons':
+      return 'Icons added';
     case 'fetchUrl':
       return out.truncated ? 'Content fetched (truncated)' : 'Content fetched';
     case 'writeFile': {

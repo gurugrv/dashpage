@@ -46,18 +46,10 @@ export function summarizeToolOutput(toolName: string, output: unknown): string |
     return typeof out.error === 'string' ? out.error.slice(0, 80) : 'Failed';
   }
   switch (toolName) {
-    case 'searchImages': {
-      const total = out.totalImages as number | undefined;
-      if (total != null) return `${total} image${total !== 1 ? 's' : ''} found`;
-      const images = out.images as unknown[] | undefined;
-      return images ? `${images.length} image${images.length !== 1 ? 's' : ''} found` : undefined;
-    }
-    case 'searchIcons': {
-      const total = out.totalIcons as number | undefined;
-      if (total != null) return `${total} icon${total !== 1 ? 's' : ''} found`;
-      const icons = out.icons as unknown[] | undefined;
-      return icons ? `${icons.length} icon${icons.length !== 1 ? 's' : ''} found` : undefined;
-    }
+    case 'searchImages':
+      return 'Images added';
+    case 'searchIcons':
+      return 'Icons added';
     case 'webSearch': {
       const results = out.results as unknown[] | undefined;
       return results ? `${results.length} result${results.length !== 1 ? 's' : ''} found` : undefined;
