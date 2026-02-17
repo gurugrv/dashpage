@@ -18,6 +18,7 @@ interface PreviewPanelProps {
   files: ProjectFiles;
   lastValidFiles: ProjectFiles;
   isGenerating: boolean;
+  isEditing?: boolean;
   buildProgress?: BuildProgressState;
   blueprintPhase?: BlueprintPhase;
   pageStatuses?: PageGenerationStatus[];
@@ -25,7 +26,7 @@ interface PreviewPanelProps {
   streamingCode?: string | null;
 }
 
-export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgress, blueprintPhase, pageStatuses, blueprintPalette, streamingCode }: PreviewPanelProps) {
+export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, buildProgress, blueprintPhase, pageStatuses, blueprintPalette, streamingCode }: PreviewPanelProps) {
   const [device, setDevice] = useState<DeviceSize>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedPage, setSelectedPage] = useState('index.html');
@@ -245,6 +246,13 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, buildProgres
         </div>
 
         {isGenerating && hasContent && <PreviewLoadingOverlay buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />}
+
+        {isEditing && hasContent && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-lg border border-muted-foreground/10 bg-background/95 px-3 py-1.5 shadow-md backdrop-blur-sm">
+            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-xs font-medium text-muted-foreground">Applying edits...</span>
+          </div>
+        )}
       </div>
     </div>
   );

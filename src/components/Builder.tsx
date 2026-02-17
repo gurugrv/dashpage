@@ -83,7 +83,7 @@ export function Builder() {
   }, [searchParams, router]);
 
   // Restore conversation from URL when conversations are loaded
-  const { currentFiles, lastValidFiles, isGenerating, streamingCode, processMessages, setFiles } = useHtmlParser();
+  const { currentFiles, lastValidFiles, isGenerating, isEditing, streamingCode, processMessages, setFiles } = useHtmlParser();
   const { conversations, create, rename, remove, updateModel } = useConversations();
   const { availableProviders, refetch } = useModels();
   const { progress: buildProgress, handleProgressData, handleToolActivity, resetProgress } = useBuildProgress();
@@ -760,6 +760,7 @@ export function Builder() {
               files={currentFiles}
               lastValidFiles={lastValidFiles}
               isGenerating={isGenerating || isBlueprintBusy}
+              isEditing={isEditing}
               buildProgress={buildProgress}
               blueprintPhase={blueprintPhase}
               pageStatuses={pageStatuses}
