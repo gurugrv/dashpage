@@ -77,7 +77,9 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
   const extracted: ExtractedComponent[] = [];
 
   // Candidate tags for component extraction
-  const componentTags = ['nav', 'header', 'footer'];
+  // Process outer elements first (header/footer) before inner ones (nav) to avoid
+  // nested placeholders (e.g. nav extracted first leaves <!-- @component:nav --> inside header)
+  const componentTags = ['header', 'footer', 'nav'];
 
   for (const tag of componentTags) {
     // Collect the outerHTML of this tag from each page, keyed by data-block ID

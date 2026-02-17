@@ -67,7 +67,9 @@ ${blueprint.siteFacts.additionalInfo ? `Additional info: ${blueprint.siteFacts.a
 
   const headerSection = hasSharedHeader
     ? `<shared_header>
-Embed this header HTML VERBATIM at the start of <body> (do NOT modify it):
+Embed this header HTML VERBATIM at the start of <body>, with ONE modification:
+Set data-current-page="${page.filename}" on the outermost element (e.g. <nav data-current-page="${page.filename}" ...> or <header data-current-page="${page.filename}" ...>).
+This enables active-link highlighting. Do NOT change anything else.
 ${sharedHtml!.headerHtml}
 </shared_header>`
     : isSinglePage
@@ -105,7 +107,7 @@ Do NOT generate any footer HTML. A shared footer component will be injected here
 </footer_placeholder>`;
 
   const headerRequirement = hasSharedHeader
-    ? '3. Embed the shared header HTML VERBATIM at the start of <body> — do not modify it in any way.'
+    ? `3. Embed the shared header HTML VERBATIM at the start of <body> — set data-current-page="${page.filename}" on the outermost header/nav element for active-link highlighting. Do not change anything else.`
     : isSinglePage
       ? '3. Generate header per header_spec at start of <body>.'
       : '3. Place the <!-- @component:header --> placeholder comment at the start of <body>. Do NOT generate header HTML.';

@@ -71,14 +71,23 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
       if (!activeFiles['index.html']) return;
 
       // Bake components into page files for download, exclude _components/ from output
+      // Multi-pass: components may contain nested placeholders (e.g. header containing nav placeholder)
       const downloadFiles: Record<string, string> = {};
       for (const [filename, content] of Object.entries(activeFiles)) {
         if (filename.startsWith('_components/')) continue;
         let processed = content;
-        for (const [compFile, compContent] of Object.entries(activeFiles)) {
-          if (!compFile.startsWith('_components/')) continue;
-          const compName = compFile.replace('_components/', '').replace('.html', '');
-          processed = processed.replace(`<!-- @component:${compName} -->`, compContent);
+        for (let pass = 0; pass < 3; pass++) {
+          let replaced = false;
+          for (const [compFile, compContent] of Object.entries(activeFiles)) {
+            if (!compFile.startsWith('_components/')) continue;
+            const compName = compFile.replace('_components/', '').replace('.html', '');
+            const placeholder = `<!-- @component:${compName} -->`;
+            if (processed.includes(placeholder)) {
+              processed = processed.replace(placeholder, compContent);
+              replaced = true;
+            }
+          }
+          if (!replaced) break;
         }
         downloadFiles[filename] = processed;
       }

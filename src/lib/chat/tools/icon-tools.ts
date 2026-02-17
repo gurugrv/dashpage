@@ -14,7 +14,7 @@ const iconQuerySchema = z.object({
     .catch(3)
     .describe('Number of icon results to return (1-5). Default 3.'),
   style: z
-    .string()
+    .enum(['outline', 'solid'])
     .catch('outline')
     .describe('Icon style: "outline" or "solid". outline for stroke-based icons (nav, UI chrome), solid for filled icons (badges, emphasis, active states).'),
 });

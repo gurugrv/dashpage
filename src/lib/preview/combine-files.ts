@@ -27,10 +27,19 @@ export function combineForPreview(files: ProjectFiles, activePage = 'index.html'
   if (!raw) return '';
 
   // Inject shared components: replace <!-- @component:X --> with _components/X.html content
-  for (const [filename, content] of Object.entries(files)) {
-    if (!filename.startsWith('_components/')) continue;
-    const componentName = filename.replace('_components/', '').replace('.html', '');
-    raw = raw.replace(`<!-- @component:${componentName} -->`, content);
+  // Multi-pass: components may contain nested placeholders (e.g. header containing nav placeholder)
+  for (let pass = 0; pass < 3; pass++) {
+    let replaced = false;
+    for (const [filename, content] of Object.entries(files)) {
+      if (!filename.startsWith('_components/')) continue;
+      const componentName = filename.replace('_components/', '').replace('.html', '');
+      const placeholder = `<!-- @component:${componentName} -->`;
+      if (raw.includes(placeholder)) {
+        raw = raw.replace(placeholder, content);
+        replaced = true;
+      }
+    }
+    if (!replaced) break;
   }
 
   // Validate font names against the full Google Fonts catalog before rendering
