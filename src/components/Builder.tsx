@@ -19,7 +19,7 @@ import { useModelSelection } from '@/features/builder/hooks/use-model-selection'
 import { useStreamingPersistence } from '@/features/builder/hooks/use-streaming-persistence';
 import { useBlueprintModelConfig } from '@/features/settings/use-blueprint-model-config';
 import { getBrowserTimeZone, getSavedTimeZone } from '@/features/builder/utils/timezone';
-import { useBlueprintGeneration } from '@/hooks/useBlueprintGeneration';
+import { useBlueprintGeneration, type BlueprintPhase } from '@/hooks/useBlueprintGeneration';
 import type { Blueprint } from '@/lib/blueprint/types';
 import { useBuildProgress } from '@/hooks/useBuildProgress';
 import { useConversations } from '@/hooks/useConversations';
@@ -617,6 +617,36 @@ export function Builder() {
     setResumableState(null);
     setHasPartialMessage(false);
   }, [activeConversationId]);
+
+  // Inject assistant status messages at blueprint phase transitions
+  const prevBlueprintPhaseRef = useRef<BlueprintPhase>('idle');
+  useEffect(() => {
+    const prev = prevBlueprintPhaseRef.current;
+    prevBlueprintPhaseRef.current = blueprintPhase;
+
+    // Only add messages on forward transitions, not on reset/idle
+    if (blueprintPhase === 'idle' || blueprintPhase === 'error' || blueprintPhase === prev) return;
+
+    const phaseMessages: Partial<Record<BlueprintPhase, string>> = {
+      'generating-blueprint': 'Analyzing your requirements and planning the site structure...',
+      'awaiting-approval': 'Here\'s the site blueprint. Review the pages, design system, and structure, then approve to start building.',
+      'generating-components': 'Building shared components (header & footer) for your site...',
+      'generating-pages': 'Generating your pages — this may take a moment...',
+      'generating-site': 'Building your site — generating components and pages in parallel...',
+    };
+
+    const text = phaseMessages[blueprintPhase];
+    if (text) {
+      setMessages((msgs) => [
+        ...msgs,
+        {
+          id: `blueprint-phase-${blueprintPhase}-${Date.now()}`,
+          role: 'assistant' as const,
+          parts: [{ type: 'text' as const, text }],
+        },
+      ]);
+    }
+  }, [blueprintPhase, setMessages]);
 
   // Persist artifact when blueprint pipeline completes
   useEffect(() => {
