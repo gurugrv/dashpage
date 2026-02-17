@@ -152,7 +152,7 @@ export function BusinessProfileSummary({ profile, onConfirm, onAddMore }: Busine
             <span className="w-16 shrink-0 text-xs text-muted-foreground">Social</span>
             <div className="flex flex-col gap-0.5 text-sm">
               {Object.entries(editProfile.socialMedia).map(([platform, url]) => (
-                <span key={platform} className="capitalize">{platform}: {url}</span>
+                <span key={platform}><span className="capitalize">{platform}</span>: {url}</span>
               ))}
             </div>
           </div>
