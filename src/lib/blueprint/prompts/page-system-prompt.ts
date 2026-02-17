@@ -120,7 +120,7 @@ Do NOT generate any footer HTML. A shared footer component will be injected here
 
   const designSystemSection = headTags
     ? `<shared_head>
-Include these tags VERBATIM in <head> (do NOT generate your own CSS custom properties, Tailwind CDN, or Google Fonts setup):
+Copy-paste ALL of these tags into your <head> exactly as shown — including the Google Fonts stylesheet <link>, preconnects, Tailwind CDN, and styles.css link. Do NOT omit any tag or generate your own versions:
 ${headTags}
 </shared_head>
 

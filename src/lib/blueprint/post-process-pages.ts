@@ -6,16 +6,83 @@ import type { ProjectFiles } from '@/types';
  * Runs server-side after all pages complete.
  * Mutates `files` in place.
  */
-export function postProcessPages(files: ProjectFiles): void {
+export function postProcessPages(files: ProjectFiles, headTags?: string): void {
   const htmlFiles = Object.keys(files).filter(
     f => f.endsWith('.html') && !f.startsWith('_components/'),
   );
   if (htmlFiles.length === 0) return;
 
+  if (headTags) injectMissingHeadTags(files, htmlFiles, headTags);
   stripDuplicateHeadResources(files, htmlFiles);
   extractSharedStyles(files, htmlFiles);
   consolidateInlineStyles(files, htmlFiles);
   deduplicateScripts(files, htmlFiles);
+}
+
+/**
+ * Pass 0: Inject missing head tags from shared headTags.
+ * AI models sometimes omit the Google Fonts stylesheet link even when told
+ * to include shared_head tags verbatim. This pass checks each page for
+ * missing essential tags and injects them.
+ */
+function injectMissingHeadTags(files: ProjectFiles, htmlFiles: string[], headTags: string): void {
+  // Parse individual tags from headTags string
+  const tagEntries: { tag: string; detect: (html: string) => boolean }[] = [];
+
+  // Google Fonts stylesheet link
+  const fontsMatch = headTags.match(/<link[^>]*fonts\.googleapis\.com\/css2[^>]*>/);
+  if (fontsMatch) {
+    tagEntries.push({
+      tag: fontsMatch[0],
+      detect: (html) => html.includes('fonts.googleapis.com/css2'),
+    });
+  }
+
+  // Preconnect to fonts.googleapis.com
+  const preconnectGoogleMatch = headTags.match(/<link[^>]*preconnect[^>]*fonts\.googleapis\.com[^>]*>/);
+  if (preconnectGoogleMatch) {
+    tagEntries.push({
+      tag: preconnectGoogleMatch[0],
+      detect: (html) => /preconnect[^>]*fonts\.googleapis\.com/.test(html),
+    });
+  }
+
+  // Preconnect to fonts.gstatic.com
+  const preconnectGstaticMatch = headTags.match(/<link[^>]*preconnect[^>]*fonts\.gstatic\.com[^>]*>/);
+  if (preconnectGstaticMatch) {
+    tagEntries.push({
+      tag: preconnectGstaticMatch[0],
+      detect: (html) => /preconnect[^>]*fonts\.gstatic\.com/.test(html),
+    });
+  }
+
+  // styles.css link
+  const stylesCssMatch = headTags.match(/<link[^>]*href="styles\.css"[^>]*>/);
+  if (stylesCssMatch) {
+    tagEntries.push({
+      tag: stylesCssMatch[0],
+      detect: (html) => /href=["']styles\.css["']/.test(html),
+    });
+  }
+
+  if (tagEntries.length === 0) return;
+
+  for (const filename of htmlFiles) {
+    const html = files[filename];
+    const missingTags = tagEntries
+      .filter(entry => !entry.detect(html))
+      .map(entry => entry.tag);
+
+    if (missingTags.length === 0) continue;
+
+    // Insert missing tags after the last existing <link> or <meta> in <head>,
+    // or right before </head> if nothing found
+    const injection = '\n' + missingTags.join('\n');
+    const headCloseIdx = html.indexOf('</head>');
+    if (headCloseIdx !== -1) {
+      files[filename] = html.slice(0, headCloseIdx) + injection + '\n' + html.slice(headCloseIdx);
+    }
+  }
 }
 
 /**

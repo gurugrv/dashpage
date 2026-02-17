@@ -678,7 +678,7 @@ export async function POST(req: Request) {
       if (stylesCss) completedPagesMap['styles.css'] = stylesCss;
       if (scriptsJs) completedPagesMap['scripts.js'] = scriptsJs;
       try {
-        postProcessPages(completedPagesMap);
+        postProcessPages(completedPagesMap, headTags);
         if (completedPagesMap['styles.css'] || completedPagesMap['scripts.js']) {
           sendEvent({
             type: 'post-processed',
