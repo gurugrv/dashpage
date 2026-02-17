@@ -174,19 +174,14 @@ async function fetchTopUrls(
 
   debug?.logToolStarting({ toolName: 'fetchUrls', toolCallId: 'url-fetch' });
 
-  const fetched: string[] = [];
-
-  for (const url of urlsToFetch) {
-    try {
+  const fetchResults = await Promise.allSettled(
+    urlsToFetch.map(async (url) => {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(URL_FETCH_TIMEOUT_MS),
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AIBuilder/1.0)' },
       });
-
-      if (!response.ok) continue;
-
+      if (!response.ok) return null;
       const html = await response.text();
-      // Strip HTML tags and extract text content
       const text = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -194,14 +189,14 @@ async function fetchTopUrls(
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, MAX_PAGE_CONTENT_LENGTH);
+      return text.length > 100 ? `[Page content from ${url}]\n${text}` : null;
+    }),
+  );
 
-      if (text.length > 100) {
-        fetched.push(`[Page content from ${url}]\n${text}`);
-      }
-    } catch {
-      // Skip failed fetches silently
-    }
-  }
+  const fetched = fetchResults
+    .filter((r): r is PromiseFulfilledResult<string | null> => r.status === 'fulfilled')
+    .map((r) => r.value)
+    .filter((v): v is string => v !== null);
 
   debug?.logToolResult({
     toolName: 'fetchUrls',
