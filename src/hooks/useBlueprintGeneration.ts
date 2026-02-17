@@ -430,6 +430,7 @@ export function useBlueprintGeneration({
     headTags?: string,
     skipPages?: string[],
     retryCount = 0,
+    sharedAssets?: { stylesCss: string; scriptsJs: string } | null,
   ) => {
     const activeBlueprint = blueprintOverride ?? blueprint;
     const stepModel = resolveStepModel('pages');
@@ -478,6 +479,8 @@ export function useBlueprintGeneration({
           footerHtml: sharedHtml?.footerHtml,
           headTags,
           skipPages,
+          stylesCss: sharedAssets?.stylesCss,
+          scriptsJs: sharedAssets?.scriptsJs,
         }),
         signal: controller.signal,
       });
@@ -664,6 +667,88 @@ export function useBlueprintGeneration({
     return null;
   }, [generateComponents]);
 
+  const generateAssets = useCallback(async (
+    activeBlueprint: Blueprint,
+    componentHtml?: { headerHtml: string; footerHtml: string } | null,
+    conversationId?: string,
+  ): Promise<{ stylesCss: string; scriptsJs: string } | null> => {
+    const stepModel = resolveStepModel('assets') ?? resolveStepModel('components');
+    if (!stepModel) {
+      setError('No provider or model selected for assets step');
+      setPhase('error');
+      return null;
+    }
+
+    setPhase('generating-assets');
+    setError(null);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const response = await fetch('/api/blueprint/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blueprint: activeBlueprint,
+          provider: stepModel.provider,
+          model: stepModel.model,
+          maxOutputTokens: stepModel.maxOutputTokens,
+          conversationId,
+          componentHtml,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Assets generation failed' }));
+        throw new Error(data.error || 'Assets generation failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let result: { stylesCss: string; scriptsJs: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.type === 'assets-status') {
+              if (event.status === 'complete' && event.stylesCss && event.scriptsJs) {
+                result = { stylesCss: event.stylesCss, scriptsJs: event.scriptsJs };
+              } else if (event.status === 'error') {
+                throw new Error(event.error || 'Assets generation failed');
+              }
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof SyntaxError) continue;
+            throw parseErr;
+          }
+        }
+      }
+
+      return result;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return null;
+      console.warn('Assets generation failed, continuing with deterministic styles:', err);
+      return null; // Non-fatal — fall back to deterministic styles
+    }
+  }, [resolveStepModel]);
+
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
     // Build shared styles synchronously from design system — no AI call needed
     const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
@@ -674,20 +759,27 @@ export function useBlueprintGeneration({
       // Single-page sites skip the components step (no shared header/footer)
       await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags);
     } else {
-      // Run components and pages in parallel with placeholder injection
-      parallelModeRef.current = true;
       setPhase('generating-site');
 
-      // Single shared controller for both parallel streams
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const [components] = await Promise.all([
-        generateComponentsWithRetry(activeBlueprint, conversationId),
-        generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags),
-      ]);
+      // Step 1: Generate components (header/footer)
+      const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
 
-      parallelModeRef.current = false;
+      // Step 2: Generate shared assets (styles.css + scripts.js) — sees component HTML
+      const assets = await generateAssets(activeBlueprint, components, conversationId);
+
+      // Step 3: Update headTags to include scripts.js and replace deterministic styles with AI-generated ones
+      let headTags = sharedStyles.headTags;
+      if (assets) {
+        sharedStyles.stylesCss = assets.stylesCss;
+        sharedStylesRef.current = { ...sharedStyles, stylesCss: assets.stylesCss };
+        headTags += '\n<script src="scripts.js" defer></script>';
+      }
+
+      // Step 4: Generate pages (parallel, with shared context)
+      await generatePages(conversationId, activeBlueprint, components ? components : undefined, headTags, undefined, 0, assets);
 
       // Merge components into page HTML (replace placeholders)
       const hasPages = Object.keys(filesAccumulatorRef.current).length > 0;
@@ -698,15 +790,20 @@ export function useBlueprintGeneration({
         if (sharedStylesRef.current) {
           files['styles.css'] = sharedStylesRef.current.stylesCss;
         }
+        if (assets?.scriptsJs) {
+          files['scripts.js'] = assets.scriptsJs;
+        }
         files = removeDeadNavLinks(files);
         onFilesReady(files);
         setPhase('complete');
       } else if (hasPages) {
         // Components failed but pages succeeded — deliver pages without shared components
-        // (placeholders remain as HTML comments, invisible to users)
         let files = { ...filesAccumulatorRef.current };
         if (sharedStylesRef.current) {
           files['styles.css'] = sharedStylesRef.current.stylesCss;
+        }
+        if (assets?.scriptsJs) {
+          files['scripts.js'] = assets.scriptsJs;
         }
         files = removeDeadNavLinks(files);
         onFilesReady(files);
@@ -717,7 +814,7 @@ export function useBlueprintGeneration({
         setPhase('error');
       }
     }
-  }, [generateComponentsWithRetry, generatePages, onFilesReady]);
+  }, [generateComponentsWithRetry, generateAssets, generatePages, onFilesReady]);
 
   const resumeFromState = useCallback(async (
     conversationId: string,
@@ -746,19 +843,23 @@ export function useBlueprintGeneration({
       // Single-page sites skip the components step
       await generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags, completedFilenames);
     } else if (!state.componentHtml) {
-      // Need components + remaining pages — run in parallel
-      parallelModeRef.current = true;
+      // Need components + assets + remaining pages — sequential flow
       setPhase('generating-site');
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const [components] = await Promise.all([
-        generateComponentsWithRetry(activeBlueprint, conversationId),
-        generatePages(conversationId, activeBlueprint, undefined, sharedStyles.headTags, completedFilenames),
-      ]);
+      const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
+      const assets = await generateAssets(activeBlueprint, components, conversationId);
 
-      parallelModeRef.current = false;
+      let headTags = sharedStyles.headTags;
+      if (assets) {
+        sharedStyles.stylesCss = assets.stylesCss;
+        sharedStylesRef.current = { ...sharedStyles, stylesCss: assets.stylesCss };
+        headTags += '\n<script src="scripts.js" defer></script>';
+      }
+
+      await generatePages(conversationId, activeBlueprint, components ?? undefined, headTags, completedFilenames, 0, assets);
 
       const hasPages = Object.keys(filesAccumulatorRef.current).length > 0;
       if (components && hasPages) {
@@ -768,6 +869,9 @@ export function useBlueprintGeneration({
         if (sharedStylesRef.current) {
           files['styles.css'] = sharedStylesRef.current.stylesCss;
         }
+        if (assets?.scriptsJs) {
+          files['scripts.js'] = assets.scriptsJs;
+        }
         files = removeDeadNavLinks(files);
         onFilesReady(files);
         setPhase('complete');
@@ -775,6 +879,9 @@ export function useBlueprintGeneration({
         let files = { ...filesAccumulatorRef.current };
         if (sharedStylesRef.current) {
           files['styles.css'] = sharedStylesRef.current.stylesCss;
+        }
+        if (assets?.scriptsJs) {
+          files['scripts.js'] = assets.scriptsJs;
         }
         files = removeDeadNavLinks(files);
         onFilesReady(files);
@@ -785,19 +892,30 @@ export function useBlueprintGeneration({
         setPhase('error');
       }
     } else {
-      // Components exist, just resume page generation
+      // Components exist, generate assets then resume page generation
       setHeaderHtml(state.componentHtml.headerHtml);
       setFooterHtml(state.componentHtml.footerHtml);
+
+      const assets = await generateAssets(activeBlueprint, state.componentHtml, conversationId);
+
+      let headTags = sharedStyles.headTags;
+      if (assets) {
+        sharedStyles.stylesCss = assets.stylesCss;
+        sharedStylesRef.current = { ...sharedStyles, stylesCss: assets.stylesCss };
+        headTags += '\n<script src="scripts.js" defer></script>';
+      }
 
       await generatePages(
         conversationId,
         activeBlueprint,
         state.componentHtml,
-        sharedStyles.headTags,
+        headTags,
         completedFilenames,
+        0,
+        assets,
       );
     }
-  }, [generateComponentsWithRetry, generatePages, onFilesReady]);
+  }, [generateComponentsWithRetry, generateAssets, generatePages, onFilesReady]);
 
   const updateBlueprint = useCallback((updated: Blueprint, conversationId: string) => {
     setBlueprint(updated);

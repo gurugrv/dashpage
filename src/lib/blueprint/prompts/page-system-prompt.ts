@@ -14,6 +14,7 @@ export function getPageSystemPrompt(
   page: BlueprintPage,
   sharedHtml?: SharedHtml,
   headTags?: string,
+  sharedAssets?: { stylesCss?: string; scriptsJs?: string },
 ): string {
   const { designSystem, sharedComponents, contentStrategy } = blueprint;
 
@@ -152,8 +153,40 @@ Mood: ${designSystem.mood}
 Surface Treatment: ${designSystem.surfaceTreatment || 'clean'}
 </design_system>`;
 
+  const sharedAssetsSection = sharedAssets?.stylesCss
+    ? `<shared_styles_reference>
+The shared styles.css contains these classes and utilities — USE THEM instead of inline styles or duplicate <style> blocks:
+
+${sharedAssets.stylesCss}
+
+RULES:
+- Use these CSS classes on elements instead of inline style="" attributes
+- Do NOT duplicate any CSS that already exists in styles.css (no duplicate :root, keyframes, or class definitions)
+- Only add a <style> block for CSS that is UNIQUE to this specific page and not covered by styles.css
+- Prefer Tailwind utilities + styles.css classes. Inline style="" should be a last resort.
+</shared_styles_reference>`
+    : '';
+
+  const sharedScriptsSection = sharedAssets?.scriptsJs
+    ? `<shared_scripts_reference>
+The shared scripts.js contains these JavaScript utilities — USE THEM instead of writing duplicate code:
+
+${sharedAssets.scriptsJs}
+
+RULES:
+- Use data-reveal attribute for scroll animations (handled by scripts.js IntersectionObserver)
+- Use data-reveal-delay="N" for staggered delays
+- Use data-accordion-trigger / data-accordion-content for accordions
+- Use data-tab-trigger / data-tab-content for tabs
+- Use data-count-to="N" for counter animations
+- Use data-menu-toggle for mobile menu triggers
+- Do NOT write your own IntersectionObserver, hamburger menu JS, or scroll animation JS
+- Only add a <script> block for JavaScript that is UNIQUE to this specific page
+</shared_scripts_reference>`
+    : '';
+
   const requirement2 = headTags
-    ? '2. In <head>: charset, viewport, <title>, meta description, then the shared_head tags VERBATIM. Do NOT generate your own CSS custom properties, Tailwind CDN script, Google Fonts links, or Tailwind config — they are all provided in the shared head.'
+    ? '2. In <head>: charset, viewport, <title>, meta description, then the shared_head tags VERBATIM. Do NOT generate your own CSS custom properties, Tailwind CDN script, Google Fonts links, Tailwind config, or shared scripts — they are all provided in the shared head.'
     : `2. In <head>: charset, viewport, <title>, meta description, Tailwind CDN, Google Fonts for ${designSystem.headingFont} and ${designSystem.bodyFont}, <style> with ALL CSS custom properties, Tailwind config extending theme with tokens.`;
 
   const webSearchInstruction = blueprint.siteFacts
@@ -163,6 +196,10 @@ Surface Treatment: ${designSystem.surfaceTreatment || 'clean'}
   return `You are an expert web designer who creates distinctive, production-ready pages. You're generating a page from a site blueprint — the design system provides your palette and fonts, but the creativity in layout, composition, and visual storytelling is entirely yours.
 
 ${designSystemSection}
+
+${sharedAssetsSection}
+
+${sharedScriptsSection}
 
 ${BLUEPRINT_DESIGN_QUALITY_SECTION}
 

@@ -134,6 +134,8 @@ interface PagesRequestBody {
   headerHtml?: string;
   footerHtml?: string;
   headTags?: string;
+  stylesCss?: string;
+  scriptsJs?: string;
   skipPages?: string[];
 }
 
@@ -148,7 +150,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { conversationId, provider, model, maxOutputTokens: clientMaxTokens, headerHtml, footerHtml, headTags, skipPages } = body;
+  const { conversationId, provider, model, maxOutputTokens: clientMaxTokens, headerHtml, footerHtml, headTags, stylesCss, scriptsJs, skipPages } = body;
   let blueprint = body.blueprint;
 
   if (!conversationId || !provider || !model) {
@@ -285,7 +287,8 @@ export async function POST(req: Request) {
         });
 
         const sharedHtml = headerHtml && footerHtml ? { headerHtml, footerHtml } : undefined;
-        const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml, headTags);
+        const sharedAssets = stylesCss || scriptsJs ? { stylesCss, scriptsJs } : undefined;
+        const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml, headTags, sharedAssets);
         // Disable reasoning tokens for page generation — models spend their output budget
         // on invisible thinking instead of producing HTML tool calls
         const modelInstance = provider === 'OpenRouter'
