@@ -11,6 +11,7 @@ import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blue
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
 import { extractComponents } from '@/lib/blocks/extract-components';
 import type { Blueprint } from '@/lib/blueprint/types';
+import { createOpenRouterModel } from '@/lib/providers/configs/openrouter';
 
 const MAX_PAGE_CONTINUATIONS = 2;
 const MAX_CONCURRENT_PAGES = 3;
@@ -284,12 +285,17 @@ export async function POST(req: Request) {
 
         const sharedHtml = headerHtml && footerHtml ? { headerHtml, footerHtml } : undefined;
         const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml, headTags);
-        const modelInstance = providerConfig.createModel(apiKey!, model);
+        // Disable reasoning tokens for page generation — models spend their output budget
+        // on invisible thinking instead of producing HTML tool calls
+        const modelInstance = provider === 'OpenRouter'
+          ? createOpenRouterModel(apiKey!, model, 'none')
+          : providerConfig.createModel(apiKey!, model);
         const pagePrompt = `Generate the complete HTML page for "${page.title}" (${page.filename}).`;
 
         let prevMessages: ModelMessage[] = [];
         let prevSegmentToolInputs = '';  // Degenerate loop detection
         let writeFilesAttempted = false;
+        let toolCallCount = 0;
         let segmentsWithoutWriteFiles = 0;
         let allTextOutput = '';  // Accumulate text across all segments for fallback
         let pageSummary: string | undefined;  // Extracted from writeFile/writeFiles summary field
@@ -400,6 +406,7 @@ export async function POST(req: Request) {
                 });
               }
             } else if (part.type === 'tool-call') {
+              toolCallCount++;
               debugSession.logToolCall({ toolName: part.toolName, toolCallId: part.toolCallId, input: part.input });
               // Extract summary from writeFile/writeFiles tool calls
               if ((part.toolName === 'writeFile' || part.toolName === 'writeFiles') && part.input) {
@@ -467,7 +474,7 @@ export async function POST(req: Request) {
           debugSession.logGenerationSummary?.({
             finishReason,
             hasFileOutput: !!workingFiles[page.filename],
-            toolCallCount: 0,
+            toolCallCount,
             usage: pageUsage,
           });
 
@@ -497,8 +504,11 @@ export async function POST(req: Request) {
             }
           }
 
-          // Not truncated, just didn't produce output
-          if (finishReason !== 'length') break;
+          // Continue if truncated OR if model stopped without ever attempting writeFile
+          // (reasoning-exhausted case: finishReason=stop but no output produced)
+          const shouldContinue = finishReason === 'length'
+            || (!workingFiles[page.filename] && !writeFilesAttempted && segment < MAX_PAGE_CONTINUATIONS);
+          if (!shouldContinue) break;
 
           // Track segments where writeFiles was never even attempted
           if (!writeFilesJsonBuffer) {

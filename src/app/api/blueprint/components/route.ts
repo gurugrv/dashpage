@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import type { Blueprint } from '@/lib/blueprint/types';
+import { createOpenRouterModel } from '@/lib/providers/configs/openrouter';
 
 interface ComponentsRequestBody {
   blueprint: Blueprint;
@@ -62,7 +63,10 @@ export async function POST(req: Request) {
 
   const maxOutputTokens = resolveMaxOutputTokens(providerConfig, model, clientMaxTokens);
   const systemPrompt = getComponentsSystemPrompt(blueprint);
-  const modelInstance = providerConfig.createModel(apiKey, model);
+  // Disable reasoning tokens for component generation — same rationale as page generation
+  const modelInstance = provider === 'OpenRouter'
+    ? createOpenRouterModel(apiKey, model, 'none')
+    : providerConfig.createModel(apiKey, model);
   const userPrompt = `Generate the shared header and footer HTML components for the "${blueprint.siteName}" website.`;
   const abortSignal = req.signal;
 
@@ -167,11 +171,13 @@ export async function POST(req: Request) {
       debugSession.finish('complete');
       const responseText = debugSession.getFullResponse();
       const componentFinishReason = await result.finishReason;
+      const componentUsage = await result.usage;
       debugSession.logFullResponse(componentFinishReason);
       debugSession.logGenerationSummary?.({
         finishReason: componentFinishReason,
         hasFileOutput,
         toolCallCount: toolCallNames.size,
+        usage: componentUsage,
       });
 
       // Normalize filenames: models sometimes hallucinate prefixes like _footer.html

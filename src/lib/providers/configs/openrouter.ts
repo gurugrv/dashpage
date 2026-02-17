@@ -1,6 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import type { ProviderConfig } from '@/lib/providers/types';
 import type { OpenRouterModelResponse } from '@/lib/providers/types';
+import { createReasoningFetch, type ReasoningEffort } from '../openrouter-fetch';
 
 export const openRouterProvider: ProviderConfig = {
   name: 'OpenRouter',
@@ -33,3 +34,13 @@ export const openRouterProvider: ProviderConfig = {
       }));
   },
 };
+
+/** Create an OpenRouter model instance with explicit reasoning effort control. */
+export function createOpenRouterModel(apiKey: string, modelId: string, reasoning: ReasoningEffort) {
+  const client = createOpenAI({
+    apiKey,
+    baseURL: 'https://openrouter.ai/api/v1',
+    fetch: createReasoningFetch(reasoning),
+  });
+  return client.chat(modelId);
+}
