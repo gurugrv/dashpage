@@ -495,7 +495,7 @@ export function createDebugSession(params: {
           parts.push(`${dimPrefix()}  The model did not call any tools. Check system prompt and model compatibility.`);
         }
       }
-      if (!structuredOutput && totalDuration > 60_000 && totalDeltaChars < 1000) {
+      if (!structuredOutput && !hasFileOutput && totalDuration > 60_000 && totalDeltaChars < 1000) {
         parts.push(`${prefix()}\x1b[33m⚠ SLOW: ${formatDuration(totalDuration)} elapsed but only ${totalDeltaChars} chars generated${RESET}`);
       }
 
