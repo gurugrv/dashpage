@@ -9,6 +9,7 @@ import { createDebugSession } from '@/lib/chat/stream-debug';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
+import * as cheerio from 'cheerio';
 import { extractComponents } from '@/lib/blocks/extract-components';
 import { postProcessPages } from '@/lib/blueprint/post-process-pages';
 import type { Blueprint } from '@/lib/blueprint/types';
@@ -577,6 +578,12 @@ export async function POST(req: Request) {
           const singleFileMap = { [page.filename]: pageHtml };
           validateBlocks(singleFileMap);
           pageHtml = singleFileMap[page.filename];
+
+          // Deterministically set data-current-page on the header/nav element
+          // AI often copies the shared header verbatim without updating this attribute
+          const $ = cheerio.load(pageHtml);
+          $('header, nav').first().attr('data-current-page', page.filename);
+          pageHtml = $.html({ decodeEntities: false });
 
           completedPages += 1;
           sendEvent({
