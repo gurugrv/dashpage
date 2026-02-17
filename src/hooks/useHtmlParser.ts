@@ -221,6 +221,7 @@ export function useHtmlParser() {
   const streamingCodeRef = useRef<string | null>(null);
   const lastValidFilesRef = useRef<ProjectFiles>({});
   const lastProcessedRef = useRef<{ messageId: string; partsLength: number; isLoading: boolean } | null>(null);
+  const postProcessedRef = useRef(false);
 
   const updateLastValid = useCallback((files: ProjectFiles) => {
     setLastValidFiles(files);
@@ -268,6 +269,12 @@ export function useHtmlParser() {
       lastValidFilesRef.current,
     );
 
+    // Clear post-processed flag at stream end regardless of extraction path
+    if (!isLoading && postProcessedRef.current) {
+      postProcessedRef.current = false;
+      return; // post-processed files already applied via setFiles
+    }
+
     // If tools produced file content (writeFiles, editBlock, editFiles), use that
     if (toolFiles !== null && producedFiles) {
       setCurrentFiles(toolFiles);
@@ -299,6 +306,7 @@ export function useHtmlParser() {
   }, [updateLastValid]);
 
   const setFiles = useCallback((files: ProjectFiles) => {
+    postProcessedRef.current = true;
     setCurrentFiles(files);
     updateLastValid(files);
   }, [updateLastValid]);

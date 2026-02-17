@@ -589,6 +589,13 @@ export async function POST(req: Request) {
           if (hasFileOutput && Object.keys(workingFiles).some(f => f.endsWith('.html'))) {
             validateBlocks(workingFiles);
             extractComponents(workingFiles);
+
+            // Stream post-processed files to client so it has block IDs + extracted components
+            writer.write({
+              type: 'data-postProcessedFiles',
+              data: workingFiles,
+              transient: true,
+            });
           }
 
           writer.write({ type: 'data-buildProgress', data: detector.finish(), transient: true });

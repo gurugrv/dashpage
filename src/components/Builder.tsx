@@ -168,6 +168,11 @@ export function Builder() {
       if (part.type === 'data-toolActivity') {
         handleToolActivity(part.data as ToolActivityEvent);
       }
+      if (part.type === 'data-postProcessedFiles') {
+        const files = part.data as ProjectFiles;
+        setFiles(files);
+        currentFilesRef.current = files;
+      }
     },
     onFinish: async ({ message }) => {
       const convId = activeConversationIdRef.current;
