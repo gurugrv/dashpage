@@ -7,21 +7,35 @@ import { createIconTools } from './icon-tools';
 import { createWebTools } from './web-tools';
 import { createSearchTools } from './search-tools';
 
-export function createWebsiteTools(currentFiles: ProjectFiles): { tools: ToolSet; workingFiles: ProjectFiles } {
+interface WebsiteToolsOptions {
+  /** Restrict to a subset of tool names. When set, only matching tools are included. */
+  toolSubset?: Set<string>;
+}
+
+export function createWebsiteTools(currentFiles: ProjectFiles, options?: WebsiteToolsOptions): { tools: ToolSet; workingFiles: ProjectFiles } {
   // Mutable working copy accumulates changes across multi-step tool calls
   const workingFiles: ProjectFiles = { ...currentFiles };
   // Last-known-good snapshot per file — used to rollback on total edit failure
   const fileSnapshots: ProjectFiles = { ...currentFiles };
 
-  return {
-    tools: {
-      ...createFileTools(workingFiles, fileSnapshots),
-      ...createBlockTools(workingFiles, fileSnapshots),
-      ...createImageTools(),
-      ...createIconTools(),
-      ...createWebTools(),
-      ...createSearchTools(),
-    },
-    workingFiles,
+  const allTools: ToolSet = {
+    ...createFileTools(workingFiles, fileSnapshots),
+    ...createBlockTools(workingFiles, fileSnapshots),
+    ...createImageTools(),
+    ...createIconTools(),
+    ...createWebTools(),
+    ...createSearchTools(),
   };
+
+  if (options?.toolSubset) {
+    const filtered: ToolSet = {};
+    for (const [name, tool] of Object.entries(allTools)) {
+      if (options.toolSubset.has(name)) {
+        filtered[name] = tool;
+      }
+    }
+    return { tools: filtered, workingFiles };
+  }
+
+  return { tools: allTools, workingFiles };
 }

@@ -374,11 +374,15 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
 
     readFile: tool({
       description:
-        'Read the current contents of a file. Returns { success, file, content, length }. Use before editFiles to see exact whitespace/indentation for accurate search strings, or after edits to verify changes.',
+        'Read the current contents of a file. Returns { success, file, content, length, totalLines }. Use before editFiles to see exact whitespace/indentation for accurate search strings, or after edits to verify changes. For large files (>20K chars), content is truncated to head/tail — use startLine/endLine to read specific sections.',
       inputSchema: z.object({
         file: z.string().describe('The filename to read, e.g. "index.html" or "about.html"'),
+        startLine: z.coerce.number().int().min(1).optional()
+          .describe('Start reading from this line number (1-based). Use to read specific sections of large files.'),
+        endLine: z.coerce.number().int().min(1).optional()
+          .describe('Stop reading at this line number (inclusive). Use with startLine for targeted reads.'),
       }),
-      execute: async ({ file: rawFile }) => {
+      execute: async ({ file: rawFile, startLine, endLine }) => {
         const file = rawFile.replace(/^['"](.+)['"]$/, '$1').toLowerCase();
         const content = workingFiles[file];
         if (content === undefined) {
@@ -387,7 +391,43 @@ export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: Proje
             error: `File "${file}" not found. Available files: ${availableFilesList(workingFiles)}.`,
           };
         }
-        return { success: true as const, file, content, length: content.length };
+
+        const lines = content.split('\n');
+        const totalLines = lines.length;
+
+        // Line-range read: return specific section
+        if (startLine !== undefined || endLine !== undefined) {
+          const start = Math.max(0, (startLine ?? 1) - 1); // Convert 1-based to 0-based
+          const end = Math.min(totalLines, endLine ?? totalLines);
+          if (start >= totalLines) {
+            return { success: false as const, error: `startLine ${startLine} exceeds file length (${totalLines} lines).` };
+          }
+          if (end <= start) {
+            return { success: false as const, error: `endLine (${endLine}) must be >= startLine (${startLine ?? 1}).` };
+          }
+          const slice = lines.slice(start, end).join('\n');
+          return {
+            success: true as const,
+            file,
+            content: slice,
+            length: content.length,
+            totalLines,
+            readRange: { startLine: start + 1, endLine: end },
+          };
+        }
+
+        // Truncate very large files to avoid bloating LLM context
+        const READFILE_TRUNCATE_THRESHOLD = 20_000;
+        const READFILE_SUMMARY_LINES = 50;
+        if (content.length > READFILE_TRUNCATE_THRESHOLD) {
+          const head = lines.slice(0, READFILE_SUMMARY_LINES).join('\n');
+          const tail = lines.slice(-READFILE_SUMMARY_LINES).join('\n');
+          const omitted = totalLines - READFILE_SUMMARY_LINES * 2;
+          const truncated = `${head}\n\n/* [truncated — ${omitted} lines omitted, ${content.length} chars total — use startLine/endLine to read specific sections] */\n\n${tail}`;
+          return { success: true as const, file, content: truncated, length: content.length, totalLines, truncated: true as const };
+        }
+
+        return { success: true as const, file, content, length: content.length, totalLines };
       },
     }),
   };

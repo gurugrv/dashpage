@@ -1,12 +1,13 @@
 import type { Blueprint, BlueprintPage } from '@/lib/blueprint/types';
 import { LAYOUT_ARCHETYPES_SECTION } from '@/lib/prompts/sections/context-blocks';
 import { BLUEPRINT_DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
-import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
+import { UI_UX_GUIDELINES_COMPACT_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 interface SharedHtml {
   headerHtml?: string;
   footerHtml?: string;
 }
+
 
 export function getPageSystemPrompt(
   blueprint: Blueprint,
@@ -179,7 +180,7 @@ The best designs feel inevitable in hindsight but surprising at first glance.
 
 ${LAYOUT_ARCHETYPES_SECTION}
 
-${UI_UX_GUIDELINES_SECTION}
+${UI_UX_GUIDELINES_COMPACT_SECTION}
 
 <design_token_usage>
 CRITICAL: Use the design system CSS custom properties EVERYWHERE in your markup. Never hardcode colors.
@@ -278,7 +279,7 @@ ${headerRequirement}
 ${footerRequirement}
 6. Use Tailwind + design tokens. Responsive mobile-first. Hover/transition on all interactive elements.
 6b. EVERY semantic section (nav, header, main, section, footer, aside) MUST have a data-block attribute with a unique, descriptive, kebab-case name (e.g. data-block="hero", data-block="main-nav", data-block="site-footer").
-7. Available tools: writeFile, editBlock, editFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
+7. Available tools: writeFile, writeFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
 8. You MUST call writeFile to output the page — do NOT output raw HTML as text.
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce. The blueprint gives you structure; your job is to bring it to life with craft and creativity.

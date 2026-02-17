@@ -58,6 +58,124 @@ function isStreamPart(part: unknown): part is { type: string; [key: string]: unk
 }
 
 /**
+ * Compact messages before sending to LLM to reduce redundant HTML in context.
+ * For each assistant tool-invocation part:
+ * - writeFiles/writeFile args: replace HTML content with placeholder
+ * - editBlock/editFiles results: strip _fullContent, optionally strip large content
+ * - readFile results: truncate large content to head/tail
+ */
+function compactMessagesForLLM<T extends { role: string; parts: Array<Record<string, unknown>> }>(
+  messages: T[],
+): T[] {
+  return messages.map((msg) => {
+    if (msg.role !== 'assistant') return msg;
+
+    let changed = false;
+    const parts = msg.parts.map((part) => {
+      if (part.type !== 'tool-invocation') return part;
+
+      const inv = part.toolInvocation as Record<string, unknown> | undefined;
+      if (!inv || inv.state !== 'result') return part;
+
+      const toolName = inv.toolName as string;
+      const args = inv.args as Record<string, unknown> | undefined;
+      const result = inv.result as Record<string, unknown> | undefined;
+
+      // writeFiles: replace HTML content strings in args.files with placeholders
+      if (toolName === 'writeFiles' && args?.files && typeof args.files === 'object') {
+        const files = args.files as Record<string, unknown>;
+        const compactFiles: Record<string, string> = {};
+        for (const [name, content] of Object.entries(files)) {
+          if (typeof content === 'string' && content.length > 200) {
+            compactFiles[name] = `[${content.length} chars — use readFile to inspect]`;
+          } else {
+            compactFiles[name] = content as string;
+          }
+        }
+        changed = true;
+        return {
+          ...part,
+          toolInvocation: { ...inv, args: { ...args, files: compactFiles } },
+        };
+      }
+
+      // writeFile: replace args.content with placeholder
+      if (toolName === 'writeFile' && args?.content && typeof args.content === 'string' && args.content.length > 200) {
+        changed = true;
+        return {
+          ...part,
+          toolInvocation: {
+            ...inv,
+            args: { ...args, content: `[${args.content.length} chars — use readFile to inspect]` },
+          },
+        };
+      }
+
+      // editFiles: strip _fullContent from results, and strip large content
+      if (toolName === 'editFiles' && result?.results && Array.isArray(result.results)) {
+        const compactResults = (result.results as Array<Record<string, unknown>>).map((r) => {
+          const compacted = { ...r };
+          // Always strip _fullContent (redundant with content)
+          if ('_fullContent' in compacted) {
+            delete compacted._fullContent;
+          }
+          // Strip content over 20K (already truncated to head/tail format anyway)
+          if (typeof compacted.content === 'string' && compacted.content.length > 20_000) {
+            compacted.content = `[${compacted.content.length} chars — edits applied, use readFile to inspect]`;
+          }
+          return compacted;
+        });
+        changed = true;
+        return {
+          ...part,
+          toolInvocation: { ...inv, result: { ...result, results: compactResults } },
+        };
+      }
+
+      // editBlock: strip _fullContent, strip large content
+      if (toolName === 'editBlock' && result) {
+        const needs = '_fullContent' in result || (typeof result.content === 'string' && result.content.length > 20_000);
+        if (needs) {
+          const compacted = { ...result };
+          if ('_fullContent' in compacted) delete compacted._fullContent;
+          if (typeof compacted.content === 'string' && compacted.content.length > 20_000) {
+            compacted.content = `[${compacted.content.length} chars — edits applied, use readFile to inspect]`;
+          }
+          changed = true;
+          return { ...part, toolInvocation: { ...inv, result: compacted } };
+        }
+      }
+
+      // readFile: truncate large results (can trigger for line-range reads that bypass tool-level truncation)
+      if (toolName === 'readFile' && result?.content && typeof result.content === 'string' && result.content.length > 20_000) {
+        const content = result.content;
+        const lines = content.split('\n');
+        const SUMMARY_LINES = 50;
+        const head = lines.slice(0, SUMMARY_LINES).join('\n');
+        const tail = lines.slice(-SUMMARY_LINES).join('\n');
+        const omitted = Math.max(0, lines.length - SUMMARY_LINES * 2);
+        changed = true;
+        return {
+          ...part,
+          toolInvocation: {
+            ...inv,
+            result: {
+              ...result,
+              content: `${head}\n\n/* [truncated — ${omitted} lines omitted, ${content.length} chars total] */\n\n${tail}`,
+            },
+          },
+        };
+      }
+
+      return part;
+    });
+
+    if (!changed) return msg;
+    return { ...msg, parts };
+  });
+}
+
+/**
  * Sanitize UIMessages so tool-invocation parts always have a valid object `input`.
  * The Anthropic API rejects tool_use blocks whose `input` is not a dictionary.
  * This can happen when:
@@ -387,7 +505,7 @@ export async function POST(req: Request) {
             const result = streamText({
               model: modelInstance,
               system: systemOption,
-              messages: await convertToModelMessages(sanitizeToolInputs(continuationMessages)),
+              messages: await convertToModelMessages(compactMessagesForLLM(sanitizeToolInputs(continuationMessages))),
               maxOutputTokens: resolvedMaxOutputTokens,
               tools,
               stopWhen: stepCountIs(10),

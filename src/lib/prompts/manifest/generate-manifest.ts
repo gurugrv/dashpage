@@ -4,7 +4,7 @@ import type { ProjectFiles } from '@/types';
 /** Max file size (chars) to include in full instead of generating a manifest. */
 const SMALL_FILE_THRESHOLD = 4000;
 /** Higher threshold for edit mode — AI already has context, include more detail. */
-const EDIT_MODE_THRESHOLD = 12000;
+const EDIT_MODE_THRESHOLD = 6000;
 
 /**
  * Extract CSS custom properties from :root {} blocks.
@@ -113,7 +113,7 @@ export function extractBlocks(html: string, componentNames: Set<string>): BlockE
     const inner = $el.html() || '';
     const summary = summarizeContent(inner);
     const trimmedInner = inner.trim();
-    const snippet = trimmedInner.length > 200 ? trimmedInner.slice(0, 200) + '...' : trimmedInner;
+    const snippet = trimmedInner.length > 100 ? trimmedInner.slice(0, 100) + '...' : trimmedInner;
 
     // For nav elements, extract link targets
     if (tag === 'nav') {
@@ -253,14 +253,24 @@ export function generateManifest(files: ProjectFiles, options?: { editMode?: boo
     const fonts = extractFonts(content);
     const blocks = extractBlocks(content, componentNames);
 
-    let manifest = `<file name="${filename}" size="${content.length}">`;
+    const hint = options?.editMode ? ' hint="use readFile before editing"' : '';
+    let manifest = `<file name="${filename}" size="${content.length}"${hint}>`;
 
-    // For large files over threshold in edit mode, include <style> and <head> content
-    // so the AI has design tokens and Tailwind config without needing readFile
+    // Minimal head summary: count scripts/styles so AI knows what's in <head> without full content
     if (options?.editMode) {
       const headMatch = content.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
       if (headMatch) {
-        manifest += `\n  <head_content>\n${headMatch[1].trim()}\n  </head_content>`;
+        const headContent = headMatch[1];
+        const headParts: string[] = [];
+        const scriptCount = (headContent.match(/<script[\s>]/gi) || []).length;
+        const styleCount = (headContent.match(/<style[\s>]/gi) || []).length;
+        const hasTailwind = /tailwindcss|cdn\.tailwindcss/i.test(headContent);
+        if (hasTailwind) headParts.push('Tailwind CDN');
+        if (scriptCount > 0) headParts.push(`${scriptCount} script${scriptCount > 1 ? 's' : ''}`);
+        if (styleCount > 0) headParts.push(`${styleCount} style block${styleCount > 1 ? 's' : ''}`);
+        if (headParts.length > 0) {
+          manifest += `\n  <head_summary>${headParts.join(', ')}</head_summary>`;
+        }
       }
     }
 

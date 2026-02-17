@@ -272,8 +272,9 @@ export async function POST(req: Request) {
       async function generateSinglePage(page: typeof pages[number]) {
         if (abortSignal.aborted) return;
 
-        // Fresh tool set per page — workingFiles accumulator starts empty
-        const { tools: pageTools, workingFiles } = createWebsiteTools({});
+        // Fresh tool set per page — exclude edit tools not needed during generation
+        const PAGE_GEN_TOOLS = new Set(['writeFile', 'writeFiles', 'readFile', 'searchImages', 'searchIcons', 'webSearch', 'fetchUrl']);
+        const { tools: pageTools, workingFiles } = createWebsiteTools({}, { toolSubset: PAGE_GEN_TOOLS });
 
         sendEvent({
           type: 'page-status',
