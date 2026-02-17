@@ -213,6 +213,23 @@ function extractStreamingCode(parts: UIMessage['parts']): string | null {
   return null;
 }
 
+const EDIT_TOOLS = new Set(['editBlock', 'editFiles']);
+
+/**
+ * Detect whether an edit tool is currently executing (no output yet).
+ * Returns true when editBlock/editFiles is in input-streaming or input-available state.
+ */
+function detectEditInProgress(parts: UIMessage['parts']): boolean {
+  for (const part of parts) {
+    if (!isToolPart(part)) continue;
+    if (!EDIT_TOOLS.has(part.toolName ?? '')) continue;
+    if (part.state === 'input-streaming' || part.state === 'input-available') {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function useHtmlParser() {
   const [currentFiles, setCurrentFiles] = useState<ProjectFiles>({});
   const [lastValidFiles, setLastValidFiles] = useState<ProjectFiles>({});
@@ -222,6 +239,7 @@ export function useHtmlParser() {
   const lastValidFilesRef = useRef<ProjectFiles>({});
   const lastProcessedRef = useRef<{ messageId: string; partsLength: number; isLoading: boolean } | null>(null);
   const postProcessedRef = useRef(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const updateLastValid = useCallback((files: ProjectFiles) => {
     setLastValidFiles(files);
@@ -261,6 +279,13 @@ export function useHtmlParser() {
     } else if (streamingCodeRef.current !== null) {
       streamingCodeRef.current = null;
       setStreamingCode(null);
+    }
+
+    // Detect in-progress edit tool execution
+    if (isLoading) {
+      setIsEditing(detectEditInProgress(lastMessage.parts));
+    } else {
+      setIsEditing(false);
     }
 
     // Extract files from tool result parts
@@ -311,5 +336,5 @@ export function useHtmlParser() {
     updateLastValid(files);
   }, [updateLastValid]);
 
-  return { currentFiles, lastValidFiles, isGenerating, streamingCode, processMessages, setFiles };
+  return { currentFiles, lastValidFiles, isGenerating, isEditing, streamingCode, processMessages, setFiles };
 }
