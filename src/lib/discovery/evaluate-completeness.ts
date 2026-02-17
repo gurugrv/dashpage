@@ -157,7 +157,7 @@ Remaining question budget: ${MAX_TOTAL_QUESTIONS - questionsAskedSoFar}`;
 
   const outputJson = JSON.stringify(output, null, 2);
   debug?.logResponse({ response: outputJson, status: 'complete', finishReason: result.finishReason });
-  debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length });
+  debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length, usage: result.usage });
 
   return output;
 }

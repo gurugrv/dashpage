@@ -73,6 +73,7 @@ export async function POST(req: Request) {
     let blueprint: Blueprint;
     let rawText: string | undefined;
     let finishReason: string | undefined;
+    let resultUsage: { inputTokens?: number; outputTokens?: number } | undefined;
     const useStructuredOutput = providerConfig?.supportsStructuredOutput !== false;
 
     try {
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
 
         rawText = result.text;
         finishReason = result.finishReason;
+        resultUsage = result.usage;
         if (useStructuredOutput) {
           // result.output getter throws NoOutputGeneratedError when parsing failed internally
           let parsed: Blueprint | undefined;
@@ -163,6 +165,7 @@ export async function POST(req: Request) {
       toolCallCount: 0,
       structuredOutput: true,
       rawTextLength: rawText?.length ?? 0,
+      usage: resultUsage,
     });
 
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');

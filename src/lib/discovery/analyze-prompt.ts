@@ -165,7 +165,7 @@ export async function analyzePromptForDiscovery(
 
   const outputJson = JSON.stringify(output, null, 2);
   debug?.logResponse({ response: outputJson, status: 'complete', finishReason: result.finishReason });
-  debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length });
+  debug?.logGenerationSummary?.({ finishReason: result.finishReason, hasFileOutput: false, toolCallCount: 0, structuredOutput: true, rawTextLength: outputJson.length, usage: result.usage });
 
   return output;
 }
