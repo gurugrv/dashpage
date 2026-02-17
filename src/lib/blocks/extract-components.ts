@@ -8,28 +8,50 @@ interface ExtractedComponent {
 }
 
 /**
- * Normalize HTML for similarity comparison: collapse whitespace, remove comments.
+ * Extract structural skeleton: tag names + structural attributes only.
+ * Strips text nodes and non-structural attribute values so that two
+ * navs with different link text but identical structure score high.
  */
-function normalizeForComparison(html: string): string {
+function structuralSkeleton(html: string): string {
   return html
+    // Remove comments
     .replace(/<!--[\s\S]*?-->/g, '')
+    // Remove text between tags (keep only tags)
+    .replace(/>[^<]+</g, '><')
+    // Strip all attributes except class, id, data-block
+    .replace(/<(\w+)(\s[^>]*)?>/g, (_match, tag, attrs) => {
+      if (!attrs) return `<${tag}>`;
+      const kept: string[] = [];
+      const classMatch = attrs.match(/\bclass="([^"]*)"/);
+      if (classMatch) kept.push(`class="${classMatch[1]}"`);
+      const idMatch = attrs.match(/\bid="([^"]*)"/);
+      if (idMatch) kept.push(`id="${idMatch[1]}"`);
+      const blockMatch = attrs.match(/\bdata-block="([^"]*)"/);
+      if (blockMatch) kept.push(`data-block="${blockMatch[1]}"`);
+      return kept.length > 0 ? `<${tag} ${kept.join(' ')}>` : `<${tag}>`;
+    })
+    // Collapse whitespace
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
- * Calculate similarity between two strings (0-1).
- * Character-level comparison for reasonable-length strings.
+ * Calculate structural similarity between two HTML strings (0-1).
+ * Compares tag skeletons so identical structures with different
+ * text content (link labels, phone numbers, etc.) still match.
  */
 function similarity(a: string, b: string): number {
-  if (a === b) return 1;
-  const maxLen = Math.max(a.length, b.length);
+  const skelA = structuralSkeleton(a);
+  const skelB = structuralSkeleton(b);
+  if (skelA === skelB) return 1;
+
+  const maxLen = Math.max(skelA.length, skelB.length);
   if (maxLen === 0) return 1;
 
   let matches = 0;
-  const minLen = Math.min(a.length, b.length);
+  const minLen = Math.min(skelA.length, skelB.length);
   for (let i = 0; i < minLen; i++) {
-    if (a[i] === b[i]) matches++;
+    if (skelA[i] === skelB[i]) matches++;
   }
   return matches / maxLen;
 }
@@ -56,7 +78,7 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
 
   for (const tag of componentTags) {
     // Collect the outerHTML of this tag from each page, keyed by data-block ID
-    const blocksByPage: Array<{ page: string; blockId: string; outerHtml: string; normalized: string }> = [];
+    const blocksByPage: Array<{ page: string; blockId: string; outerHtml: string }> = [];
 
     for (const page of pageFiles) {
       const $ = cheerio.load(files[page]);
@@ -71,7 +93,6 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
         page,
         blockId,
         outerHtml,
-        normalized: normalizeForComparison(outerHtml),
       });
     }
 
@@ -81,7 +102,7 @@ export function extractComponents(files: ProjectFiles): ExtractedComponent[] {
     // Check similarity: compare all against the first page's version
     const reference = blocksByPage[0];
     const allSimilar = blocksByPage.every(
-      b => similarity(reference.normalized, b.normalized) >= 0.9,
+      b => similarity(reference.outerHtml, b.outerHtml) >= 0.9,
     );
 
     if (!allSimilar) continue;
