@@ -128,6 +128,7 @@ The styles.css file must contain ALL of the following:
 
 Keep the CSS clean, well-organized with comments separating sections. Use the design tokens everywhere — no hardcoded colors.
 Do NOT include Tailwind CDN or Google Fonts imports — those are handled separately in the <head> tags.
+Do NOT include nav active-state or data-current-page CSS — active link highlighting is already handled via CSS in the component HTML using [data-current-page] attribute selectors.
 </styles_css_requirements>
 
 <scripts_js_requirements>
@@ -148,9 +149,7 @@ The scripts.js file must contain ALL of the following:
    - Only trigger once (unobserve after reveal)
 3. **Smooth scroll** — for anchor links (#section-id)
    - Account for fixed header height
-4. **Active nav highlighting** — mark current page in navigation
-   - Compare current filename to nav link hrefs
-   - Add .active class to matching link
+4. **Active nav highlighting** — already handled by CSS in the component HTML via [data-current-page] attribute selectors. Do NOT add JS-based active nav highlighting.
 ${interactiveElements.has('accordion') ? `5. **Accordion** — toggle FAQ/accordion items:
    - Click handler for [data-accordion-trigger]
    - Toggle [data-accordion-content] visibility with slide animation
