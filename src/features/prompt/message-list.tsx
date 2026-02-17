@@ -19,9 +19,17 @@ interface MessageListProps {
 
 const BLUEPRINT_PHASES = [
   'Analyzing requirements...',
+  'Evaluating design patterns...',
   'Planning page structure...',
+  'Defining color palette...',
   'Selecting components...',
+  'Organizing navigation flow...',
   'Mapping content layout...',
+  'Choosing typography...',
+  'Structuring visual hierarchy...',
+  'Refining section order...',
+  'Optimizing responsive layout...',
+  'Finalizing blueprint...',
 ];
 
 function BlueprintLoadingIndicator() {
