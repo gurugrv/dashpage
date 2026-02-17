@@ -42,7 +42,8 @@ function splitTextAroundTools(parts: UIMessage['parts']): { preface: string; sum
     const typed = part as { type: string; text?: string };
     if (typed.type.startsWith('tool-')) {
       hasTools = true;
-      // Any text accumulated after a previous tool is not the final summary — discard into preface
+      // Move any text accumulated between tool calls into preface (keep it visible)
+      preface += postToolText;
       postToolText = '';
     } else if (typed.type === 'text') {
       if (!hasTools) {
@@ -178,10 +179,10 @@ export function Builder() {
       const convId = activeConversationIdRef.current;
       const files = currentFilesRef.current;
 
-      if (partialSavedRef.current) {
-        streamingTextRef.current = '';
-        return;
-      }
+      // Always persist the complete message even if a partial was saved
+      // (handles race where Stop is pressed at natural completion).
+      // The messages POST route cleans up any isPartial rows when
+      // persisting a complete assistant message with an artifact.
 
       if (convId) {
         const htmlArtifact = isPersistableArtifact(files) ? files : null;

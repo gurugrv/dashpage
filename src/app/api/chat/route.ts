@@ -354,6 +354,8 @@ export async function POST(req: Request) {
         try {
           for (let segment = 0; segment < MAX_CONTINUATION_SEGMENTS; segment += 1) {
             let segmentText = '';
+            // Collect tool invocations for proper continuation context
+            const segmentToolInvocations = new Map<string, { toolName: string; args: unknown; result?: unknown }>();
             // For Anthropic: pass system prompt as two SystemModelMessages — the stable part
             // with cacheControl to enable prompt caching (~90% cost reduction on cache hits),
             // and the dynamic part without. Anthropic concatenates system messages in order.
@@ -464,6 +466,7 @@ export async function POST(req: Request) {
                 const toolName = part.toolName as string;
                 const toolCallId = part.toolCallId as string;
                 const input = (part as { input?: unknown }).input;
+                segmentToolInvocations.set(toolCallId, { toolName, args: input });
                 debugSession.logToolCall({ toolName, toolCallId, input });
 
                 const detail = summarizeToolInput(toolName, input);
@@ -486,6 +489,8 @@ export async function POST(req: Request) {
                 const toolCallId = part.toolCallId as string;
                 const toolName = toolCallNames.get(toolCallId) ?? '';
                 const output = (part as { output?: unknown }).output;
+                const inv = segmentToolInvocations.get(toolCallId);
+                if (inv) inv.result = output;
                 debugSession.logToolResult({ toolCallId, output });
 
                 // Track file-producing tool completions
@@ -578,9 +583,33 @@ export async function POST(req: Request) {
               break;
             }
 
+            // Build assistant parts with text AND tool invocations so
+            // continuation requests preserve full tool context (required by
+            // Anthropic's tool_use/tool_result alternation, and gives all
+            // providers memory of what was already generated/fetched).
+            const assistantParts: Array<Record<string, unknown>> = [];
+            if (segmentText) {
+              assistantParts.push({ type: 'text', text: segmentText });
+            }
+            for (const [toolCallId, inv] of segmentToolInvocations) {
+              assistantParts.push({
+                type: 'tool-invocation',
+                toolInvocation: {
+                  state: 'result',
+                  toolCallId,
+                  toolName: inv.toolName,
+                  args: inv.args ?? {},
+                  result: inv.result ?? {},
+                },
+              });
+            }
+            if (assistantParts.length === 0) {
+              assistantParts.push({ type: 'text', text: '' });
+            }
+
             continuationMessages = [
               ...continuationMessages,
-              { role: 'assistant', parts: [{ type: 'text', text: segmentText }] },
+              { role: 'assistant', parts: assistantParts },
               { role: 'user', parts: [{ type: 'text', text: buildContinuePrompt(segmentText) }] },
             ] as Array<Omit<UIMessage, 'id'>>;
           }

@@ -26,14 +26,22 @@ export async function POST(
     return NextResponse.json({ error: 'role and content are required' }, { status: 400 });
   }
 
-  const message = await prisma.message.create({
-    data: {
-      conversationId: id,
-      role,
-      content,
-      htmlArtifact: htmlArtifact ?? undefined,
-    },
-  });
+  // When persisting a complete assistant message with an artifact,
+  // clean up any partial messages first (handles Stop + natural completion race)
+  const shouldCleanPartials = role === 'assistant' && htmlArtifact;
+
+  const message = shouldCleanPartials
+    ? await prisma.$transaction(async (tx) => {
+        await tx.message.deleteMany({
+          where: { conversationId: id, isPartial: true },
+        });
+        return tx.message.create({
+          data: { conversationId: id, role, content, htmlArtifact: htmlArtifact ?? undefined },
+        });
+      })
+    : await prisma.message.create({
+        data: { conversationId: id, role, content, htmlArtifact: htmlArtifact ?? undefined },
+      });
 
   // Touch conversation updatedAt
   await prisma.conversation.update({

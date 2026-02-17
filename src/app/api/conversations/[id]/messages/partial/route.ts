@@ -20,14 +20,22 @@ export async function POST(
     return NextResponse.json({ error: 'role and content are required' }, { status: 400 });
   }
 
-  const message = await prisma.message.create({
-    data: {
-      conversationId: id,
-      role,
-      content,
-      htmlArtifact: htmlArtifact ?? undefined,
-      isPartial: true,
-    },
+  // Delete any existing partial messages first to prevent duplicates
+  // (beforeunload + cleanup useEffect can both fire)
+  const message = await prisma.$transaction(async (tx) => {
+    await tx.message.deleteMany({
+      where: { conversationId: id, isPartial: true },
+    });
+
+    return tx.message.create({
+      data: {
+        conversationId: id,
+        role,
+        content,
+        htmlArtifact: htmlArtifact ?? undefined,
+        isPartial: true,
+      },
+    });
   });
 
   // Track interrupted state for resume detection
