@@ -7,7 +7,6 @@ import { isPersistableArtifact } from '@/lib/parser/validate-artifact';
 import type { ProjectFiles } from '@/types';
 
 interface UseStreamingPersistenceOptions {
-  activeConversationId: string | null;
   messages: UIMessage[];
   isLoading: boolean;
   currentFilesRef: MutableRefObject<ProjectFiles>;
@@ -17,7 +16,6 @@ interface UseStreamingPersistenceOptions {
 }
 
 export function useStreamingPersistence({
-  activeConversationId,
   messages,
   isLoading,
   currentFilesRef,
@@ -25,10 +23,6 @@ export function useStreamingPersistence({
   partialSavedRef,
   streamingTextRef,
 }: UseStreamingPersistenceOptions) {
-  useEffect(() => {
-    activeConversationIdRef.current = activeConversationId;
-  }, [activeConversationId, activeConversationIdRef]);
-
   useEffect(() => {
     if (!isLoading || messages.length === 0) return;
 

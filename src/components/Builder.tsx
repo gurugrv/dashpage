@@ -65,6 +65,7 @@ export function Builder() {
   const conversationIdFromUrl = searchParams.get('conversation');
 
   const [activeConversationId, setActiveConversationIdState] = useState<string | null>(null);
+  const activeConversationIdRef = useRef<string | null>(activeConversationId);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [input, setInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -74,6 +75,7 @@ export function Builder() {
   // Sync active conversation with URL
   const setActiveConversationId = useCallback((id: string | null) => {
     setActiveConversationIdState(id);
+    activeConversationIdRef.current = id;
     const params = new URLSearchParams(searchParams);
     if (id) {
       params.set('conversation', id);
@@ -147,7 +149,6 @@ export function Builder() {
   const isDiscoveryActive = discovery.phase !== 'idle' && discovery.phase !== 'complete' && discovery.phase !== 'skipped';
 
   const currentFilesRef = useRef<ProjectFiles>(currentFiles);
-  const activeConversationIdRef = useRef<string | null>(activeConversationId);
   const streamConversationIdRef = useRef<string | null>(null);
   const partialSavedRef = useRef(false);
   const streamingTextRef = useRef('');
@@ -273,7 +274,6 @@ export function Builder() {
   }, [completedDisplayMessages, messages, isLoading]);
 
   const { savePartial } = useStreamingPersistence({
-    activeConversationId,
     messages,
     isLoading,
     currentFilesRef,
