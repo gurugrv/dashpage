@@ -210,10 +210,15 @@ function applyReplacement(
  * Apply a sequence of edit operations with 4-tier matching.
  * Continues through ALL operations even when some fail, maximizing applied changes.
  */
+const CASCADE_MIN_LENGTH = 15;
+const CASCADE_SUBSTR_LENGTH = 40;
+
 export function applyEditOperations(html: string, operations: EditOperation[]): ApplyResult {
   let result = html;
   const matchTiers: MatchTier[] = [];
   const failedOps: FailedOperation[] = [];
+  // Track replace text from failed operations for cascade detection
+  const failedReplaceTexts: string[] = [];
 
   for (let index = 0; index < operations.length; index++) {
     const { search, replace, expectedReplacements } = operations[index];
@@ -224,6 +229,22 @@ export function applyEditOperations(html: string, operations: EditOperation[]): 
         index,
         error: `Operation ${index + 1}/${operations.length} failed: empty search string`,
         bestMatch: null,
+      });
+      continue;
+    }
+
+    // Cascade detection: if this operation's search text contains content from
+    // a previously failed operation's replace text, it would have depended on
+    // that operation succeeding first — skip it as a cascade failure
+    const cascadeSource = failedReplaceTexts.find(
+      (rt) => search.includes(rt.slice(0, Math.max(CASCADE_SUBSTR_LENGTH, rt.length))),
+    );
+    if (cascadeSource) {
+      failedOps.push({
+        index,
+        error: `Operation ${index + 1}/${operations.length} skipped: depends on a prior failed operation (cascade)`,
+        bestMatch: null,
+        cascade: true,
       });
       continue;
     }
@@ -274,6 +295,10 @@ export function applyEditOperations(html: string, operations: EditOperation[]): 
       error: `Operation ${index + 1}/${operations.length} failed: search text not found${similarity}`,
       bestMatch,
     });
+    // Track replace text for cascade detection (skip short strings to avoid false positives)
+    if (replace.length >= CASCADE_MIN_LENGTH) {
+      failedReplaceTexts.push(replace);
+    }
   }
 
   if (failedOps.length === 0) {

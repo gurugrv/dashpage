@@ -84,7 +84,7 @@ function normalizeFilesInput(val: unknown): unknown {
   return Object.keys(result).length > 0 ? result : val;
 }
 
-export function createFileTools(workingFiles: ProjectFiles) {
+export function createFileTools(workingFiles: ProjectFiles, fileSnapshots: ProjectFiles) {
   const editFileMistakes: MistakeTracker = new Map();
   let writeFilesEmptyCount = 0;
 
@@ -156,6 +156,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         }
 
         Object.assign(workingFiles, normalized);
+        Object.assign(fileSnapshots, normalized);
         return { success: true as const, fileNames: Object.keys(normalized) };
       },
     }),
@@ -187,6 +188,7 @@ export function createFileTools(workingFiles: ProjectFiles) {
         }
 
         workingFiles[fixedName] = content;
+        fileSnapshots[fixedName] = content;
         return { success: true as const, fileName: fixedName };
       },
     }),
@@ -244,7 +246,9 @@ export function createFileTools(workingFiles: ProjectFiles) {
             }
             if (replaceResult.success === 'partial') {
               fileSuccess = 'partial';
-              fileError = [fileError, replaceResult.error].filter(Boolean).join('; ');
+              const cascadeCount = replaceResult.failedOperations?.filter(f => f.cascade).length ?? 0;
+              const cascadeNote = cascadeCount > 0 ? ` (${cascadeCount} cascade failure${cascadeCount > 1 ? 's' : ''} — dependent operations skipped)` : '';
+              fileError = [fileError, replaceResult.error + cascadeNote].filter(Boolean).join('; ');
               failedOperations = replaceResult.failedOperations;
             } else if (replaceResult.success === false) {
               fileSuccess = false;
@@ -263,8 +267,17 @@ export function createFileTools(workingFiles: ProjectFiles) {
             }
           }
 
-          if (fileSuccess !== false) {
+          if (fileSuccess === true) {
             workingFiles[edit.file] = currentHtml;
+            fileSnapshots[edit.file] = currentHtml;
+          } else if (fileSuccess === 'partial') {
+            // Commit partial changes to working files but keep old snapshot for rollback
+            workingFiles[edit.file] = currentHtml;
+          } else {
+            // Total failure — restore from last-known-good snapshot
+            if (fileSnapshots[edit.file] !== undefined) {
+              workingFiles[edit.file] = fileSnapshots[edit.file];
+            }
           }
 
           results.push({

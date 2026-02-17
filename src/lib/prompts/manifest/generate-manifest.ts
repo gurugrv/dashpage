@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio';
 import type { ProjectFiles } from '@/types';
 
 /** Max file size (chars) to include in full instead of generating a manifest. */
-const SMALL_FILE_THRESHOLD = 1000;
+const SMALL_FILE_THRESHOLD = 4000;
 
 /**
  * Extract CSS custom properties from :root {} blocks.
@@ -75,6 +75,7 @@ interface BlockEntry {
   tag: string;       // nav, section, footer, etc.
   component?: string; // component name if this is a placeholder
   summary: string;
+  snippet?: string;  // first ~200 chars of inner HTML (trimmed)
 }
 
 /**
@@ -109,17 +110,19 @@ export function extractBlocks(html: string, componentNames: Set<string>): BlockE
 
     const inner = $el.html() || '';
     const summary = summarizeContent(inner);
+    const trimmedInner = inner.trim();
+    const snippet = trimmedInner.length > 200 ? trimmedInner.slice(0, 200) + '...' : trimmedInner;
 
     // For nav elements, extract link targets
     if (tag === 'nav') {
       const navLinks = extractNavLinks(`<nav>${inner}</nav>`);
       if (navLinks.length > 0) {
-        blocks.push({ id: blockId, tag, summary: `${summary} -> [${navLinks.join(', ')}]` });
+        blocks.push({ id: blockId, tag, summary: `${summary} -> [${navLinks.join(', ')}]`, snippet });
         return;
       }
     }
 
-    blocks.push({ id: blockId, tag, summary });
+    blocks.push({ id: blockId, tag, summary, snippet });
   });
 
   return blocks;
@@ -262,6 +265,7 @@ export function generateManifest(files: ProjectFiles): { perFile: string; siteOv
         let line = `    ${b.id}`;
         if (b.component) line += ` (component:${b.component})`;
         line += ` — ${b.summary}`;
+        if (b.snippet) line += `\n      preview: ${b.snippet}`;
         return line;
       }).join('\n')}\n  </blocks>`;
     }

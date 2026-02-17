@@ -25,7 +25,7 @@ function isComponentBlock(blockId: string, workingFiles: ProjectFiles): string |
   return null;
 }
 
-export function createBlockTools(workingFiles: ProjectFiles) {
+export function createBlockTools(workingFiles: ProjectFiles, fileSnapshots: ProjectFiles) {
   return {
     editBlock: tool({
       description:
@@ -122,12 +122,20 @@ export function createBlockTools(workingFiles: ProjectFiles) {
           switch (action) {
             case 'replace': {
               if (!content) return { success: false as const, error: 'replace action requires "content" parameter.' };
-              // If replacing a block, ensure data-block is preserved on new content
               if (blockId) {
                 const $new = cheerio.load(content);
-                const newRoot = $new('body').children().first();
-                if (newRoot.length > 0 && !newRoot.attr('data-block')) {
-                  newRoot.attr('data-block', blockId);
+                const children = $new('body').children();
+                if (children.length > 0) {
+                  // Always force original blockId on first root
+                  children.first().attr('data-block', blockId);
+                  // Auto-assign IDs to additional roots that lack one
+                  children.each((i, el) => {
+                    if (i === 0) return; // already handled
+                    const $el = $new(el);
+                    if (!$el.attr('data-block')) {
+                      $el.attr('data-block', `${blockId}-${i}`);
+                    }
+                  });
                   matched.replaceWith($new('body').html()!);
                 } else {
                   matched.replaceWith(content);
@@ -172,6 +180,7 @@ export function createBlockTools(workingFiles: ProjectFiles) {
 
           const newHtml = $.html();
           workingFiles[file] = newHtml;
+          fileSnapshots[file] = newHtml;
           return { success: true as const, file, content: newHtml };
         } catch (err) {
           return {

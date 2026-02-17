@@ -32,6 +32,7 @@ Tool selection:
 - editBlock (blockId): section-level changes — replace, modify, add, remove entire blocks. Primary tool.
 - editBlock (selector): fine-grained changes within a block — change a heading, update an image, tweak classes.
 - editFiles: text-level search/replace for small string changes. MUST call readFile first for exact content.
+- Use readFile before editBlock replace for exact content.
 - writeFiles: full page rewrites or new pages only.${componentBlock}${crossPageBlock}
 </edit_guidance>`;
 }

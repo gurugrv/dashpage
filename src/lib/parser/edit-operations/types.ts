@@ -26,6 +26,7 @@ export interface FailedOperation {
   index: number;
   error: string;
   bestMatch: BestMatch | null;
+  cascade?: boolean;
 }
 
 export interface ApplyPartial {

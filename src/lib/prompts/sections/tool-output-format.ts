@@ -50,7 +50,7 @@ EDIT (small change — text, colors, layout tweaks, removing/hiding elements):
 DO NOT call searchImages, searchIcons, or webSearch for small edits.
 
 EDIT (structural change — new sections, major rework):
-1. readFile (if unsure about current file state)
+1. readFile (REQUIRED before editBlock replace or editFiles)
 2. webSearch (only if adding content requiring real-world facts)
 3. searchImages/searchIcons (ONLY if adding NEW images/icons)
 4. editBlock with action "replace" or "replaceInner" → replace entire section
