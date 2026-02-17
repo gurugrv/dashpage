@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   Building2, Phone, Mail, Globe, MapPin, Clock,
-  Briefcase, Sparkles, Pencil,
+  Briefcase, Sparkles, Pencil, Share2, Quote, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -144,6 +144,24 @@ export function BusinessProfileSummary({ profile, onConfirm, onAddMore }: Busine
             <Briefcase className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
             <span className="w-16 shrink-0 text-xs text-muted-foreground">Services</span>
             <span className="flex-1 text-sm">{editProfile.services.join(', ')}</span>
+          </div>
+        )}
+        {editProfile.socialMedia && Object.keys(editProfile.socialMedia).length > 0 && (
+          <div className="flex items-start gap-2 py-1">
+            <Share2 className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <span className="w-16 shrink-0 text-xs text-muted-foreground">Social</span>
+            <div className="flex flex-col gap-0.5 text-sm">
+              {Object.entries(editProfile.socialMedia).map(([platform, url]) => (
+                <span key={platform} className="capitalize">{platform}: {url}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {editProfile.additionalInfo && (
+          <div className="flex items-start gap-2 py-1">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <span className="w-16 shrink-0 text-xs text-muted-foreground">Other</span>
+            <span className="flex-1 text-sm whitespace-pre-line">{editProfile.additionalInfo.trim()}</span>
           </div>
         )}
       </div>

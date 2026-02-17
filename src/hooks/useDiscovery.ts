@@ -116,8 +116,28 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
     if (answers.email) profile.email = answers.email;
     if (answers.website) profile.website = answers.website;
     if (answers.address) profile.address = answers.address;
-    if (answers.hours) profile.additionalInfo = (profile.additionalInfo ?? '') + `\nHours: ${answers.hours}`;
+    if (answers.hours) profile.hours = { general: answers.hours };
     if (answers.services) profile.services = answers.services.split(',').map((s) => s.trim()).filter(Boolean);
+    if (answers.social_media) {
+      const parsed: Record<string, string> = {};
+      answers.social_media.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).forEach((entry) => {
+        const colonIdx = entry.indexOf(':');
+        if (colonIdx > 0) {
+          parsed[entry.slice(0, colonIdx).trim()] = entry.slice(colonIdx + 1).trim();
+        } else {
+          // Just a URL — try to detect platform from hostname
+          try {
+            const host = new URL(entry).hostname.replace('www.', '');
+            const platform = host.split('.')[0];
+            parsed[platform] = entry;
+          } catch {
+            parsed[`link${Object.keys(parsed).length + 1}`] = entry;
+          }
+        }
+      });
+      if (Object.keys(parsed).length > 0) profile.socialMedia = parsed;
+    }
+    if (answers.tagline) profile.additionalInfo = (profile.additionalInfo ?? '') + `\nTagline: ${answers.tagline}`;
     if (answers.description) profile.additionalInfo = (profile.additionalInfo ?? '') + `\n${answers.description}`;
 
     // Merge enrichment data
@@ -130,7 +150,7 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
     }
 
     // Collect remaining answers as additionalInfo
-    const knownKeys = new Set(['business_name', 'name', 'phone', 'email', 'website', 'address', 'hours', 'services', 'description']);
+    const knownKeys = new Set(['business_name', 'name', 'phone', 'email', 'website', 'address', 'hours', 'services', 'description', 'social_media', 'tagline']);
     const extras = Object.entries(answers)
       .filter(([k, v]) => !knownKeys.has(k) && v)
       .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
