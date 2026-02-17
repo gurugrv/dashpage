@@ -462,7 +462,14 @@ export async function POST(req: Request) {
           }
 
           const finishReason = await result.finishReason;
+          const pageUsage = await result.usage;
           debugSession.logFullResponse(finishReason);
+          debugSession.logGenerationSummary?.({
+            finishReason,
+            hasFileOutput: !!workingFiles[page.filename],
+            toolCallCount: 0,
+            usage: pageUsage,
+          });
 
           // Normalize filenames: models sometimes hallucinate prefixes like _about.html
           for (const key of Object.keys(workingFiles)) {
@@ -565,7 +572,8 @@ export async function POST(req: Request) {
             ...(pageSummary ? { summary: pageSummary } : {}),
           });
           completedPagesMap[page.filename] = pageHtml;
-          await prisma.generationState.update({
+          // Fire-and-forget: don't block semaphore slot release on DB write
+          prisma.generationState.update({
             where: { conversationId },
             data: { completedPages: completedPagesMap },
           }).catch((err) => { console.error('[blueprint/pages] Failed to persist completedPages:', err); });
