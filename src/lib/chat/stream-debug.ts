@@ -1,3 +1,5 @@
+import { getModelPricing } from './model-pricing';
+
 // ANSI color palette for distinguishing concurrent sessions
 const SESSION_COLORS = [
   '\x1b[36m',  // cyan
@@ -90,7 +92,7 @@ export interface DebugSession {
   logFullResponse(finishReason?: string): void;
   logCacheStats?(metadata: Record<string, unknown> | undefined): void;
   /** Log generation summary with tool timeline and throughput stats */
-  logGenerationSummary?(params: { finishReason?: string; hasFileOutput: boolean; toolCallCount: number; structuredOutput?: boolean; rawTextLength?: number }): void;
+  logGenerationSummary?(params: { finishReason?: string; hasFileOutput: boolean; toolCallCount: number; structuredOutput?: boolean; rawTextLength?: number; usage?: { inputTokens?: number; outputTokens?: number } }): void | Promise<void>;
 }
 
 /**
@@ -388,7 +390,7 @@ export function createDebugSession(params: {
       }
     },
 
-    logGenerationSummary({ finishReason, hasFileOutput, toolCallCount, structuredOutput, rawTextLength }) {
+    async logGenerationSummary({ finishReason, hasFileOutput, toolCallCount, structuredOutput, rawTextLength, usage }) {
       const now = Date.now();
       const totalDuration = now - sessionStartedAt;
       const parts: string[] = [
@@ -398,6 +400,38 @@ export function createDebugSession(params: {
         `${color}${'─'.repeat(60)}${RESET}`,
         `${prefix()}Duration: ${formatDuration(totalDuration)} | Finish: ${finishReason || 'unknown'}`,
       ];
+
+      // Token usage & cost
+      if (usage && (usage.inputTokens || usage.outputTokens)) {
+        const input = usage.inputTokens ?? 0;
+        const output = usage.outputTokens ?? 0;
+        const total = input + output;
+        parts.push(
+          `${prefix()}Tokens: ${total.toLocaleString()} total (${input.toLocaleString()} in / ${output.toLocaleString()} out)`,
+        );
+
+        if (input > 0 || output > 0) {
+          // Try real pricing from LiteLLM, fall back to hardcoded estimate
+          const pricing = model ? await getModelPricing(model, provider) : null;
+          if (pricing) {
+            const inputCost = input * pricing.inputCostPerToken;
+            const outputCost = output * pricing.outputCostPerToken;
+            const totalCost = inputCost + outputCost;
+            const inputPer1M = (pricing.inputCostPerToken * 1_000_000).toFixed(2);
+            const outputPer1M = (pricing.outputCostPerToken * 1_000_000).toFixed(2);
+            parts.push(
+              `${prefix()}Cost: $${totalCost.toFixed(4)} ${DIM}(${model}: $${inputPer1M}/$${outputPer1M} per 1M)${RESET}`,
+            );
+          } else {
+            const inputCost = (input / 1_000_000) * 3;
+            const outputCost = (output / 1_000_000) * 15;
+            const totalCost = inputCost + outputCost;
+            parts.push(
+              `${prefix()}Est. Cost: ~$${totalCost.toFixed(4)} ${DIM}(~$3/$15 per 1M tokens)${RESET}`,
+            );
+          }
+        }
+      }
 
       if (structuredOutput) {
         // Non-streaming structured output — show raw response size and wait time
