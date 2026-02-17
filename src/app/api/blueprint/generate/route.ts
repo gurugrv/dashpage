@@ -64,10 +64,15 @@ export async function POST(req: Request) {
       maxOutputTokens,
     });
 
+    // Start DB lookup concurrently — it doesn't depend on the AI result
+    const convPromise = prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { businessProfile: true },
+    });
+
     let blueprint: Blueprint;
     let rawText: string | undefined;
     let finishReason: string | undefined;
-
     const useStructuredOutput = providerConfig?.supportsStructuredOutput !== false;
 
     try {
@@ -86,7 +91,6 @@ export async function POST(req: Request) {
 
         rawText = result.text;
         finishReason = result.finishReason;
-
         if (useStructuredOutput) {
           // result.output getter throws NoOutputGeneratedError when parsing failed internally
           let parsed: Blueprint | undefined;
@@ -164,11 +168,8 @@ export async function POST(req: Request) {
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');
 
-    // Check if conversation has a business profile (from discovery)
-    const conv = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: { businessProfile: true },
-    });
+    // Await the concurrent DB lookup started before generateText
+    const conv = await convPromise;
     const businessProfile = conv?.businessProfile;
 
     // Build discovery facts from business profile (user-provided data takes priority)
