@@ -808,6 +808,8 @@ export function useBlueprintGeneration({
     }).catch(() => {});
   }, []);
 
+  const componentsReady = !!(headerHtml && footerHtml);
+
   return {
     phase,
     blueprint,
@@ -815,6 +817,7 @@ export function useBlueprintGeneration({
     error,
     headerHtml,
     footerHtml,
+    componentsReady,
     retryAttempt,
     componentToolActivities,
     blueprintStreamingCode,

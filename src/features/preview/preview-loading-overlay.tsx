@@ -8,6 +8,7 @@ interface PreviewLoadingOverlayProps {
   buildProgress?: BuildProgressState;
   blueprintPhase?: BlueprintPhase;
   pageStatuses?: PageGenerationStatus[];
+  componentsReady?: boolean;
 }
 
 function OverlayRing({
@@ -62,8 +63,8 @@ function OverlayRing({
   );
 }
 
-function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPhase: BlueprintPhase; pageStatuses?: PageGenerationStatus[] }) {
-  const isComponentsPhase = blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site';
+function BlueprintOverlayContent({ blueprintPhase, pageStatuses, componentsReady }: { blueprintPhase: BlueprintPhase; pageStatuses?: PageGenerationStatus[]; componentsReady?: boolean }) {
+  const isComponentsPhase = (blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site') && !componentsReady;
   const isPagesPhase = blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site';
 
   const completed = pageStatuses?.filter((p) => p.status === 'complete').length ?? 0;
@@ -110,13 +111,13 @@ function BlueprintOverlayContent({ blueprintPhase, pageStatuses }: { blueprintPh
   );
 }
 
-export function PreviewLoadingOverlay({ buildProgress, blueprintPhase, pageStatuses }: PreviewLoadingOverlayProps) {
+export function PreviewLoadingOverlay({ buildProgress, blueprintPhase, pageStatuses, componentsReady }: PreviewLoadingOverlayProps) {
   const isBlueprintActive = blueprintPhase && blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-background/30 backdrop-blur-[2px]">
       {isBlueprintActive ? (
-        <BlueprintOverlayContent blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />
+        <BlueprintOverlayContent blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} componentsReady={componentsReady} />
       ) : (
         <div className="flex items-center gap-3 rounded-xl border border-muted-foreground/10 bg-background/90 pl-2 pr-4 py-2 shadow-lg backdrop-blur-sm">
           <OverlayRing

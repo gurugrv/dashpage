@@ -61,6 +61,7 @@ interface PromptPanelProps {
   onBlueprintUpdate?: (blueprint: Blueprint) => void;
   blueprintError?: string | null;
   isRetryingPages?: boolean;
+  componentsReady?: boolean;
   resumeCard?: React.ReactNode;
 }
 
@@ -102,6 +103,7 @@ export function PromptPanel({
   onBlueprintUpdate,
   blueprintError,
   isRetryingPages,
+  componentsReady,
   resumeCard,
 }: PromptPanelProps) {
   const isDiscoveryActive = discoveryPhase && discoveryPhase !== 'idle' && discoveryPhase !== 'complete' && discoveryPhase !== 'skipped';
@@ -172,7 +174,7 @@ export function PromptPanel({
           {(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site') && (
             <PageProgress
               pageStatuses={pageStatuses ?? []}
-              componentsStatus={blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site' ? 'generating' : 'complete'}
+              componentsStatus={(blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site') && !componentsReady ? 'generating' : 'complete'}
               isRetrying={isRetryingPages}
               onCancel={onBlueprintCancel}
             />

@@ -14,6 +14,7 @@ interface PreviewEmptyStateProps {
   pageStatuses?: PageGenerationStatus[];
   device?: DeviceSize;
   blueprintPalette?: PaletteColors;
+  componentsReady?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,13 +541,15 @@ function BlueprintWireframe({
   pageStatuses,
   device,
   palette,
+  componentsReady,
 }: {
   blueprintPhase: BlueprintPhase;
   pageStatuses?: PageGenerationStatus[];
   device?: DeviceSize;
   palette?: PaletteColors;
+  componentsReady?: boolean;
 }) {
-  const isComponentsPhase = blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site';
+  const isComponentsPhase = (blueprintPhase === 'generating-components' || blueprintPhase === 'generating-site') && !componentsReady;
   const isPagesPhase = blueprintPhase === 'generating-pages' || blueprintPhase === 'generating-site';
   const isBlueprintPhase = blueprintPhase === 'generating-blueprint';
   const isApproval = blueprintPhase === 'awaiting-approval';
@@ -643,12 +646,12 @@ function BlueprintWireframe({
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
-export function PreviewEmptyState({ isGenerating, buildProgress, blueprintPhase, pageStatuses, device, blueprintPalette }: PreviewEmptyStateProps) {
+export function PreviewEmptyState({ isGenerating, buildProgress, blueprintPhase, pageStatuses, device, blueprintPalette, componentsReady }: PreviewEmptyStateProps) {
   if (isGenerating) {
     const isBlueprintActive = blueprintPhase && blueprintPhase !== 'idle' && blueprintPhase !== 'complete' && blueprintPhase !== 'error';
 
     if (isBlueprintActive) {
-      return <BlueprintWireframe blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} device={device} palette={blueprintPalette} />;
+      return <BlueprintWireframe blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} device={device} palette={blueprintPalette} componentsReady={componentsReady} />;
     }
 
     return <SinglePageWireframe buildProgress={buildProgress} device={device} />;

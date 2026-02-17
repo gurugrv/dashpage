@@ -23,10 +23,11 @@ interface PreviewPanelProps {
   blueprintPhase?: BlueprintPhase;
   pageStatuses?: PageGenerationStatus[];
   blueprintPalette?: PaletteColors;
+  componentsReady?: boolean;
   streamingCode?: string | null;
 }
 
-export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, buildProgress, blueprintPhase, pageStatuses, blueprintPalette, streamingCode }: PreviewPanelProps) {
+export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, buildProgress, blueprintPhase, pageStatuses, blueprintPalette, componentsReady, streamingCode }: PreviewPanelProps) {
   const [device, setDevice] = useState<DeviceSize>('desktop');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedPage, setSelectedPage] = useState('index.html');
@@ -226,9 +227,10 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
           className={cn(
             'absolute inset-4 flex flex-col items-center justify-center gap-3 text-muted-foreground transition-all duration-500',
             hasContent ? 'pointer-events-none opacity-0 blur-sm' : 'opacity-100',
+            !hasContent && isGenerating && streamingCode ? 'rounded-md bg-background/80 backdrop-blur-sm' : '',
           )}
         >
-          <PreviewEmptyState isGenerating={isGenerating} buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} device={device} blueprintPalette={blueprintPalette} />
+          <PreviewEmptyState isGenerating={isGenerating} buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} device={device} blueprintPalette={blueprintPalette} componentsReady={componentsReady} />
         </div>
 
         {/* Iframe content — crossfades in when content arrives */}
@@ -249,7 +251,7 @@ export function PreviewPanel({ files, lastValidFiles, isGenerating, isEditing, b
           />
         </div>
 
-        {isGenerating && hasContent && <PreviewLoadingOverlay buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} />}
+        {isGenerating && hasContent && <PreviewLoadingOverlay buildProgress={buildProgress} blueprintPhase={blueprintPhase} pageStatuses={pageStatuses} componentsReady={componentsReady} />}
 
         {isEditing && hasContent && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-lg border border-muted-foreground/10 bg-background/95 px-3 py-1.5 shadow-md backdrop-blur-sm">

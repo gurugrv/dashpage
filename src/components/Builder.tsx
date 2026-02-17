@@ -121,6 +121,7 @@ export function Builder() {
     blueprint,
     pageStatuses,
     error: blueprintError,
+    componentsReady,
     generateBlueprint,
     approveAndGenerate,
     resumeFromState,
@@ -792,6 +793,7 @@ export function Builder() {
               onBlueprintUpdate={handleBlueprintUpdate}
               blueprintError={blueprintError}
               isRetryingPages={retryAttempt > 0}
+              componentsReady={componentsReady}
             />
           </Panel>
 
@@ -807,6 +809,7 @@ export function Builder() {
               blueprintPhase={blueprintPhase}
               pageStatuses={pageStatuses}
               streamingCode={streamingCode ?? blueprintStreamingCode}
+              componentsReady={componentsReady}
               blueprintPalette={blueprint?.designSystem ? {
                 primary: blueprint.designSystem.primaryColor,
                 secondary: blueprint.designSystem.secondaryColor,
