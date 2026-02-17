@@ -628,6 +628,7 @@ export function useBlueprintGeneration({
                   headTags,
                   completedFilenames,
                   retryCount + 1,
+                  sharedAssets,
                 );
                 return; // exit current SSE loop
               }
@@ -668,7 +669,9 @@ export function useBlueprintGeneration({
   ): Promise<{ headerHtml: string; footerHtml: string } | null> => {
     const result = await generateComponents(activeBlueprint, conversationId);
     if (result) return result;
-    // Retry once on non-abort failure (phase will be 'error' if it failed)
+    // Don't retry if the user cancelled — abort returns null without setting error phase
+    if (abortControllerRef.current?.signal.aborted) return null;
+    // Retry once on non-abort failure
     if (retryCount < MAX_COMPONENT_RETRIES) {
       return generateComponentsWithRetry(activeBlueprint, conversationId, retryCount + 1);
     }
@@ -774,9 +777,11 @@ export function useBlueprintGeneration({
 
       // Step 1: Generate components (header/footer)
       const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
+      if (abortControllerRef.current?.signal.aborted) return;
 
       // Step 2: Generate shared assets (styles.css + scripts.js) — sees component HTML
       const assets = await generateAssets(activeBlueprint, components, conversationId);
+      if (abortControllerRef.current?.signal.aborted) return;
 
       // Step 3: Update headTags to include scripts.js and replace deterministic styles with AI-generated ones
       let headTags = sharedStyles.headTags;
@@ -858,7 +863,9 @@ export function useBlueprintGeneration({
       abortControllerRef.current = controller;
 
       const components = await generateComponentsWithRetry(activeBlueprint, conversationId);
+      if (abortControllerRef.current?.signal.aborted) return;
       const assets = await generateAssets(activeBlueprint, components, conversationId);
+      if (abortControllerRef.current?.signal.aborted) return;
 
       let headTags = sharedStyles.headTags;
       if (assets) {
