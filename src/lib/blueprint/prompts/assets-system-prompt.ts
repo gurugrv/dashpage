@@ -97,10 +97,11 @@ ${motionIntents.size > 0 ? `\nMotion/animation intents across pages: ${[...motio
 </site_overview>
 
 <output_format>
-Call writeFiles with exactly two files:
-- "styles.css" — the shared stylesheet
-- "scripts.js" — the shared JavaScript
+Call writeFiles ONCE with exactly two files using these EXACT filenames (with dots, not underscores):
+  { "styles.css": "...", "scripts.js": "..." }
 
+CRITICAL: Use "styles.css" and "scripts.js" as the key names — NOT "styles_css", "_styles_css", or any other variation.
+Call writeFiles only ONCE — do NOT make multiple writeFiles calls.
 You MUST use the writeFiles tool. Do NOT output code as text.
 </output_format>
 
