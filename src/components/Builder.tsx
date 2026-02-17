@@ -72,6 +72,7 @@ export function Builder() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasPartialMessage, setHasPartialMessage] = useState(false);
   const [resumableState, setResumableState] = useState<ResumableGenerationState | null>(null);
+  const [statusMessages, setStatusMessages] = useState<UIMessage[]>([]);
 
   // Sync active conversation with URL
   const setActiveConversationId = useCallback((id: string | null) => {
@@ -286,8 +287,8 @@ export function Builder() {
         output.push({ ...lastMessage, id: `${lastMessage.id}-completion`, parts: [{ type: 'text', text: completionText }] });
       }
     }
-    return [...completedDisplayMessages, ...output];
-  }, [completedDisplayMessages, messages, isLoading]);
+    return [...completedDisplayMessages, ...output, ...statusMessages];
+  }, [completedDisplayMessages, messages, isLoading, statusMessages]);
 
   const { savePartial } = useStreamingPersistence({
     messages,
@@ -348,10 +349,10 @@ export function Builder() {
   const initialPromptProcessedRef = useRef(false);
   const pendingInitialPromptRef = useRef<string | null>(null);
   
-  // Reset initial prompt flag when conversation changes so future
-  // sessionStorage prompts (e.g. after page refresh) are not blocked
+  // Reset initial prompt flag and status messages when conversation changes
   useEffect(() => {
     initialPromptProcessedRef.current = false;
+    setStatusMessages([]);
   }, [activeConversationId]);
 
   // Check for initial prompt on mount
@@ -637,8 +638,8 @@ export function Builder() {
 
     const text = phaseMessages[blueprintPhase];
     if (text) {
-      setMessages((msgs) => [
-        ...msgs,
+      setStatusMessages((prev) => [
+        ...prev,
         {
           id: `blueprint-phase-${blueprintPhase}-${Date.now()}`,
           role: 'assistant' as const,
@@ -646,7 +647,7 @@ export function Builder() {
         },
       ]);
     }
-  }, [blueprintPhase, setMessages]);
+  }, [blueprintPhase]);
 
   // Persist artifact when blueprint pipeline completes
   useEffect(() => {
@@ -681,7 +682,7 @@ export function Builder() {
     }
 
     // Show completion message in chat immediately
-    setMessages((prev) => [
+    setStatusMessages((prev) => [
       ...prev,
       {
         id: `blueprint-complete-${Date.now()}`,
@@ -708,7 +709,7 @@ export function Builder() {
       .catch((err) => console.error('Failed to persist blueprint completion:', err));
 
     resetBlueprint();
-  }, [blueprintPhase, blueprint, resetBlueprint, setMessages]);
+  }, [blueprintPhase, blueprint, resetBlueprint]);
 
   // When discovery completes or is skipped, trigger blueprint generation
   useEffect(() => {

@@ -81,19 +81,17 @@ export function MessageList({
   buildProgress,
   blueprintLoading,
 }: MessageListProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
   useEffect(() => { if (!isLoading) scrollToBottom(); }, [isLoading, scrollToBottom]);
 
   return (
-    <div ref={scrollRef} className="flex flex-col">
+    <div className="flex flex-col">
       {showExamplePrompts && messages.length === 0 ? (
         <ExamplePrompts onSelect={onExampleSelect} />
       ) : (
@@ -115,6 +113,7 @@ export function MessageList({
               <WaveDots />
             )
           )}
+          <div ref={bottomRef} />
         </div>
       )}
     </div>
