@@ -102,14 +102,14 @@ Micro-details:
 Bring the page to life with purposeful animation:
 
 Entrance animations:
-- Fade-up and slide-in for content sections using CSS @keyframes + Intersection Observer
+- Fade-up and slide-in for content sections using Alpine.js x-intersect directive (see interactivity patterns)
 - Staggered reveals for card grids and lists (increment delay by 100-150ms per item)
 - Smooth scroll behavior: html { scroll-behavior: smooth }
 
 Scroll effects:
 - Parallax-lite: subtle CSS transform: translateY() on scroll for hero backgrounds or decorative elements
 - Hero section kinetic typography or animated gradient backgrounds (CSS @keyframes on background-position)
-- Progress indicators or scroll-triggered counters for stats sections
+- Progress indicators or scroll-triggered counters using Alpine.js x-intersect + counter pattern
 
 Micro-interactions:
 - Button press feedback: active:scale-95 with transition
@@ -255,14 +255,14 @@ Micro-details:
 Bring the page to life with purposeful animation:
 
 Entrance animations:
-- Fade-up and slide-in for content sections using CSS @keyframes + Intersection Observer
+- Fade-up and slide-in for content sections using Alpine.js x-intersect directive (see interactivity patterns)
 - Staggered reveals for card grids and lists (increment delay by 100-150ms per item)
 - Smooth scroll behavior: html { scroll-behavior: smooth }
 
 Scroll effects:
 - Parallax-lite: subtle CSS transform: translateY() on scroll for hero backgrounds or decorative elements
 - Hero section kinetic typography or animated gradient backgrounds (CSS @keyframes on background-position)
-- Progress indicators or scroll-triggered counters for stats sections
+- Progress indicators or scroll-triggered counters using Alpine.js x-intersect + counter pattern
 
 Micro-interactions:
 - Button press feedback: active:scale-95 with transition
