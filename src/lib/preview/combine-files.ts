@@ -144,6 +144,17 @@ document.addEventListener('click', function(e) {
 
   let result = html;
 
+  // Strip <link> and <script src> tags for files we're about to inline
+  // (prevents 404s in srcdoc iframe where these files don't exist as URLs)
+  const inlinedFiles = new Set([...cssFiles, ...jsFiles]);
+  for (const f of inlinedFiles) {
+    if (f.endsWith('.css')) {
+      result = result.replace(new RegExp(`<link[^>]*href=["']${f}["'][^>]*/?>\\s*`, 'g'), '');
+    } else if (f.endsWith('.js')) {
+      result = result.replace(new RegExp(`<script[^>]*src=["']${f}["'][^>]*>\\s*</script>\\s*`, 'g'), '');
+    }
+  }
+
   // Inject FOUT-prevention style + inline CSS files into <head>
   {
     const cssBlock = cssFiles.length > 0
