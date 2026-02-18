@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   Building2, Phone, Mail, Globe, MapPin, Clock,
-  Briefcase, Sparkles, Pencil, Share2, Quote, Info,
+  Briefcase, Sparkles, Pencil, Share2, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

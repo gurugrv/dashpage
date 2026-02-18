@@ -10,7 +10,7 @@ export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high';
 
 export function createReasoningFetch(effort: ReasoningEffort): typeof globalThis.fetch {
   return (input, init) => {
-    if (init?.body && typeof init.body === 'string') {
+    if (effort !== 'none' && init?.body && typeof init.body === 'string') {
       try {
         const body = JSON.parse(init.body);
         body.reasoning = { effort };

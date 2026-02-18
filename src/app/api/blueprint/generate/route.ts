@@ -312,6 +312,15 @@ export async function POST(req: Request) {
             },
           );
 
+          if (researchFacts) {
+            const filledFields = Object.entries(researchFacts)
+              .filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0))
+              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : v}`);
+            console.info(`[blueprint-research] Extracted ${filledFields.length} facts:\n  ${filledFields.join('\n  ')}`);
+          } else {
+            console.warn(`[blueprint-research] No facts extracted for "${searchName}"`);
+          }
+
           // Re-read the latest blueprint from DB (user may have edited it while research ran)
           const latestRecord = await prisma.blueprint.findUnique({ where: { conversationId } });
           const latestBlueprint = (latestRecord?.data ?? blueprint) as Blueprint;
@@ -336,13 +345,20 @@ export async function POST(req: Request) {
                 }
               : researchFacts;
 
+            const mergedFilledFields = Object.entries(mergedFacts)
+              .filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0))
+              .map(([k]) => k);
+            console.info(`[blueprint-research] Merged siteFacts (${mergedFilledFields.length} fields): ${mergedFilledFields.join(', ')}`);
+
             // Update blueprint in DB with research results and clear pending flag
             await prisma.blueprint.update({
               where: { conversationId },
               data: { data: { ...latestBlueprint, siteFacts: mergedFacts, researchPending: false } },
             });
+            console.info(`[blueprint-research] Saved siteFacts to DB for conversation ${conversationId}`);
           } else {
             // No research results — just clear the pending flag
+            console.warn(`[blueprint-research] No research facts to merge, clearing pending flag`);
             await prisma.blueprint.update({
               where: { conversationId },
               data: { data: { ...latestBlueprint, researchPending: false } },

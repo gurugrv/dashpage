@@ -12,7 +12,7 @@ const STORAGE_KEY_MODEL = 'ai-builder:last-model';
 
 function getSavedSelection() {
   if (typeof window === 'undefined') return { provider: null, model: null };
-  
+
   try {
     const savedProvider = localStorage.getItem(STORAGE_KEY_PROVIDER);
     const savedModel = localStorage.getItem(STORAGE_KEY_MODEL);
@@ -29,7 +29,7 @@ export function useModelSelection(availableProviders: ProviderInfo[]) {
   // Save selection to localStorage when it changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     try {
       if (selectedProvider) {
         localStorage.setItem(STORAGE_KEY_PROVIDER, selectedProvider);
@@ -56,6 +56,7 @@ export function useModelSelection(availableProviders: ProviderInfo[]) {
   // Sync state when effective differs from selected (provider became unavailable)
   useEffect(() => {
     if (availableProviders.length > 0 && effectiveSelectedProvider && effectiveSelectedProvider !== selectedProvider) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of derived fallback back to state
       setSelectedProvider(effectiveSelectedProvider);
     }
   }, [effectiveSelectedProvider, selectedProvider, availableProviders.length]);
@@ -72,6 +73,7 @@ export function useModelSelection(availableProviders: ProviderInfo[]) {
   // Sync state when effective differs from selected (model became unavailable)
   useEffect(() => {
     if (availableProviders.length > 0 && effectiveSelectedModel && effectiveSelectedModel !== selectedModel) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of derived fallback back to state
       setSelectedModel(effectiveSelectedModel);
     }
   }, [effectiveSelectedModel, selectedModel, availableProviders.length]);
