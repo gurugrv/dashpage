@@ -51,7 +51,7 @@ Testimonial/card carousel with autoplay and navigation:
   destroy() { clearInterval(this.auto) },
   next() { this.current = (this.current + 1) % this.total },
   prev() { this.current = (this.current - 1 + this.total) % this.total }
-}" class="relative overflow-hidden">
+}" class="relative overflow-hidden" aria-label="Slideshow">
   <div class="relative min-h-[200px]">
     <!-- One div per slide. Use x-cloak on all but first -->
     <div x-show="current === 0" x-transition.opacity.duration.500ms class="absolute inset-0 p-8">
@@ -70,8 +70,8 @@ Testimonial/card carousel with autoplay and navigation:
     </template>
   </div>
   <!-- Arrows -->
-  <button @click="prev()" class="absolute left-2 top-1/2 -translate-y-1/2">&#8249;</button>
-  <button @click="next()" class="absolute right-2 top-1/2 -translate-y-1/2">&#8250;</button>
+  <button @click="prev()" class="absolute left-2 top-1/2 -translate-y-1/2" aria-label="Previous slide">&#8249;</button>
+  <button @click="next()" class="absolute right-2 top-1/2 -translate-y-1/2" aria-label="Next slide">&#8250;</button>
 </div>
 </pattern>
 
@@ -151,7 +151,7 @@ Elements that animate in when scrolled into view (requires Intersect plugin):
 <!-- Single element fade-up -->
 <div x-data="{ shown: false }" x-intersect.once="shown = true"
   :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
-  class="transition-all duration-700 ease-out">
+  class="transition-[transform,opacity] duration-700 ease-out">
   Content here
 </div>
 
@@ -159,13 +159,13 @@ Elements that animate in when scrolled into view (requires Intersect plugin):
 <div class="grid grid-cols-3 gap-6">
   <div x-data="{ shown: false }" x-intersect.once="shown = true" style="transition-delay: 0ms"
     :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
-    class="transition-all duration-700 ease-out">Card 1</div>
+    class="transition-[transform,opacity] duration-700 ease-out">Card 1</div>
   <div x-data="{ shown: false }" x-intersect.once="shown = true" style="transition-delay: 150ms"
     :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
-    class="transition-all duration-700 ease-out">Card 2</div>
+    class="transition-[transform,opacity] duration-700 ease-out">Card 2</div>
   <div x-data="{ shown: false }" x-intersect.once="shown = true" style="transition-delay: 300ms"
     :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
-    class="transition-all duration-700 ease-out">Card 3</div>
+    class="transition-[transform,opacity] duration-700 ease-out">Card 3</div>
 </div>
 
 IMPORTANT: Always use full Tailwind class names in :class bindings — never construct classes dynamically with template literals. Tailwind CDN cannot detect dynamically constructed class names.
@@ -175,20 +175,201 @@ IMPORTANT: Always use full Tailwind class names in :class bindings — never con
 Tab switching component:
 
 <div x-data="{ tab: 'tab1' }">
-  <div class="flex border-b border-[var(--color-surface)]">
+  <div class="flex border-b border-[var(--color-surface)]" role="tablist">
     <button @click="tab = 'tab1'" class="px-5 py-3 text-sm font-medium border-b-2 transition-colors"
-      :class="tab === 'tab1' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)]'">
+      :class="tab === 'tab1' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)]'"
+      role="tab" :aria-selected="tab === 'tab1'">
       Tab 1</button>
     <button @click="tab = 'tab2'" class="px-5 py-3 text-sm font-medium border-b-2 transition-colors"
-      :class="tab === 'tab2' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)]'">
+      :class="tab === 'tab2' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)]'"
+      role="tab" :aria-selected="tab === 'tab2'">
       Tab 2</button>
   </div>
   <div class="p-6">
-    <div x-show="tab === 'tab1'" x-transition.opacity>Tab 1 content</div>
-    <div x-show="tab === 'tab2'" x-transition.opacity x-cloak>Tab 2 content</div>
+    <div x-show="tab === 'tab1'" x-transition.opacity role="tabpanel">Tab 1 content</div>
+    <div x-show="tab === 'tab2'" x-transition.opacity x-cloak role="tabpanel">Tab 2 content</div>
   </div>
 </div>
 </pattern>
 
+<pattern name="pricing-toggle">
+Annual/monthly pricing toggle:
+
+<div x-data="{ annual: true }">
+  <div class="flex items-center justify-center gap-4 mb-10">
+    <span :class="!annual ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'" class="text-sm font-medium transition-colors">Monthly</span>
+    <button @click="annual = !annual" class="relative w-14 h-7 rounded-full bg-[var(--color-primary)] transition-colors" role="switch" :aria-checked="annual.toString()">
+      <span class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform" :class="annual && 'translate-x-7'"></span>
+    </button>
+    <span :class="annual ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'" class="text-sm font-medium transition-colors">Annual <span class="text-[var(--color-accent)] font-semibold">Save 20%</span></span>
+  </div>
+  <!-- Price display: swap values based on toggle -->
+  <div class="text-5xl font-bold font-heading">
+    $<span x-text="annual ? '79' : '99'">79</span><span class="text-lg text-[var(--color-text-muted)]">/mo</span>
+  </div>
+</div>
+</pattern>
+
+<pattern name="hover-reveal">
+Card with content revealed on hover (touch-friendly via click fallback):
+
+<div x-data="{ show: false }" @mouseenter="show = true" @mouseleave="show = false" @click="show = !show"
+  class="relative overflow-hidden rounded-[var(--radius)] cursor-pointer group">
+  <img src="..." alt="..." class="w-full h-80 object-cover transition-transform duration-500 group-hover:scale-105">
+  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-end p-6"
+    :class="show ? 'opacity-100' : 'opacity-0 md:opacity-0'" class="transition-opacity duration-300 opacity-100 md:opacity-0">
+    <div :class="show ? 'translate-y-0' : 'translate-y-4 md:translate-y-4'" class="transition-transform duration-300 translate-y-0 md:translate-y-4">
+      <h3 class="text-white text-xl font-heading font-bold">Team Member Name</h3>
+      <p class="text-white/80 text-sm mt-1">Role & bio text here</p>
+    </div>
+  </div>
+</div>
+</pattern>
+
+<pattern name="modal-lightbox">
+Image lightbox modal with backdrop blur and keyboard close:
+
+<div x-data="{ open: false, src: '', alt: '' }">
+  <!-- Trigger (repeat per image) -->
+  <img src="thumb.jpg" alt="Gallery image" class="cursor-pointer hover:opacity-90 transition-opacity"
+    @click="src = 'full.jpg'; alt = 'Gallery image'; open = true; document.body.classList.add('overflow-hidden')">
+
+  <!-- Modal -->
+  <template x-teleport="body">
+    <div x-show="open" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      @click.self="open = false; document.body.classList.remove('overflow-hidden')"
+      @keydown.escape.window="open = false; document.body.classList.remove('overflow-hidden')"
+      role="dialog" aria-modal="true" x-cloak>
+      <img :src="src" :alt="alt" class="max-w-full max-h-[90vh] rounded-lg shadow-2xl">
+      <button @click="open = false; document.body.classList.remove('overflow-hidden')"
+        class="absolute top-4 right-4 text-white/80 hover:text-white" aria-label="Close lightbox">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </template>
+</div>
+</pattern>
+
+<pattern name="sticky-header-shrink">
+Header that shrinks on scroll with background change:
+
+<header x-data="{ scrolled: false }" @scroll.window.passive="scrolled = window.scrollY > 50"
+  :class="scrolled ? 'py-2 shadow-md bg-[var(--color-bg)]/95 backdrop-blur-sm' : 'py-5 bg-transparent'"
+  class="fixed top-0 left-0 right-0 z-50 transition-all duration-300" data-block="main-nav">
+  <div class="max-w-7xl mx-auto px-6 flex items-center justify-between">
+    <a href="#" class="font-heading font-bold transition-all duration-300" :class="scrolled ? 'text-lg' : 'text-xl'">Brand</a>
+    <!-- nav links -->
+  </div>
+</header>
+</pattern>
+
+<pattern name="tilt-card">
+3D tilt card that follows mouse position:
+
+<div x-data="{
+  rx: 0, ry: 0,
+  tilt(e) {
+    const r = $el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    this.rx = y * -15;
+    this.ry = x * 15;
+  },
+  reset() { this.rx = 0; this.ry = 0; }
+}" @mouseenter="tilt($event)" @mousemove="tilt($event)" @mouseleave="reset()"
+  :style="\`transform: perspective(800px) rotateX(\${rx}deg) rotateY(\${ry}deg)\`"
+  class="transition-transform duration-150 ease-out rounded-[var(--radius)] bg-[var(--color-surface)] p-8 shadow-lg">
+  Card content — works great for portfolio items, product cards, or feature highlights.
+</div>
+</pattern>
+
+<pattern name="before-after-slider">
+Draggable before/after image comparison:
+
+<div x-data="{
+  pos: 50,
+  dragging: false,
+  updatePos(e) {
+    const r = $el.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    this.pos = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+  }
+}" @mousedown="dragging = true" @mousemove="dragging && updatePos($event)"
+  @mouseup="dragging = false" @mouseleave="dragging = false"
+  @touchstart.prevent="dragging = true" @touchmove="updatePos($event)" @touchend="dragging = false"
+  class="relative overflow-hidden rounded-[var(--radius)] cursor-ew-resize select-none" style="aspect-ratio:16/9">
+  <!-- After image (full width) -->
+  <img src="after.jpg" alt="After" class="absolute inset-0 w-full h-full object-cover">
+  <!-- Before image (clipped) -->
+  <div class="absolute inset-0" :style="\`clip-path: inset(0 \${100 - pos}% 0 0)\`">
+    <img src="before.jpg" alt="Before" class="w-full h-full object-cover">
+  </div>
+  <!-- Slider handle -->
+  <div class="absolute top-0 bottom-0 w-1 bg-white shadow-lg" :style="\`left: \${pos}%\`">
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
+      <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 12H16M8 12L5 9M8 12L5 15M16 12L19 9M16 12L19 15"/></svg>
+    </div>
+  </div>
+</div>
+</pattern>
+
+<pattern name="magnetic-button">
+Button that subtly follows the cursor on hover (premium CTA feel):
+
+<button x-data="{
+  dx: 0, dy: 0,
+  pull(e) {
+    const r = $el.getBoundingClientRect();
+    this.dx = (e.clientX - r.left - r.width/2) * 0.3;
+    this.dy = (e.clientY - r.top - r.height/2) * 0.3;
+  },
+  reset() { this.dx = 0; this.dy = 0; }
+}" @mousemove="pull($event)" @mouseleave="reset()"
+  :style="\`transform: translate(\${dx}px, \${dy}px)\`"
+  class="transition-transform duration-200 ease-out px-8 py-4 bg-[var(--color-primary)] text-white rounded-[var(--radius)] font-semibold hover:shadow-lg">
+  Get Started
+</button>
+</pattern>
+
+<pattern name="counter-scroll">
+Animated counter triggered on scroll entry with smooth easing:
+
+<div x-data="{
+  value: 0,
+  target: 2847,
+  animate() {
+    const duration = 2000;
+    const start = performance.now();
+    const tick = (now) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      this.value = Math.round(this.target * ease);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+}" x-intersect.once="animate()">
+  <span class="text-5xl font-bold font-heading" x-text="value.toLocaleString()">0</span>
+  <span class="text-[var(--color-text-muted)]">Happy Clients</span>
+</div>
+
+For multiple counters, use this pattern inline on each stat — no Alpine.data() registration needed.
+Preferred over the older counter pattern above — uses requestAnimationFrame for smoother animation and cubic ease-out.
+</pattern>
+
 Smooth scrolling: Add scroll-behavior: smooth to html element in CSS. For nav links pointing to #section-id anchors, this is all you need — no JavaScript required.
+
+ACCESSIBILITY: ALL scroll-triggered animations and transitions MUST be wrapped in a prefers-reduced-motion media query. Add this CSS to every page:
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </interactivity>`;
