@@ -121,7 +121,9 @@ ${headTags}
 </shared_head>
 
 <design_system_reference>
-Available CSS custom properties (defined in styles.css — do NOT redefine them):
+The :root CSS variables are already defined in styles.css which is linked above. Do NOT redefine them in an inline <style> block — no :root {} declaration in your output at all. Use var(--color-primary), var(--font-heading), etc. directly in your Tailwind classes and markup.
+
+Available CSS custom properties:
   --color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
   --font-heading, --font-body
   --shadow-sm, --shadow-md, --shadow-lg
@@ -183,7 +185,7 @@ RULES:
     : '';
 
   const requirement2 = headTags
-    ? '2. In <head>: charset, viewport, <title>, meta description, then the shared_head tags VERBATIM. Do NOT generate your own CSS custom properties, Tailwind CDN script, Google Fonts links, Tailwind config, or shared scripts — they are all provided in the shared head.'
+    ? '2. In <head>: charset, viewport, <title>, meta description, then the shared_head tags VERBATIM. Do NOT generate your own CSS custom properties, Tailwind CDN script, Google Fonts links, Tailwind config, or shared scripts — they are all provided in the shared head. Do NOT include any :root {} block — variables are in styles.css.'
     : `2. In <head>: charset, viewport, <title>, meta description, Tailwind CDN, Google Fonts for ${designSystem.headingFont} and ${designSystem.bodyFont}, <style> with ALL CSS custom properties, Tailwind config extending theme with tokens.`;
 
   const webSearchInstruction = blueprint.siteFacts
