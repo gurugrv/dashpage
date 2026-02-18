@@ -100,6 +100,101 @@ export interface DebugSession {
  * All output from this session is prefixed with a colored tag and written atomically
  * so concurrent sessions remain visually distinct in the console.
  */
+// ─── Generation Tracker (aggregate across multiple AI calls) ─────────────────
+
+interface TrackerStep {
+  model?: string;
+  provider?: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export class GenerationTracker {
+  private startedAt = Date.now();
+  private models = new Set<string>();
+  private providers = new Set<string>();
+  private steps: TrackerStep[] = [];
+  private scope: string;
+
+  constructor(scope: string) {
+    this.scope = scope;
+  }
+
+  addStep(params: {
+    model?: string;
+    provider?: string;
+    usage?: { inputTokens?: number; outputTokens?: number };
+  }) {
+    const inputTokens = params.usage?.inputTokens ?? 0;
+    const outputTokens = params.usage?.outputTokens ?? 0;
+    if (params.model) this.models.add(params.model);
+    if (params.provider) this.providers.add(params.provider);
+    this.steps.push({ model: params.model, provider: params.provider, inputTokens, outputTokens });
+  }
+
+  async logFinalSummary() {
+    if (!isDebugEnabled()) return;
+
+    const totalDuration = Date.now() - this.startedAt;
+    const totalInput = this.steps.reduce((s, st) => s + st.inputTokens, 0);
+    const totalOutput = this.steps.reduce((s, st) => s + st.outputTokens, 0);
+    const totalTokens = totalInput + totalOutput;
+
+    const color = '\x1b[96m'; // bright cyan
+    const BOLD = '\x1b[1m';
+    const parts: string[] = [
+      '',
+      `${color}${'━'.repeat(60)}${RESET}`,
+      `${color}${BOLD}  FINAL SUMMARY [${this.scope}]${RESET}`,
+      `${color}${'━'.repeat(60)}${RESET}`,
+      `${color}  Steps: ${this.steps.length} | Duration: ${formatDuration(totalDuration)}${RESET}`,
+      `${color}  Models: ${[...this.models].join(', ') || '?'}${RESET}`,
+    ];
+
+    if (totalTokens > 0) {
+      parts.push(
+        `${color}  Tokens: ${totalTokens.toLocaleString()} total (${totalInput.toLocaleString()} in / ${totalOutput.toLocaleString()} out)${RESET}`,
+      );
+
+      // Compute cost per model (weighted by actual tokens)
+      const tokensByModel = new Map<string, { input: number; output: number; provider?: string }>();
+      for (const step of this.steps) {
+        const key = step.model ?? 'unknown';
+        const existing = tokensByModel.get(key) ?? { input: 0, output: 0, provider: step.provider };
+        existing.input += step.inputTokens;
+        existing.output += step.outputTokens;
+        tokensByModel.set(key, existing);
+      }
+
+      let totalCost = 0;
+      let hasPricing = false;
+      for (const [modelId, tokens] of tokensByModel) {
+        const pricing = modelId !== 'unknown' ? await getModelPricing(modelId, tokens.provider) : null;
+        if (pricing) {
+          hasPricing = true;
+          totalCost += tokens.input * pricing.inputCostPerToken + tokens.output * pricing.outputCostPerToken;
+        } else {
+          // Fallback estimate
+          totalCost += (tokens.input / 1_000_000) * 3 + (tokens.output / 1_000_000) * 15;
+        }
+      }
+
+      parts.push(
+        `${color}  ${hasPricing ? 'Cost' : 'Est. Cost'}: $${totalCost.toFixed(4)}${RESET}`,
+      );
+    }
+
+    parts.push(`${color}${'━'.repeat(60)}${RESET}`, '');
+    writeAtomic(parts.join('\n'));
+  }
+}
+
+export function createGenerationTracker(scope: string): GenerationTracker {
+  return new GenerationTracker(scope);
+}
+
+// ─── Session-scoped logger ────────────────────────────────────────────────────
+
 export function createDebugSession(params: {
   scope: string;
   model?: string;

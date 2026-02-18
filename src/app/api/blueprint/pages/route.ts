@@ -5,7 +5,7 @@ import { PROVIDERS } from '@/lib/providers/registry';
 import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
-import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
@@ -216,6 +216,8 @@ export async function POST(req: Request) {
       },
     }).catch(() => {});
   }
+
+  const tracker = createGenerationTracker('blueprint-pages');
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -482,6 +484,7 @@ export async function POST(req: Request) {
             toolCallCount,
             usage: pageUsage,
           });
+          tracker.addStep({ model, provider, usage: pageUsage });
 
           // Normalize filenames: models sometimes hallucinate prefixes like _about.html
           for (const key of Object.keys(workingFiles)) {
@@ -693,6 +696,8 @@ export async function POST(req: Request) {
       } catch (err) {
         console.warn('[blueprint-pages] postProcessPages error:', err);
       }
+
+      await tracker.logFinalSummary();
 
       sendEvent({
         type: 'pipeline-status',

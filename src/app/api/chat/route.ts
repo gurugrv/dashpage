@@ -3,7 +3,7 @@ import type { UIMessage } from 'ai';
 import { ChatRequestError, classifyStreamError } from '@/lib/chat/errors';
 import { resolveChatExecution } from '@/lib/chat/resolve-chat-execution';
 import { createWebsiteTools } from '@/lib/chat/tools';
-import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
 import { BuildProgressDetector } from '@/lib/stream/build-progress-detector';
 import type { ToolActivityEvent } from '@/types/build-progress';
 import { prisma } from '@/lib/db/prisma';
@@ -410,6 +410,7 @@ export async function POST(req: Request) {
     const isEditing = fileCount > 0;
     const primaryFile = Object.keys(currentFiles ?? {})[0] ?? 'index.html';
     const detector = new BuildProgressDetector(primaryFile);
+    const tracker = createGenerationTracker('chat');
     const debugSession = createDebugSession({
       scope: 'chat',
       model,
@@ -803,6 +804,8 @@ export async function POST(req: Request) {
             toolCallCount: toolCallNames.size,
             usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed },
           });
+          tracker.addStep({ model, provider, usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed } });
+          await tracker.logFinalSummary();
 
           // Send finish immediately so client can update UI without waiting for DB cleanup
           writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
@@ -823,6 +826,8 @@ export async function POST(req: Request) {
               toolCallCount: toolCallNames.size,
               usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed },
             });
+            tracker.addStep({ model, provider, usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed } });
+            await tracker.logFinalSummary();
             return;
           }
           throw err;

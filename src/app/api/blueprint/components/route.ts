@@ -4,7 +4,7 @@ import { PROVIDERS } from '@/lib/providers/registry';
 import { getComponentsSystemPrompt } from '@/lib/blueprint/prompts/components-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
-import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
 import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
@@ -86,6 +86,7 @@ export async function POST(req: Request) {
     sendEvent({ type: 'component-status', status: 'generating' });
 
     try {
+      const tracker = createGenerationTracker('blueprint-components');
       const debugSession = createDebugSession({
         scope: 'blueprint-components',
         model,
@@ -181,6 +182,8 @@ export async function POST(req: Request) {
         toolCallCount: toolCallNames.size,
         usage: componentUsage,
       });
+      tracker.addStep({ model, provider, usage: componentUsage });
+      await tracker.logFinalSummary();
 
       // Normalize filenames: models sometimes hallucinate prefixes like _footer.html
       const normalizedFiles: Record<string, string> = {};

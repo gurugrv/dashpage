@@ -6,7 +6,7 @@ import { blueprintSchema, type Blueprint } from '@/lib/blueprint/types';
 import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-execution';
 import { sanitizeFont } from '@/lib/fonts';
 import { ChatRequestError } from '@/lib/chat/errors';
-import { createDebugSession, isDebugEnabled } from '@/lib/chat/stream-debug';
+import { createDebugSession, createGenerationTracker, isDebugEnabled } from '@/lib/chat/stream-debug';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
 import { researchSiteFacts } from '@/lib/blueprint/research';
 import { resolveApiKey } from '@/lib/keys/key-manager';
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       ? resolveMaxOutputTokens(providerConfig, model, clientMaxTokens)
       : clientMaxTokens ?? 16_384;
 
+    const tracker = createGenerationTracker('blueprint-generate');
     const debugSession = createDebugSession({
       scope: 'blueprint-generate',
       model,
@@ -167,6 +168,8 @@ export async function POST(req: Request) {
       rawTextLength: rawText?.length ?? 0,
       usage: resultUsage,
     });
+    tracker.addStep({ model, provider, usage: resultUsage });
+    await tracker.logFinalSummary();
 
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');

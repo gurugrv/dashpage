@@ -4,7 +4,7 @@ import { PROVIDERS } from '@/lib/providers/registry';
 import { getAssetsSystemPrompt } from '@/lib/blueprint/prompts/assets-system-prompt';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
-import { createDebugSession } from '@/lib/chat/stream-debug';
+import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
 import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
@@ -84,6 +84,7 @@ export async function POST(req: Request) {
     sendEvent({ type: 'assets-status', status: 'generating' });
 
     try {
+      const tracker = createGenerationTracker('blueprint-assets');
       const debugSession = createDebugSession({
         scope: 'blueprint-assets',
         model,
@@ -178,6 +179,8 @@ export async function POST(req: Request) {
         toolCallCount: toolCallNames.size,
         usage,
       });
+      tracker.addStep({ model, provider, usage });
+      await tracker.logFinalSummary();
 
       // Normalize filenames — find styles.css and scripts.js even if the model
       // used variant names (e.g. _styles.css, style.css, _style.css)
