@@ -29,13 +29,26 @@ export function generateSharedStyles(designSystem: BlueprintDesignSystem): Share
     borderRadius,
   } = designSystem;
 
-  // Encode font names for Google Fonts URL
+  // Use dynamic font weights if available, fallback for old blueprints
+  const headingWeights = designSystem.fontWeights?.heading ?? [400, 600, 700];
+  const bodyWeights = designSystem.fontWeights?.body ?? [400, 500, 600];
+
+  // Merge and dedupe weights per font
   const fontsParam = [headingFont, bodyFont]
     .filter((f, i, arr) => arr.indexOf(f) === i) // dedupe if same font
-    .map((f) => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700`)
+    .map((f) => {
+      const weights = f === headingFont
+        ? [...new Set([...headingWeights, ...(f === bodyFont ? bodyWeights : [])])]
+        : bodyWeights;
+      return `family=${f.replace(/ /g, '+')}:wght@${weights.sort((a, b) => a - b).join(';')}`;
+    })
     .join('&');
 
-  const stylesCss = `:root {
+  const stylesCss = `html {
+  scroll-behavior: smooth;
+}
+
+:root {
   --color-primary: ${primaryColor};
   --color-secondary: ${secondaryColor};
   --color-accent: ${accentColor};
@@ -49,7 +62,9 @@ export function generateSharedStyles(designSystem: BlueprintDesignSystem): Share
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
   --radius: ${borderRadius};
-  --transition: all 0.2s ease-in-out;
+  --transition: transform 0.2s ease-in-out, opacity 0.2s ease-in-out;
+  --transition-fast: transform 0.15s ease-in-out, opacity 0.15s ease-in-out;
+  --transition-slow: transform 0.4s ease-out, opacity 0.4s ease-out;
 }
 
 body {
@@ -57,14 +72,23 @@ body {
   color: var(--color-text);
   background-color: var(--color-bg);
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 ${ALPINE_CLOAK_CSS}`;
 
+  // headTags stays the same structure but uses dynamic weights
   const headTags = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?${fontsParam}&display=swap" rel="stylesheet">
