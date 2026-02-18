@@ -641,7 +641,7 @@ export function Builder() {
     if (blueprintPhase === 'idle' || blueprintPhase === 'error' || blueprintPhase === prev) return;
 
     const phaseMessages: Partial<Record<BlueprintPhase, string>> = {
-      'generating-blueprint': 'Analyzing your requirements and planning the site structure...',
+      // 'generating-blueprint' omitted — BlueprintLoadingIndicator handles this phase
       'awaiting-approval': 'Here\'s the site blueprint. Review the pages, design system, and structure, then approve to start building.',
       'generating-components': 'Building shared components (header & footer) for your site...',
       'generating-assets': 'Generating shared styles and scripts for your site...',
@@ -741,9 +741,10 @@ export function Builder() {
       const convId = pendingBlueprintConversationIdRef.current;
       pendingBlueprintPromptRef.current = null;
       pendingBlueprintConversationIdRef.current = null;
+      discovery.reset();
       generateBlueprint(prompt, convId);
     }
-  }, [discovery.phase, generateBlueprint]);
+  }, [discovery.phase, discovery.reset, generateBlueprint]);
 
   // Auto-evaluate when all discovery questions are answered
   useEffect(() => {

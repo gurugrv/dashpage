@@ -2,6 +2,7 @@
 
 import type { UIMessage } from '@ai-sdk/react';
 import { ChatInput } from '@/components/ChatInput';
+import { ChatMessage } from '@/components/ChatMessage';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { BuildProgressState } from '@/hooks/useBuildProgress';
 import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
@@ -134,13 +135,14 @@ export function PromptPanel({
             <DiscoveryLoadingIndicator />
           )}
 
-          {discoveryAcknowledgement && discoveryPhase && discoveryPhase !== 'idle' && discoveryPhase !== 'analyzing' && discoveryPhase !== 'skipped' && (
-            <div className="flex gap-3 px-4 py-3" style={{ animation: 'fadeSlideIn 0.3s ease-out' }}>
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <svg className="size-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-              </div>
-              <p className="text-sm text-foreground">{discoveryAcknowledgement}</p>
-            </div>
+          {discoveryAcknowledgement && discoveryPhase && discoveryPhase !== 'idle' && discoveryPhase !== 'analyzing' && discoveryPhase !== 'skipped' && discoveryPhase !== 'complete' && (
+            <ChatMessage
+              message={{
+                id: 'discovery-acknowledgement',
+                role: 'assistant',
+                parts: [{ type: 'text', text: discoveryAcknowledgement }],
+              }}
+            />
           )}
 
           {discoveryPhase === 'evaluating' && (
