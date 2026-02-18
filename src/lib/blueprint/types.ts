@@ -24,7 +24,7 @@ export const mediaTypeEnum = z.enum([
 export const interactiveElementEnum = z.enum([
   'accordion', 'tabs', 'carousel', 'counter-animation', 'toggle-switch',
   'hover-reveal', 'progressive-disclosure', 'before-after-slider',
-  'tilt-card', 'scroll-scrub', 'none'
+  'tilt-card', 'magnetic-button', 'none'
 ]);
 
 export const motionIntentEnum = z.enum([
@@ -38,6 +38,19 @@ export const surfaceTreatmentEnum = z.enum([
   'neubrutalist', 'claymorphism'
 ]);
 
+export const visualStyleEnum = z.enum([
+  'editorial-magazine', 'tech-minimal', 'luxury-refined', 'bold-expressive',
+  'organic-warm', 'brutalist-raw', 'retro-nostalgic', 'corporate-clean'
+]);
+
+export const visualWeightEnum = z.enum([
+  'hero-heavy', 'content-dense', 'balanced', 'minimal'
+]);
+
+export const contentDepthEnum = z.enum([
+  'minimal', 'standard', 'rich'
+]);
+
 export const blueprintPageSectionSchema = z.object({
   id: z.string().describe('Unique section identifier (e.g., "hero", "features", "pricing")'),
   name: z.string().describe('Human-readable section name (e.g., "Hero", "Features"). Use empty string if unsure.'),
@@ -49,6 +62,8 @@ export const blueprintPageSectionSchema = z.object({
   mediaType: mediaTypeEnum.catch('none').optional().default('none').describe('Primary media type for this section'),
   interactiveElement: interactiveElementEnum.catch('none').optional().default('none').describe('Interactive UI pattern (accordion, tabs, carousel, etc.)'),
   motionIntent: motionIntentEnum.catch('none').optional().default('none').describe('Animation intent (entrance-reveal, staggered-cards, parallax-bg, etc.)'),
+  imageDirection: z.string().optional().default('').describe('Specific subject/style for imagery, e.g. "close-up hands working with clay, warm tones"'),
+  contentDepth: contentDepthEnum.catch('standard').optional().default('standard').describe('How much copy/data this section should contain'),
 }).transform((section) => ({
   ...section,
   // Derive name from id when model returns empty string (e.g., "about-doctor" → "About Doctor")
@@ -60,6 +75,9 @@ export const blueprintPageSchema = z.object({
   title: z.string().describe('Page title for <title> tag and SEO'),
   description: z.string().describe('Meta description for SEO'),
   purpose: z.string().describe('The role this page plays in the site'),
+  contentFocus: z.string().optional().default('').describe('Unique messaging this page owns, e.g. "trust through case studies"'),
+  visualWeight: visualWeightEnum.catch('balanced').optional().default('balanced').describe('Visual spectacle vs information density'),
+  heroApproach: z.string().optional().default('').describe('Hero section approach, e.g. "full-bleed image with overlay text"'),
   sections: z.array(blueprintPageSectionSchema).describe('Ordered list of page sections'),
 });
 
@@ -76,6 +94,12 @@ export const blueprintDesignSystemSchema = z.object({
   borderRadius: z.string().min(1).describe('Border radius token (e.g., "8px", "12px", "0.5rem")'),
   mood: z.string().min(3).describe('Overall design mood (e.g., "warm and inviting", "sleek and modern")'),
   surfaceTreatment: surfaceTreatmentEnum.catch('clean').optional().default('clean').describe('Background surface style (textured, layered-gradients, glassmorphism, clean, organic)'),
+  visualStyle: visualStyleEnum.catch('bold-expressive').optional().default('bold-expressive').describe('Site-level visual archetype driving layout and composition decisions'),
+  imageStyle: z.string().optional().default('').describe('Image direction, e.g. "warm documentary photography with natural light"'),
+  fontWeights: z.object({
+    heading: z.array(z.number()).optional().default([400, 600, 700]),
+    body: z.array(z.number()).optional().default([400, 500, 600]),
+  }).optional().default({ heading: [400, 600, 700], body: [400, 500, 600] }).describe('Font weights to load'),
 });
 
 const keyStatSchema = z.object({
@@ -92,6 +116,8 @@ export const blueprintContentStrategySchema = z.object({
   differentiators: z.array(z.string()).optional().default([]).describe('What makes this business unique'),
   keyStats: z.array(keyStatSchema).optional().default([]).describe('Impressive numbers to showcase'),
   brandStory: z.string().optional().default('').describe('2-3 sentence brand narrative'),
+  contentDistribution: z.record(z.string(), z.array(z.string())).optional().default({}).describe('Maps page filenames to assigned value propositions — prevents repetitive content across pages'),
+  seoKeywords: z.record(z.string(), z.array(z.string())).optional().default({}).describe('Per-page target keywords for SEO'),
 });
 
 export const blueprintNavLinkSchema = z.object({
