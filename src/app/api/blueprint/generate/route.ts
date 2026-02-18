@@ -7,6 +7,8 @@ import { resolveBlueprintExecution } from '@/lib/blueprint/resolve-blueprint-exe
 import { sanitizeFont } from '@/lib/fonts';
 import { ChatRequestError } from '@/lib/chat/errors';
 import { createDebugSession, createGenerationTracker, isDebugEnabled } from '@/lib/chat/stream-debug';
+import { registerGeneration, unregisterGeneration } from '@/lib/stream/generation-registry';
+import { recordGenerationEvent } from '@/lib/telemetry/generation-events';
 import { repairAndParseJson } from '@/lib/blueprint/repair-json';
 import { researchSiteFacts } from '@/lib/blueprint/research';
 import { resolveApiKey } from '@/lib/keys/key-manager';
@@ -38,6 +40,13 @@ export async function POST(req: Request) {
   if (!prompt?.trim() || !conversationId) {
     return NextResponse.json({ error: 'prompt and conversationId are required' }, { status: 400 });
   }
+
+  // Create a linked AbortController for server-side abort registry
+  const controller = new AbortController();
+  req.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  registerGeneration(conversationId, controller);
+  const generationStartedAt = Date.now();
+  let repairTriggered = false;
 
   try {
     const { modelInstance, systemPrompt } = await resolveBlueprintExecution({
@@ -89,6 +98,7 @@ export async function POST(req: Request) {
           ...(useStructuredOutput ? { output: Output.object({ schema: blueprintSchema }) } : {}),
           prompt: textPrompt,
           maxOutputTokens,
+          abortSignal: controller.signal,
         });
 
         rawText = result.text;
@@ -107,6 +117,7 @@ export async function POST(req: Request) {
             blueprint = parsed;
           } else if (rawText) {
             console.warn('Blueprint output missing, attempting repair from raw text...');
+            repairTriggered = true;
             const repaired = repairAndParseJson(rawText, blueprintSchema);
             if (repaired) {
               console.info('Blueprint JSON repair succeeded');
@@ -136,6 +147,7 @@ export async function POST(req: Request) {
       // Attempt to repair and validate the raw text before giving up.
       if (NoObjectGeneratedError.isInstance(parseErr) && parseErr.text) {
         console.warn('Blueprint JSON parse failed, attempting repair...');
+        repairTriggered = true;
         rawText = parseErr.text;
         finishReason = parseErr.finishReason;
         const repaired = repairAndParseJson(parseErr.text, blueprintSchema);
@@ -170,6 +182,20 @@ export async function POST(req: Request) {
     });
     tracker.addStep({ model, provider, usage: resultUsage });
     await tracker.logFinalSummary();
+    recordGenerationEvent({
+      conversationId,
+      scope: 'blueprint-generate',
+      provider,
+      model,
+      finishReason: finishReason ?? 'unknown',
+      inputTokens: resultUsage?.inputTokens,
+      outputTokens: resultUsage?.outputTokens,
+      durationMs: Date.now() - generationStartedAt,
+      toolCallCount: 0,
+      hasFileOutput: false,
+      repairTriggered,
+    });
+    unregisterGeneration(conversationId);
 
     blueprint.designSystem.headingFont = sanitizeFont(blueprint.designSystem.headingFont, 'heading');
     blueprint.designSystem.bodyFont = sanitizeFont(blueprint.designSystem.bodyFont, 'body');
@@ -284,6 +310,19 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ blueprint, id: dbBlueprint.id });
   } catch (err: unknown) {
+    unregisterGeneration(conversationId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      const abortReason = controller.signal.reason === 'superseded' ? 'superseded' : 'aborted';
+      recordGenerationEvent({
+        conversationId,
+        scope: 'blueprint-generate',
+        provider,
+        model,
+        finishReason: abortReason,
+        durationMs: Date.now() - generationStartedAt,
+      });
+      return NextResponse.json({ error: 'Generation aborted' }, { status: 499 });
+    }
     if (err instanceof ChatRequestError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }

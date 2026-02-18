@@ -9,6 +9,8 @@ import type { ToolActivityEvent } from '@/types/build-progress';
 import { prisma } from '@/lib/db/prisma';
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
 import { extractComponents } from '@/lib/blocks/extract-components';
+import { registerGeneration, unregisterGeneration } from '@/lib/stream/generation-registry';
+import { recordGenerationEvent } from '@/lib/telemetry/generation-events';
 
 interface ChatRequestBody {
   messages: Array<Omit<UIMessage, 'id'>>;
@@ -404,6 +406,14 @@ export async function POST(req: Request) {
 
     const isAnthropicDirect = resolvedProvider === 'anthropic';
 
+    // Create a linked AbortController for server-side abort registry
+    const controller = new AbortController();
+    req.signal.addEventListener('abort', () => controller.abort(), { once: true });
+    if (clientConversationId) {
+      registerGeneration(clientConversationId, controller);
+    }
+    const generationStartedAt = Date.now();
+
     const fileCount = Object.keys(currentFiles ?? {}).length;
     const { tools, workingFiles } = createWebsiteTools(currentFiles ?? {}, { imageProvider, imageModel });
     // continuePrompt is built dynamically per segment via buildContinuePrompt()
@@ -514,7 +524,7 @@ export async function POST(req: Request) {
               maxOutputTokens: resolvedMaxOutputTokens,
               tools,
               stopWhen: stepCountIs(10),
-              abortSignal: req.signal,
+              abortSignal: controller.signal,
             });
             const sourceStream = result.toUIMessageStream({ sendStart: segment === 0, sendFinish: false });
 
@@ -806,6 +816,19 @@ export async function POST(req: Request) {
           });
           tracker.addStep({ model, provider, usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed } });
           await tracker.logFinalSummary();
+          recordGenerationEvent({
+            conversationId: clientConversationId,
+            scope: 'chat',
+            provider,
+            model,
+            finishReason: finalFinishReason,
+            inputTokens: totalPromptTokens,
+            outputTokens: totalTokensUsed,
+            durationMs: Date.now() - generationStartedAt,
+            toolCallCount: toolCallNames.size,
+            hasFileOutput,
+          });
+          if (clientConversationId) unregisterGeneration(clientConversationId);
 
           // Send finish immediately so client can update UI without waiting for DB cleanup
           writer.write({ type: 'finish', finishReason: finalFinishReason } as UIMessageChunk);
@@ -818,16 +841,30 @@ export async function POST(req: Request) {
           }
         } catch (err: unknown) {
           if (err instanceof Error && err.name === 'AbortError') {
+            const abortReason = controller.signal.reason === 'superseded' ? 'superseded' : 'aborted';
             debugSession.finish('aborted');
-            debugSession.logFullResponse('aborted');
+            debugSession.logFullResponse(abortReason);
             debugSession.logGenerationSummary?.({
-              finishReason: 'aborted',
+              finishReason: abortReason,
               hasFileOutput,
               toolCallCount: toolCallNames.size,
               usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed },
             });
             tracker.addStep({ model, provider, usage: { inputTokens: totalPromptTokens, outputTokens: totalTokensUsed } });
             await tracker.logFinalSummary();
+            recordGenerationEvent({
+              conversationId: clientConversationId,
+              scope: 'chat',
+              provider,
+              model,
+              finishReason: abortReason,
+              inputTokens: totalPromptTokens,
+              outputTokens: totalTokensUsed,
+              durationMs: Date.now() - generationStartedAt,
+              toolCallCount: toolCallNames.size,
+              hasFileOutput,
+            });
+            if (clientConversationId) unregisterGeneration(clientConversationId);
             return;
           }
           throw err;

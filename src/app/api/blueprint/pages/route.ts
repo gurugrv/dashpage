@@ -6,6 +6,8 @@ import { getPageSystemPrompt } from '@/lib/blueprint/prompts/page-system-prompt'
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
+import { registerGeneration, unregisterGeneration } from '@/lib/stream/generation-registry';
+import { recordGenerationEvent } from '@/lib/telemetry/generation-events';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
 import { validateBlocks } from '@/lib/blocks/validate-blocks';
@@ -204,7 +206,11 @@ export async function POST(req: Request) {
   const totalPages = allPages.length;
   const skipSet = new Set(skipPages ?? []);
   const pages = allPages.filter(p => !skipSet.has(p.filename));
-  const abortSignal = req.signal;
+  // Create a linked AbortController for server-side abort registry
+  const abortController = new AbortController();
+  req.signal.addEventListener('abort', () => abortController.abort(), { once: true });
+  registerGeneration(conversationId, abortController);
+  const abortSignal = abortController.signal;
 
   // Checkpoint: entering page generation phase with shared styles
   if (headTags) {
@@ -277,6 +283,7 @@ export async function POST(req: Request) {
 
       async function generateSinglePage(page: typeof pages[number]) {
         if (abortSignal.aborted) return;
+        const pageStartedAt = Date.now();
 
         // Fresh tool set per page — exclude edit tools not needed during generation
         const PAGE_GEN_TOOLS = new Set(['writeFile', 'writeFiles', 'readFile', 'searchImages', 'searchIcons', 'webSearch', 'fetchUrl']);
@@ -303,6 +310,9 @@ export async function POST(req: Request) {
         let prevSegmentToolInputs = '';  // Degenerate loop detection
         let writeFilesAttempted = false;
         let toolCallCount = 0;
+        let pageInputTokens = 0;
+        let pageOutputTokens = 0;
+        let textFallbackUsed = false;
         let segmentsWithoutWriteFiles = 0;
         let allTextOutput = '';  // Accumulate text across all segments for fallback
         let pageSummary: string | undefined;  // Extracted from writeFile/writeFiles summary field
@@ -477,6 +487,8 @@ export async function POST(req: Request) {
 
           const finishReason = await result.finishReason;
           const pageUsage = await result.usage;
+          if (pageUsage?.inputTokens) pageInputTokens += pageUsage.inputTokens;
+          if (pageUsage?.outputTokens) pageOutputTokens += pageUsage.outputTokens;
           debugSession.logFullResponse(finishReason);
           debugSession.logGenerationSummary?.({
             finishReason,
@@ -548,6 +560,7 @@ export async function POST(req: Request) {
         if (!pageHtml && allTextOutput) {
           pageHtml = extractHtmlFromText(allTextOutput) ?? undefined;
           if (pageHtml) {
+            textFallbackUsed = true;
             console.warn(`[blueprint-page:${page.filename}] Extracted HTML from accumulated text output (writeFiles fallback)`);
           }
         }
@@ -569,9 +582,26 @@ export async function POST(req: Request) {
             .join('\n');
           pageHtml = extractHtmlFromText(responseText) ?? undefined;
           if (pageHtml) {
+            textFallbackUsed = true;
             console.warn(`[blueprint-page:${page.filename}] Extracted HTML from response messages (writeFiles fallback)`);
           }
         }
+
+        // Record per-page telemetry event
+        recordGenerationEvent({
+          conversationId,
+          scope: 'blueprint-pages',
+          provider,
+          model,
+          finishReason: pageHtml ? 'stop' : 'error',
+          inputTokens: pageInputTokens,
+          outputTokens: pageOutputTokens,
+          durationMs: Date.now() - pageStartedAt,
+          toolCallCount,
+          hasFileOutput: !!pageHtml,
+          textFallback: textFallbackUsed,
+          metadata: { filename: page.filename },
+        });
 
         if (pageHtml) {
           // Post-process: ensure all semantic elements have data-block attributes
@@ -705,6 +735,8 @@ export async function POST(req: Request) {
         totalPages,
         completedPages,
       });
+
+      unregisterGeneration(conversationId);
 
       // Clean up generation state on successful completion
       if (!hasErrors) {

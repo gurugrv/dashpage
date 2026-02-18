@@ -5,6 +5,8 @@ import { getComponentsSystemPrompt } from '@/lib/blueprint/prompts/components-sy
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
+import { registerGeneration, unregisterGeneration } from '@/lib/stream/generation-registry';
+import { recordGenerationEvent } from '@/lib/telemetry/generation-events';
 import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
@@ -70,7 +72,11 @@ export async function POST(req: Request) {
     ? createOpenRouterModel(apiKey, model, 'none')
     : providerConfig.createModel(apiKey, model);
   const userPrompt = `Generate the shared header and footer HTML components for the "${blueprint.siteName}" website.`;
-  const abortSignal = req.signal;
+  // Create a linked AbortController for server-side abort registry
+  const controller = new AbortController();
+  req.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  if (conversationId) registerGeneration(conversationId, controller);
+  const generationStartedAt = Date.now();
 
   // Use TransformStream so the Response is returned immediately (not buffered until start() completes)
   const { readable, writable } = new TransformStream();
@@ -111,7 +117,7 @@ export async function POST(req: Request) {
         maxOutputTokens,
         tools,
         stopWhen: stepCountIs(8),
-        abortSignal,
+        abortSignal: controller.signal,
       });
 
       for await (const part of result.fullStream) {
@@ -184,6 +190,19 @@ export async function POST(req: Request) {
       });
       tracker.addStep({ model, provider, usage: componentUsage });
       await tracker.logFinalSummary();
+      recordGenerationEvent({
+        conversationId,
+        scope: 'blueprint-components',
+        provider,
+        model,
+        finishReason: componentFinishReason,
+        inputTokens: componentUsage?.inputTokens,
+        outputTokens: componentUsage?.outputTokens,
+        durationMs: Date.now() - generationStartedAt,
+        toolCallCount: toolCallNames.size,
+        hasFileOutput,
+      });
+      if (conversationId) unregisterGeneration(conversationId);
 
       // Normalize filenames: models sometimes hallucinate prefixes like _footer.html
       const normalizedFiles: Record<string, string> = {};
@@ -235,7 +254,15 @@ export async function POST(req: Request) {
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        // Client disconnected — close silently
+        const abortReason = controller.signal.reason === 'superseded' ? 'superseded' : 'aborted';
+        recordGenerationEvent({
+          conversationId,
+          scope: 'blueprint-components',
+          provider,
+          model,
+          finishReason: abortReason,
+          durationMs: Date.now() - generationStartedAt,
+        });
       } else {
         console.error('Components generation failed:', err);
         sendEvent({
@@ -244,6 +271,7 @@ export async function POST(req: Request) {
           error: err instanceof Error ? err.message : 'Components generation failed',
         });
       }
+      if (conversationId) unregisterGeneration(conversationId);
     }
 
     writer.close().catch(() => {});

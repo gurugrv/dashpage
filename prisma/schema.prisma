@@ -106,3 +106,27 @@ model BusinessProfile {
 
   @@map("business_profiles")
 }
+
+model GenerationEvent {
+  id              String   @id @default(cuid())
+  conversationId  String?  @map("conversation_id")
+  scope           String   // "chat", "blueprint-generate", "blueprint-components", "blueprint-pages", "blueprint-assets"
+  provider        String
+  model           String
+  finishReason    String?  @map("finish_reason") // "stop", "length", "other", "aborted", "superseded"
+  inputTokens     Int      @default(0) @map("input_tokens")
+  outputTokens    Int      @default(0) @map("output_tokens")
+  durationMs      Int      @map("duration_ms")
+  toolCallCount   Int      @default(0) @map("tool_call_count")
+  hasFileOutput   Boolean  @default(false) @map("has_file_output")
+  repairTriggered Boolean  @default(false) @map("repair_triggered")
+  textFallback    Boolean  @default(false) @map("text_fallback")
+  costUsd         Float?   @map("cost_usd")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@index([provider, model])
+  @@index([createdAt])
+  @@map("generation_events")
+}

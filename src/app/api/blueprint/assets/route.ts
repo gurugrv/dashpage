@@ -5,6 +5,8 @@ import { getAssetsSystemPrompt } from '@/lib/blueprint/prompts/assets-system-pro
 import { ChatRequestError } from '@/lib/chat/errors';
 import { resolveMaxOutputTokens } from '@/lib/chat/constants';
 import { createDebugSession, createGenerationTracker } from '@/lib/chat/stream-debug';
+import { registerGeneration, unregisterGeneration } from '@/lib/stream/generation-registry';
+import { recordGenerationEvent } from '@/lib/telemetry/generation-events';
 import { prisma } from '@/lib/db/prisma';
 import { createWebsiteTools } from '@/lib/chat/tools';
 import { TOOL_LABELS, summarizeToolInput, summarizeToolOutput } from '@/lib/blueprint/stream-utils';
@@ -70,7 +72,12 @@ export async function POST(req: Request) {
     ? createOpenRouterModel(apiKey, model, 'none')
     : providerConfig.createModel(apiKey, model);
   const userPrompt = `Generate the shared styles.css and scripts.js for the "${blueprint.siteName}" website.`;
-  const abortSignal = req.signal;
+  // Create a linked AbortController for server-side abort registry
+  const abortController = new AbortController();
+  req.signal.addEventListener('abort', () => abortController.abort(), { once: true });
+  if (conversationId) registerGeneration(conversationId, abortController);
+  const generationStartedAt = Date.now();
+  const abortSignal = abortController.signal;
 
   const { readable, writable } = new TransformStream();
   const encoder = new TextEncoder();
@@ -181,6 +188,19 @@ export async function POST(req: Request) {
       });
       tracker.addStep({ model, provider, usage });
       await tracker.logFinalSummary();
+      recordGenerationEvent({
+        conversationId,
+        scope: 'blueprint-assets',
+        provider,
+        model,
+        finishReason,
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        durationMs: Date.now() - generationStartedAt,
+        toolCallCount: toolCallNames.size,
+        hasFileOutput,
+      });
+      if (conversationId) unregisterGeneration(conversationId);
 
       // Normalize filenames — find styles.css and scripts.js even if the model
       // used variant names (e.g. _styles.css, style.css, _style.css)
@@ -238,7 +258,15 @@ export async function POST(req: Request) {
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        // Client disconnected
+        const abortReason = abortController.signal.reason === 'superseded' ? 'superseded' : 'aborted';
+        recordGenerationEvent({
+          conversationId,
+          scope: 'blueprint-assets',
+          provider,
+          model,
+          finishReason: abortReason,
+          durationMs: Date.now() - generationStartedAt,
+        });
       } else {
         console.error('Assets generation failed:', err);
         sendEvent({
@@ -247,6 +275,7 @@ export async function POST(req: Request) {
           error: err instanceof Error ? err.message : 'Assets generation failed',
         });
       }
+      if (conversationId) unregisterGeneration(conversationId);
     }
 
     writer.close().catch(() => {});
