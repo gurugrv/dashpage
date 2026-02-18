@@ -204,6 +204,22 @@ export async function POST(req: Request) {
     const conv = await convPromise;
     const businessProfile = conv?.businessProfile;
 
+    // Format hours Record<string, string> as human-readable string
+    const formatHours = (hours: Record<string, string> | null | undefined): string => {
+      if (!hours || typeof hours !== 'object') return '';
+      return Object.entries(hours)
+        .map(([day, time]) => `${day}: ${time}`)
+        .join(', ');
+    };
+
+    // Format socialMedia Record<string, string> as human-readable string
+    const formatSocialMedia = (social: Record<string, string> | null | undefined): string => {
+      if (!social || typeof social !== 'object') return '';
+      return Object.entries(social)
+        .map(([platform, url]) => `${platform}: ${url}`)
+        .join(', ');
+    };
+
     // Build discovery facts from business profile (user-provided data takes priority)
     const discoveryFacts: import('@/lib/blueprint/types').SiteFacts | null = businessProfile
       ? {
@@ -211,10 +227,13 @@ export async function POST(req: Request) {
           address: businessProfile.address ?? '',
           phone: businessProfile.phone ?? '',
           email: businessProfile.email ?? '',
-          hours: businessProfile.hours ? JSON.stringify(businessProfile.hours) : '',
+          hours: formatHours(businessProfile.hours as Record<string, string> | null),
           services: (businessProfile.services as string[] | null) ?? [],
           tagline: '',
-          socialMedia: businessProfile.socialMedia ? JSON.stringify(businessProfile.socialMedia) : '',
+          socialMedia: formatSocialMedia(businessProfile.socialMedia as Record<string, string> | null),
+          category: businessProfile.category ?? '',
+          googleMapsUri: businessProfile.googleMapsUri ?? '',
+          location: businessProfile.lat && businessProfile.lng ? `${businessProfile.lat},${businessProfile.lng}` : '',
           additionalInfo: businessProfile.additionalInfo ?? '',
         }
       : null;
@@ -253,6 +272,16 @@ export async function POST(req: Request) {
     // Run web research in the background — results merge into DB blueprint
     // while the user reviews and approves. Client re-fetches before generation.
     if (blueprint.needsResearch) {
+      // Mark research as pending so the client can wait for it before generating
+      blueprint.researchPending = true;
+      await prisma.blueprint.update({
+        where: { conversationId },
+        data: { data: blueprint },
+      });
+
+      // Use the user-provided business name from discovery if available
+      const searchName = discoveryFacts?.businessName || blueprint.siteName;
+
       after(async () => {
         try {
           let researchModelInstance = modelInstance;
@@ -273,14 +302,23 @@ export async function POST(req: Request) {
 
           const researchFacts = await researchSiteFacts(
             researchModelInstance,
-            blueprint.siteName,
+            searchName,
             prompt,
-            { conversationId, provider: researchDebugProvider, model: researchDebugModel },
+            {
+              conversationId,
+              provider: researchDebugProvider,
+              model: researchDebugModel,
+              businessWebsite: businessProfile?.website ?? undefined,
+            },
           );
+
+          // Re-read the latest blueprint from DB (user may have edited it while research ran)
+          const latestRecord = await prisma.blueprint.findUnique({ where: { conversationId } });
+          const latestBlueprint = (latestRecord?.data ?? blueprint) as Blueprint;
+          const currentFacts = latestBlueprint.siteFacts;
 
           if (researchFacts) {
             // Merge: discovery data wins for non-empty fields, research fills gaps
-            const currentFacts = blueprint.siteFacts;
             const mergedFacts = currentFacts
               ? {
                   businessName: currentFacts.businessName || researchFacts.businessName,
@@ -291,19 +329,37 @@ export async function POST(req: Request) {
                   services: currentFacts.services?.length ? currentFacts.services : researchFacts.services,
                   tagline: researchFacts.tagline || currentFacts.tagline,
                   socialMedia: currentFacts.socialMedia || researchFacts.socialMedia,
+                  category: currentFacts.category || researchFacts.category,
+                  googleMapsUri: currentFacts.googleMapsUri || researchFacts.googleMapsUri,
+                  location: currentFacts.location || researchFacts.location,
                   additionalInfo: [currentFacts.additionalInfo, researchFacts.additionalInfo].filter(Boolean).join('\n'),
                 }
               : researchFacts;
 
-            // Update blueprint in DB with research results
-            const latestBlueprint = { ...blueprint, siteFacts: mergedFacts };
+            // Update blueprint in DB with research results and clear pending flag
             await prisma.blueprint.update({
               where: { conversationId },
-              data: { data: latestBlueprint },
+              data: { data: { ...latestBlueprint, siteFacts: mergedFacts, researchPending: false } },
+            });
+          } else {
+            // No research results — just clear the pending flag
+            await prisma.blueprint.update({
+              where: { conversationId },
+              data: { data: { ...latestBlueprint, researchPending: false } },
             });
           }
         } catch (err) {
           console.warn('[blueprint-generate] Background research failed:', err instanceof Error ? err.message : err);
+          // Clear pending flag on failure so client doesn't wait forever
+          try {
+            const record = await prisma.blueprint.findUnique({ where: { conversationId } });
+            if (record?.data) {
+              await prisma.blueprint.update({
+                where: { conversationId },
+                data: { data: { ...(record.data as Record<string, unknown>), researchPending: false } },
+              });
+            }
+          } catch { /* best effort */ }
         }
       });
     }

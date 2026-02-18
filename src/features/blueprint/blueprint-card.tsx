@@ -48,7 +48,7 @@ export function BlueprintCard({
 
   const factsSource = isEditing ? draft.siteFacts : blueprint.siteFacts;
 
-  const emptySiteFacts: SiteFacts = { businessName: '', address: '', phone: '', email: '', hours: '', services: [], tagline: '', socialMedia: '', additionalInfo: '' };
+  const emptySiteFacts: SiteFacts = { businessName: '', address: '', phone: '', email: '', hours: '', services: [], tagline: '', socialMedia: '', category: '', googleMapsUri: '', location: '', additionalInfo: '' };
 
   const updateFact = (field: keyof SiteFacts, value: string | string[] | Record<string, string>) => {
     setDraft((prev) => ({

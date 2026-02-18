@@ -328,7 +328,7 @@ export async function researchSiteFacts(
   model: LanguageModel,
   siteName: string,
   userPrompt: string,
-  params?: { conversationId?: string; provider?: string; model?: string },
+  params?: { conversationId?: string; provider?: string; model?: string; businessWebsite?: string },
 ): Promise<SiteFacts | null> {
   const debug = isDebugEnabled()
     ? createDebugSession({
@@ -346,7 +346,7 @@ export async function researchSiteFacts(
 
   const searchResults = await searchForBusiness(model, siteName, userPrompt, debug);
 
-  if (searchResults.length === 0) {
+  if (searchResults.length === 0 && !params?.businessWebsite) {
     debug?.logResponse({ response: 'No search results found', status: 'complete' });
     debug?.finish('complete');
     debug?.logGenerationSummary?.({
@@ -359,8 +359,39 @@ export async function researchSiteFacts(
     return null;
   }
 
-  // Fetch top URLs for richer content (runs in parallel with nothing, but keeps flow simple)
-  const pageContent = await fetchTopUrls(searchResults, debug);
+  // Fetch top URLs for richer content + direct website fetch if provided by discovery
+  const fetchPromises: Promise<string>[] = [fetchTopUrls(searchResults, debug)];
+
+  if (params?.businessWebsite) {
+    fetchPromises.push(
+      (async () => {
+        try {
+          debug?.logToolStarting({ toolName: 'fetchBusinessWebsite', toolCallId: 'biz-website' });
+          const response = await fetch(params.businessWebsite!, {
+            signal: AbortSignal.timeout(URL_FETCH_TIMEOUT_MS),
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AIBuilder/1.0)' },
+          });
+          if (!response.ok) return '';
+          const html = await response.text();
+          const text = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, MAX_PAGE_CONTENT_LENGTH);
+          debug?.logToolResult({ toolName: 'fetchBusinessWebsite', toolCallId: 'biz-website', output: { length: text.length } });
+          return text.length > 100 ? `[Business website: ${params.businessWebsite}]\n${text}` : '';
+        } catch {
+          debug?.logToolResult({ toolName: 'fetchBusinessWebsite', toolCallId: 'biz-website', error: 'fetch failed' });
+          return '';
+        }
+      })(),
+    );
+  }
+
+  const [searchPageContent, websiteContent] = await Promise.all(fetchPromises);
+  const pageContent = [searchPageContent, websiteContent].filter(Boolean).join('\n\n');
 
   const facts = await extractFacts(model, siteName, userPrompt, searchResults, pageContent, debug);
 

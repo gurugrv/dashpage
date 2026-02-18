@@ -775,15 +775,37 @@ export function useBlueprintGeneration({
   }, [resolveStepModel, imageProvider, imageModel]);
 
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
-    // Re-fetch blueprint from DB — background research may have merged site facts
+    // Re-fetch blueprint from DB — background research may have merged site facts.
+    // If research is still pending, poll with backoff (max ~10s) before proceeding.
+    const MAX_RESEARCH_POLLS = 5;
+    const POLL_INTERVALS = [1000, 2000, 2000, 3000, 3000]; // total ~11s
+
     try {
-      const res = await fetch(`/api/blueprint/${conversationId}`);
-      if (res.ok) {
+      let fetchedBlueprint: Blueprint | null = null;
+
+      for (let attempt = 0; attempt <= MAX_RESEARCH_POLLS; attempt++) {
+        const res = await fetch(`/api/blueprint/${conversationId}`);
+        if (!res.ok) break;
+
         const data = await res.json();
-        if (data.blueprint) {
-          activeBlueprint = data.blueprint;
-          setBlueprint(activeBlueprint);
+        if (!data.blueprint) break;
+
+        fetchedBlueprint = data.blueprint;
+
+        // If research is done (or was never started), use this blueprint
+        if (!fetchedBlueprint?.researchPending) break;
+
+        // Research still pending — wait and retry (unless we've exhausted attempts)
+        if (attempt < MAX_RESEARCH_POLLS) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVALS[attempt]));
         }
+      }
+
+      if (fetchedBlueprint) {
+        // Strip the transient flag before using
+        delete fetchedBlueprint.researchPending;
+        activeBlueprint = fetchedBlueprint;
+        setBlueprint(activeBlueprint);
       }
     } catch {
       // Non-fatal: proceed with current blueprint

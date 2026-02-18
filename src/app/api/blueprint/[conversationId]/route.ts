@@ -46,9 +46,17 @@ export async function PATCH(
   }
 
   try {
+    // Read existing blueprint to preserve siteFacts and researchPending
+    // (these fields live outside blueprintSchema and would be stripped by safeParse)
+    const existing = await prisma.blueprint.findUnique({ where: { conversationId } });
+    const existingData = existing?.data as Record<string, unknown> | null;
+    const preserved: Record<string, unknown> = {};
+    if (existingData?.siteFacts) preserved.siteFacts = existingData.siteFacts;
+    if (existingData?.researchPending !== undefined) preserved.researchPending = existingData.researchPending;
+
     await prisma.blueprint.update({
       where: { conversationId },
-      data: { data: parsed.data as unknown as Prisma.InputJsonValue },
+      data: { data: { ...parsed.data, ...preserved } as unknown as Prisma.InputJsonValue },
     });
     return NextResponse.json({ ok: true });
   } catch {

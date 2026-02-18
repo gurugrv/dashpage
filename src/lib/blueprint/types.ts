@@ -109,10 +109,13 @@ export const siteFactsSchema = z.object({
   address: z.string().optional().default('').describe('Physical address, or empty string if unknown'),
   phone: z.string().optional().default('').describe('Phone number, or empty string if unknown'),
   email: z.string().optional().default('').describe('Email address, or empty string if unknown'),
-  hours: z.string().optional().default('').describe('Business hours (e.g. "Mon-Fri 9am-5pm, Sat 10am-2pm"), or empty string if unknown'),
+  hours: z.string().optional().default('').describe('Business hours (e.g. "Mon: 9am-5pm, Tue: 9am-5pm"), or empty string if unknown'),
   services: z.array(z.string()).optional().default([]).describe('Key services or offerings, or empty array if unknown'),
   tagline: z.string().optional().default('').describe('Business tagline or slogan, or empty string if unknown'),
   socialMedia: z.string().optional().default('').describe('Social media URLs as comma-separated "platform: url" pairs, e.g. "Facebook: https://facebook.com/biz, Instagram: https://instagram.com/biz", or empty string if unknown'),
+  category: z.string().optional().default('').describe('Business category or type (e.g. "dentist", "restaurant"), or empty string if unknown'),
+  googleMapsUri: z.string().optional().default('').describe('Google Maps URL for embedding, or empty string if unknown'),
+  location: z.string().optional().default('').describe('Lat/lng coordinates as "lat,lng" for map embeds, or empty string if unknown'),
   additionalInfo: z.string().optional().default('').describe('Any other relevant business details, or empty string if unknown'),
 });
 
@@ -134,4 +137,8 @@ export type BlueprintDesignSystem = z.infer<typeof blueprintDesignSystemSchema>;
 export type BlueprintContentStrategy = z.infer<typeof blueprintContentStrategySchema>;
 export type BlueprintSharedComponents = z.infer<typeof blueprintSharedComponentsSchema>;
 /** Blueprint type includes siteFacts which is populated by research after generation, not by the AI schema */
-export type Blueprint = z.infer<typeof blueprintSchema> & { siteFacts?: SiteFacts };
+export type Blueprint = z.infer<typeof blueprintSchema> & {
+  siteFacts?: SiteFacts;
+  /** True while background research is in progress; cleared when research completes */
+  researchPending?: boolean;
+};
