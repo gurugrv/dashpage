@@ -580,6 +580,7 @@ export async function POST(req: Request) {
           // AI often copies the shared header verbatim without updating this attribute
           const $ = cheerio.load(pageHtml);
           $('header, nav').first().attr('data-current-page', page.filename);
+          // @ts-expect-error -- decodeEntities is a dom-serializer option not in CheerioOptions
           pageHtml = $.html({ decodeEntities: false });
 
           completedPages += 1;
