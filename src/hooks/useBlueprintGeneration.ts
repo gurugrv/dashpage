@@ -108,7 +108,7 @@ interface ComponentToolActivityEvent {
 
 type ComponentSSEEvent = ComponentStatusEvent | ComponentToolActivityEvent;
 
-/** Replace placeholder comments with actual component HTML */
+/** Replace placeholder comments with actual component HTML and set data-current-page */
 function mergeComponentsIntoPages(
   files: ProjectFiles,
   components: { headerHtml: string; footerHtml: string },
@@ -119,8 +119,12 @@ function mergeComponentsIntoPages(
       result[filename] = html;
       continue;
     }
+    // Inject data-current-page on the outermost header/nav for active-link highlighting
+    const headerWithCurrentPage = components.headerHtml
+      .replace(/\s+data-current-page="[^"]*"/g, '')
+      .replace(/^(<(?:header|nav)\b[^>]*)/i, `$1 data-current-page="${filename}"`);
     result[filename] = html
-      .replace(/<!-- @component:header -->/g, components.headerHtml)
+      .replace(/<!-- @component:header -->/g, headerWithCurrentPage)
       .replace(/<!-- @component:footer -->/g, components.footerHtml);
   }
   return result;
@@ -771,6 +775,20 @@ export function useBlueprintGeneration({
   }, [resolveStepModel, imageProvider, imageModel]);
 
   const approveAndGenerate = useCallback(async (conversationId: string, activeBlueprint: Blueprint) => {
+    // Re-fetch blueprint from DB — background research may have merged site facts
+    try {
+      const res = await fetch(`/api/blueprint/${conversationId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.blueprint) {
+          activeBlueprint = data.blueprint;
+          setBlueprint(activeBlueprint);
+        }
+      }
+    } catch {
+      // Non-fatal: proceed with current blueprint
+    }
+
     // Build shared styles synchronously from design system — no AI call needed
     const sharedStyles = generateSharedStyles(activeBlueprint.designSystem);
     sharedStylesRef.current = sharedStyles;

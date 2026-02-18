@@ -16,7 +16,7 @@ import type { Blueprint } from '@/lib/blueprint/types';
 import { createOpenRouterModel } from '@/lib/providers/configs/openrouter';
 
 const MAX_PAGE_CONTINUATIONS = 2;
-const MAX_CONCURRENT_PAGES = 3;
+const MAX_CONCURRENT_PAGES = 5;
 
 /**
  * Extract HTML from model text output. Handles:
@@ -133,8 +133,6 @@ interface PagesRequestBody {
   model: string;
   maxOutputTokens?: number;
   blueprint?: Blueprint;
-  headerHtml?: string;
-  footerHtml?: string;
   headTags?: string;
   stylesCss?: string;
   scriptsJs?: string;
@@ -154,7 +152,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { conversationId, provider, model, maxOutputTokens: clientMaxTokens, headerHtml, footerHtml, headTags, stylesCss, scriptsJs, skipPages } = body;
+  const { conversationId, provider, model, maxOutputTokens: clientMaxTokens, headTags, stylesCss, scriptsJs, skipPages } = body;
   let blueprint = body.blueprint;
 
   if (!conversationId || !provider || !model) {
@@ -290,9 +288,8 @@ export async function POST(req: Request) {
           completedPages,
         });
 
-        const sharedHtml = headerHtml && footerHtml ? { headerHtml, footerHtml } : undefined;
         const sharedAssets = stylesCss || scriptsJs ? { stylesCss, scriptsJs } : undefined;
-        const systemPrompt = getPageSystemPrompt(blueprint!, page, sharedHtml, headTags, sharedAssets);
+        const systemPrompt = getPageSystemPrompt(blueprint!, page, headTags, sharedAssets);
         // Disable reasoning tokens for page generation — models spend their output budget
         // on invisible thinking instead of producing HTML tool calls
         const modelInstance = provider === 'OpenRouter'

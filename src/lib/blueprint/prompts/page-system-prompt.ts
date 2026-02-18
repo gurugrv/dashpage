@@ -3,16 +3,30 @@ import { LAYOUT_ARCHETYPES_SECTION } from '@/lib/prompts/sections/context-blocks
 import { BLUEPRINT_DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
 import { UI_UX_GUIDELINES_COMPACT_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
-interface SharedHtml {
-  headerHtml?: string;
-  footerHtml?: string;
-}
+/** Extract a compact API reference from CSS: class names, keyframe names */
+function extractCssApiReference(css: string): string {
+  const classNames = new Set<string>();
+  const keyframes: string[] = [];
 
+  // Extract class names (skip pseudo-classes like :root, :hover)
+  for (const match of css.matchAll(/\.([a-zA-Z][\w-]*)/g)) {
+    classNames.add(`.${match[1]}`);
+  }
+
+  // Extract keyframe names
+  for (const match of css.matchAll(/@keyframes\s+([\w-]+)/g)) {
+    keyframes.push(match[1]);
+  }
+
+  const parts: string[] = [];
+  if (classNames.size) parts.push(`Available CSS classes: ${[...classNames].join(', ')}`);
+  if (keyframes.length) parts.push(`Keyframe animations: ${keyframes.join(', ')}`);
+  return parts.join('\n');
+}
 
 export function getPageSystemPrompt(
   blueprint: Blueprint,
   page: BlueprintPage,
-  sharedHtml?: SharedHtml,
   headTags?: string,
   sharedAssets?: { stylesCss?: string; scriptsJs?: string },
 ): string {
@@ -36,8 +50,6 @@ export function getPageSystemPrompt(
     })
     .join('\n');
 
-  const hasSharedHeader = !!sharedHtml?.headerHtml;
-  const hasSharedFooter = !!sharedHtml?.footerHtml;
   const isSinglePage = blueprint.pages.length === 1;
 
   const siteFactsBlock = blueprint.siteFacts
@@ -65,15 +77,8 @@ ${blueprint.siteFacts.additionalInfo ? `Additional info: ${blueprint.siteFacts.a
     .map(p => `- ${p.filename}: ${p.purpose}`)
     .join('\n');
 
-  const headerSection = hasSharedHeader
-    ? `<shared_header>
-Embed this header HTML VERBATIM at the start of <body>, with ONE modification:
-Set data-current-page="${page.filename}" on the outermost element (e.g. <nav data-current-page="${page.filename}" ...> or <header data-current-page="${page.filename}" ...>).
-This enables active-link highlighting. Do NOT change anything else.
-${sharedHtml!.headerHtml}
-</shared_header>`
-    : isSinglePage
-      ? `<header_spec>
+  const headerSection = isSinglePage
+    ? `<header_spec>
 Generate a responsive header with:
 - Site name "${blueprint.siteName}" as logo/brand text (styled with --color-primary and font-heading)
 - Navigation: use smooth-scroll anchor links to the page sections (e.g., #hero, #features, #contact) — NOT links to other .html files
@@ -81,42 +86,33 @@ Generate a responsive header with:
 - Use design system tokens: bg-[var(--color-bg)], text-[var(--color-text)], etc.
 - Sticky/fixed at top with subtle shadow
 </header_spec>`
-      : `<header_placeholder>
+    : `<header_placeholder>
 Place exactly this HTML comment at the very start of <body>:
 <!-- @component:header -->
 Do NOT generate any header or navigation HTML. A shared header component will be injected here automatically after generation.
 </header_placeholder>`;
 
-  const footerSection = hasSharedFooter
-    ? `<shared_footer>
-Embed this footer HTML VERBATIM at the end of <body> (do NOT modify it):
-${sharedHtml!.footerHtml}
-</shared_footer>`
-    : isSinglePage
-      ? `<footer_spec>
+  const footerSection = isSinglePage
+    ? `<footer_spec>
 Generate a footer with:
 - Site name and footer tagline
 - Anchor links to key sections of the page
 - Copyright line with current year
 - Use design system tokens for colors
 </footer_spec>`
-      : `<footer_placeholder>
+    : `<footer_placeholder>
 Place exactly this HTML comment at the very end of <body> (just before </body>):
 <!-- @component:footer -->
 Do NOT generate any footer HTML. A shared footer component will be injected here automatically after generation.
 </footer_placeholder>`;
 
-  const headerRequirement = hasSharedHeader
-    ? `3. Embed the shared header HTML VERBATIM at the start of <body> — set data-current-page="${page.filename}" on the outermost header/nav element for active-link highlighting. Do not change anything else.`
-    : isSinglePage
-      ? '3. Generate header per header_spec at start of <body>.'
-      : '3. Place the <!-- @component:header --> placeholder comment at the start of <body>. Do NOT generate header HTML.';
+  const headerRequirement = isSinglePage
+    ? '3. Generate header per header_spec at start of <body>.'
+    : '3. Place the <!-- @component:header --> placeholder comment at the start of <body>. Do NOT generate header HTML.';
 
-  const footerRequirement = hasSharedFooter
-    ? '5. Embed the shared footer HTML VERBATIM at the end of <body> — do not modify it in any way.'
-    : isSinglePage
-      ? '5. Generate footer per footer_spec at end of <body>.'
-      : '5. Place the <!-- @component:footer --> placeholder comment at the end of <body>. Do NOT generate footer HTML.';
+  const footerRequirement = isSinglePage
+    ? '5. Generate footer per footer_spec at end of <body>.'
+    : '5. Place the <!-- @component:footer --> placeholder comment at the end of <body>. Do NOT generate footer HTML.';
 
   const designSystemSection = headTags
     ? `<shared_head>
@@ -156,35 +152,34 @@ Surface Treatment: ${designSystem.surfaceTreatment || 'clean'}
 </design_system>`;
 
   const sharedAssetsSection = sharedAssets?.stylesCss
-    ? `<shared_styles_reference>
-The shared styles.css contains these classes and utilities — USE THEM instead of inline styles or duplicate <style> blocks:
+    ? `<shared_styles_api>
+The shared styles.css is linked in <head>. Use these classes instead of inline styles or duplicate CSS:
 
-${sharedAssets.stylesCss}
+${extractCssApiReference(sharedAssets.stylesCss)}
 
 RULES:
 - Use these CSS classes on elements instead of inline style="" attributes
 - Do NOT duplicate any CSS that already exists in styles.css (no duplicate :root, keyframes, or class definitions)
 - Only add a <style> block for CSS that is UNIQUE to this specific page and not covered by styles.css
 - Prefer Tailwind utilities + styles.css classes. Inline style="" should be a last resort.
-</shared_styles_reference>`
+</shared_styles_api>`
     : '';
 
   const sharedScriptsSection = sharedAssets?.scriptsJs
-    ? `<shared_scripts_reference>
-The shared scripts.js contains these JavaScript utilities — USE THEM instead of writing duplicate code:
+    ? `<shared_scripts_api>
+The shared scripts.js is loaded via <script defer>. Use these data-attribute hooks — do NOT rewrite the JS:
 
-${sharedAssets.scriptsJs}
+- data-reveal: scroll-triggered fade-in animation (IntersectionObserver)
+- data-reveal-delay="N": staggered delay in ms for reveal animations
+- data-accordion-trigger / data-accordion-content: accordion toggle
+- data-tab-trigger / data-tab-content: tab switching with keyboard nav
+- data-count-to="N": animate number from 0 to N on scroll
+- data-menu-toggle: mobile hamburger menu trigger
 
 RULES:
-- Use data-reveal attribute for scroll animations (handled by scripts.js IntersectionObserver)
-- Use data-reveal-delay="N" for staggered delays
-- Use data-accordion-trigger / data-accordion-content for accordions
-- Use data-tab-trigger / data-tab-content for tabs
-- Use data-count-to="N" for counter animations
-- Use data-menu-toggle for mobile menu triggers
 - Do NOT write your own IntersectionObserver, hamburger menu JS, or scroll animation JS
 - Only add a <script> block for JavaScript that is UNIQUE to this specific page
-</shared_scripts_reference>`
+</shared_scripts_api>`
     : '';
 
   const requirement2 = headTags
@@ -261,7 +256,7 @@ Sections (generate in this order):
 ${sectionsList}
 </page_spec>
 
-${hasSharedHeader && hasSharedFooter ? '' : isSinglePage
+${isSinglePage
     ? `<site_info>
 Site name: ${blueprint.siteName}
 Footer tagline: ${sharedComponents.footerTagline}
@@ -269,7 +264,7 @@ Section IDs for anchor navigation: ${page.sections.map((s) => `#${s.id}`).join('
 </site_info>`
     : `<shared_navigation>
 Site name: ${blueprint.siteName}
-Navigation links (use in BOTH header and footer):
+Navigation links:
 ${navLinksSpec}
 Footer tagline: ${sharedComponents.footerTagline}
 </shared_navigation>`}

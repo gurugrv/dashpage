@@ -1,5 +1,5 @@
 import { generateText, NoObjectGeneratedError, Output } from 'ai';
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Prisma } from '@/generated/prisma/client';
 import { blueprintSchema, type Blueprint } from '@/lib/blueprint/types';
@@ -190,59 +190,8 @@ export async function POST(req: Request) {
         }
       : null;
 
-    // Run web research to complement discovery data (or as sole source if no discovery)
-    if (blueprint.needsResearch) {
-      try {
-        let researchModelInstance = modelInstance;
-        let researchDebugProvider = provider;
-        let researchDebugModel = model;
-
-        if (body.researchProvider && body.researchModel) {
-          const researchApiKey = await resolveApiKey(body.researchProvider);
-          if (researchApiKey) {
-            const researchProviderConfig = PROVIDERS[body.researchProvider as keyof typeof PROVIDERS];
-            if (researchProviderConfig) {
-              researchModelInstance = researchProviderConfig.createModel(researchApiKey, body.researchModel);
-              researchDebugProvider = body.researchProvider;
-              researchDebugModel = body.researchModel;
-            }
-          }
-        }
-
-        const researchFacts = await researchSiteFacts(
-          researchModelInstance,
-          blueprint.siteName,
-          prompt,
-          { conversationId, provider: researchDebugProvider, model: researchDebugModel },
-        );
-
-        if (researchFacts && discoveryFacts) {
-          // Merge: discovery data wins for non-empty fields, research fills gaps
-          blueprint.siteFacts = {
-            businessName: discoveryFacts.businessName || researchFacts.businessName,
-            address: discoveryFacts.address || researchFacts.address,
-            phone: discoveryFacts.phone || researchFacts.phone,
-            email: discoveryFacts.email || researchFacts.email,
-            hours: discoveryFacts.hours || researchFacts.hours,
-            services: discoveryFacts.services?.length ? discoveryFacts.services : researchFacts.services,
-            tagline: researchFacts.tagline || discoveryFacts.tagline,
-            socialMedia: discoveryFacts.socialMedia || researchFacts.socialMedia,
-            additionalInfo: [discoveryFacts.additionalInfo, researchFacts.additionalInfo].filter(Boolean).join('\n'),
-          };
-        } else if (researchFacts) {
-          blueprint.siteFacts = researchFacts;
-        } else if (discoveryFacts) {
-          blueprint.siteFacts = discoveryFacts;
-        }
-      } catch (err) {
-        // Non-fatal: use discovery data if available, otherwise proceed without
-        console.warn('[blueprint-generate] Site facts research failed:', err instanceof Error ? err.message : err);
-        if (discoveryFacts) {
-          blueprint.siteFacts = discoveryFacts;
-        }
-      }
-    } else if (discoveryFacts) {
-      // No research needed but we have discovery data — use it directly
+    // Apply discovery facts synchronously (user-provided data, no latency)
+    if (discoveryFacts) {
       blueprint.siteFacts = discoveryFacts;
     }
 
@@ -271,6 +220,64 @@ export async function POST(req: Request) {
         pageStatuses: Prisma.DbNull,
       },
     });
+
+    // Run web research in the background — results merge into DB blueprint
+    // while the user reviews and approves. Client re-fetches before generation.
+    if (blueprint.needsResearch) {
+      after(async () => {
+        try {
+          let researchModelInstance = modelInstance;
+          let researchDebugProvider = provider;
+          let researchDebugModel = model;
+
+          if (body.researchProvider && body.researchModel) {
+            const researchApiKey = await resolveApiKey(body.researchProvider);
+            if (researchApiKey) {
+              const researchProviderConfig = PROVIDERS[body.researchProvider as keyof typeof PROVIDERS];
+              if (researchProviderConfig) {
+                researchModelInstance = researchProviderConfig.createModel(researchApiKey, body.researchModel);
+                researchDebugProvider = body.researchProvider;
+                researchDebugModel = body.researchModel;
+              }
+            }
+          }
+
+          const researchFacts = await researchSiteFacts(
+            researchModelInstance,
+            blueprint.siteName,
+            prompt,
+            { conversationId, provider: researchDebugProvider, model: researchDebugModel },
+          );
+
+          if (researchFacts) {
+            // Merge: discovery data wins for non-empty fields, research fills gaps
+            const currentFacts = blueprint.siteFacts;
+            const mergedFacts = currentFacts
+              ? {
+                  businessName: currentFacts.businessName || researchFacts.businessName,
+                  address: currentFacts.address || researchFacts.address,
+                  phone: currentFacts.phone || researchFacts.phone,
+                  email: currentFacts.email || researchFacts.email,
+                  hours: currentFacts.hours || researchFacts.hours,
+                  services: currentFacts.services?.length ? currentFacts.services : researchFacts.services,
+                  tagline: researchFacts.tagline || currentFacts.tagline,
+                  socialMedia: currentFacts.socialMedia || researchFacts.socialMedia,
+                  additionalInfo: [currentFacts.additionalInfo, researchFacts.additionalInfo].filter(Boolean).join('\n'),
+                }
+              : researchFacts;
+
+            // Update blueprint in DB with research results
+            const latestBlueprint = { ...blueprint, siteFacts: mergedFacts };
+            await prisma.blueprint.update({
+              where: { conversationId },
+              data: { data: latestBlueprint },
+            });
+          }
+        } catch (err) {
+          console.warn('[blueprint-generate] Background research failed:', err instanceof Error ? err.message : err);
+        }
+      });
+    }
 
     return NextResponse.json({ blueprint, id: dbBlueprint.id });
   } catch (err: unknown) {
