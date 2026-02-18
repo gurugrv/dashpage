@@ -181,6 +181,7 @@ Elements:
 - NEVER: emoji as icons — always use the searchIcons tool for real SVGs
 - NEVER: placeholder images when searchImages is available
 - NEVER: "Lorem ipsum" or "Learn More" as button text — be specific
+- NEVER: small decorative icons on service/feature cards (the icon-above-title-above-description card pattern). This is one of the most generic AI layouts. Instead use: numbered lists, bold typography, colored borders/accents, background images, asymmetric layouts, or creative typography to differentiate cards.
 </anti_patterns>
 
 <layout_techniques>
@@ -363,6 +364,7 @@ Elements:
 - NEVER: emoji as icons — always use the searchIcons tool for real SVGs
 - NEVER: placeholder images when searchImages is available
 - NEVER: "Lorem ipsum" or "Learn More" as button text — be specific
+- NEVER: small decorative icons on service/feature cards (the icon-above-title-above-description card pattern). This is one of the most generic AI layouts. Instead use: numbered lists, bold typography, colored borders/accents, background images, asymmetric layouts, or creative typography to differentiate cards.
 </anti_patterns>
 
 <content_rules>
