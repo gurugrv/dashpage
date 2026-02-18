@@ -26,6 +26,7 @@ export interface UseDiscoveryOptions {
 
 export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
   const [phase, setPhase] = useState<DiscoveryPhase>('idle');
+  const [acknowledgement, setAcknowledgement] = useState<string | null>(null);
   const [questions, setQuestions] = useState<DiscoveryQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [businessProfile, setBusinessProfile] = useState<BusinessProfileData | null>(null);
@@ -65,6 +66,9 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
         return;
       }
 
+      if (analysis.acknowledgement) {
+        setAcknowledgement(analysis.acknowledgement);
+      }
       setQuestions(analysis.questions);
       setQuestionsAskedCount(analysis.questions.length);
       setCurrentQuestionIndex(0);
@@ -162,57 +166,6 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
     return profile;
   }, [answers, placesEnrichment]);
 
-  // After all current questions answered, evaluate completeness
-  const evaluateAndContinue = useCallback(async () => {
-    setPhase('evaluating');
-    const profile = buildProfileFromAnswers();
-
-    try {
-      const res = await fetch('/api/discovery/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: originalPromptRef.current,
-          provider,
-          model,
-          collectedData: profile,
-          questionsAskedSoFar: questionsAskedCount,
-        }),
-      });
-
-      if (!res.ok) {
-        // Fail-open: proceed with what we have
-        setBusinessProfile(profile);
-        setPhase('confirming');
-        return;
-      }
-
-      const result: CompletenessResult = await res.json();
-
-      if (result.ready || !result.followUpQuestions?.length) {
-        setBusinessProfile(profile);
-        setPhase('confirming');
-      } else {
-        // Append follow-up questions and show the first new one
-        const followUps: DiscoveryQuestion[] = result.followUpQuestions.map((q) => ({
-          ...q,
-          type: q.type as DiscoveryQuestion['type'],
-        }));
-        setQuestions((prev) => {
-          // currentQuestionIndex should point to the first new question
-          setCurrentQuestionIndex(prev.length);
-          return [...prev, ...followUps];
-        });
-        setQuestionsAskedCount((prev) => prev + followUps.length);
-        setPhase('asking');
-      }
-    } catch {
-      // Fail-open
-      setBusinessProfile(profile);
-      setPhase('confirming');
-    }
-  }, [buildProfileFromAnswers, provider, model, questionsAskedCount]);
-
   // Confirm profile and save to DB
   const confirmProfile = useCallback(async (
     conversationId: string,
@@ -248,6 +201,65 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
     }
   }, [businessProfile, buildProfileFromAnswers]);
 
+  // After all current questions answered, evaluate completeness
+  const evaluateAndContinue = useCallback(async (conversationId?: string) => {
+    setPhase('evaluating');
+    const profile = buildProfileFromAnswers();
+
+    const autoConfirm = async (p: BusinessProfileData) => {
+      if (conversationId) {
+        // Auto-proceed: save profile and go straight to complete
+        await confirmProfile(conversationId, p);
+      } else {
+        // No conversationId — fall back to confirming phase
+        setBusinessProfile(p);
+        setPhase('confirming');
+      }
+    };
+
+    try {
+      const res = await fetch('/api/discovery/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: originalPromptRef.current,
+          provider,
+          model,
+          collectedData: profile,
+          questionsAskedSoFar: questionsAskedCount,
+        }),
+      });
+
+      if (!res.ok) {
+        // Fail-open: proceed with what we have
+        await autoConfirm(profile);
+        return;
+      }
+
+      const result: CompletenessResult = await res.json();
+
+      if (result.ready || !result.followUpQuestions?.length) {
+        await autoConfirm(profile);
+      } else {
+        // Append follow-up questions and show the first new one
+        const followUps: DiscoveryQuestion[] = result.followUpQuestions.map((q) => ({
+          ...q,
+          type: q.type as DiscoveryQuestion['type'],
+        }));
+        setQuestions((prev) => {
+          // currentQuestionIndex should point to the first new question
+          setCurrentQuestionIndex(prev.length);
+          return [...prev, ...followUps];
+        });
+        setQuestionsAskedCount((prev) => prev + followUps.length);
+        setPhase('asking');
+      }
+    } catch {
+      // Fail-open
+      await autoConfirm(profile);
+    }
+  }, [buildProfileFromAnswers, confirmProfile, provider, model, questionsAskedCount]);
+
   // Select an existing profile (for returning users)
   const selectExistingProfile = useCallback((profile: BusinessProfileData, conversationId: string) => {
     setBusinessProfile(profile);
@@ -266,6 +278,7 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
   // Reset
   const reset = useCallback(() => {
     setPhase('idle');
+    setAcknowledgement(null);
     setQuestions([]);
     setAnswers({});
     setBusinessProfile(null);
@@ -291,6 +304,7 @@ export function useDiscovery({ provider, model }: UseDiscoveryOptions) {
 
   return {
     phase,
+    acknowledgement,
     questions,
     visibleQuestions,
     answers,

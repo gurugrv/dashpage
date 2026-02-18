@@ -7,12 +7,11 @@ import type { BuildProgressState } from '@/hooks/useBuildProgress';
 import type { BlueprintPhase, PageGenerationStatus } from '@/hooks/useBlueprintGeneration';
 import type { DiscoveryPhase } from '@/hooks/useDiscovery';
 import type { Blueprint } from '@/lib/blueprint/types';
-import type { DiscoveryQuestion, BusinessProfileData, PlacesEnrichment } from '@/lib/discovery/types';
+import type { DiscoveryQuestion, PlacesEnrichment } from '@/lib/discovery/types';
 import { BlueprintCard } from '@/features/blueprint/blueprint-card';
 import { PageProgress } from '@/features/blueprint/page-progress';
 import { DiscoveryQuestionCard } from '@/features/discovery/discovery-question-card';
 import { DiscoveryLoadingIndicator } from '@/features/discovery/discovery-loading';
-import { BusinessProfileSummary } from '@/features/discovery/business-profile-summary';
 import { ErrorBanner } from '@/features/prompt/error-banner';
 import { InterruptedBanner } from '@/features/prompt/interrupted-banner';
 import { MessageList } from '@/features/prompt/message-list';
@@ -44,13 +43,11 @@ interface PromptPanelProps {
   onContinueGeneration?: () => void;
   // Discovery props
   discoveryPhase?: DiscoveryPhase;
+  discoveryAcknowledgement?: string | null;
   discoveryQuestions?: DiscoveryQuestion[];
   discoveryAnswers?: Record<string, string>;
-  discoveryProfile?: BusinessProfileData | null;
   onDiscoveryAnswer?: (questionId: string, value: string) => void;
   onDiscoveryAddressAnswer?: (questionId: string, address: string, enrichment: PlacesEnrichment) => void;
-  onDiscoveryConfirm?: (profile: BusinessProfileData) => void;
-  onDiscoveryAddMore?: () => void;
   // Blueprint props
   isBlueprintBusy?: boolean;
   blueprintPhase?: BlueprintPhase;
@@ -88,13 +85,11 @@ export function PromptPanel({
   hasPartialMessage,
   onContinueGeneration,
   discoveryPhase,
+  discoveryAcknowledgement,
   discoveryQuestions,
   discoveryAnswers,
-  discoveryProfile,
   onDiscoveryAnswer,
   onDiscoveryAddressAnswer,
-  onDiscoveryConfirm,
-  onDiscoveryAddMore,
   isBlueprintBusy,
   blueprintPhase,
   blueprint,
@@ -135,7 +130,20 @@ export function PromptPanel({
           />
 
           {/* Discovery flow UI */}
-          {(discoveryPhase === 'analyzing' || discoveryPhase === 'evaluating') && (
+          {discoveryPhase === 'analyzing' && (
+            <DiscoveryLoadingIndicator />
+          )}
+
+          {discoveryAcknowledgement && discoveryPhase && discoveryPhase !== 'idle' && discoveryPhase !== 'analyzing' && discoveryPhase !== 'skipped' && (
+            <div className="flex gap-3 px-4 py-3" style={{ animation: 'fadeSlideIn 0.3s ease-out' }}>
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <svg className="size-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              </div>
+              <p className="text-sm text-foreground">{discoveryAcknowledgement}</p>
+            </div>
+          )}
+
+          {discoveryPhase === 'evaluating' && (
             <DiscoveryLoadingIndicator />
           )}
 
@@ -154,13 +162,7 @@ export function PromptPanel({
             </>
           )}
 
-          {discoveryPhase === 'confirming' && discoveryProfile && onDiscoveryConfirm && (
-            <BusinessProfileSummary
-              profile={discoveryProfile}
-              onConfirm={onDiscoveryConfirm}
-              onAddMore={onDiscoveryAddMore ?? (() => {})}
-            />
-          )}
+          {/* confirming phase removed — auto-proceeds after evaluation */}
 
           {/* Blueprint flow UI */}
           {blueprintPhase === 'awaiting-approval' && blueprint && (

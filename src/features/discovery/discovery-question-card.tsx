@@ -32,7 +32,10 @@ export function DiscoveryQuestionCard({
 }: DiscoveryQuestionCardProps) {
   const [value, setValue] = useState(question.prefilled ?? '');
   const [selectedOptions, setSelectedOptions] = useState<Set<string>>(new Set());
+  const [otherActive, setOtherActive] = useState(false);
+  const [otherText, setOtherText] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const otherInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!disabled && inputRef.current) {
@@ -154,12 +157,51 @@ export function DiscoveryQuestionCard({
                     </button>
                   );
                 })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtherActive(prev => !prev);
+                    if (!otherActive) {
+                      setTimeout(() => otherInputRef.current?.focus(), 50);
+                    }
+                  }}
+                  className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                    otherActive
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-dashed border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  + Other
+                </button>
               </div>
+              {otherActive && (
+                <Input
+                  ref={otherInputRef}
+                  value={otherText}
+                  onChange={(e) => setOtherText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const parts = [...Array.from(selectedOptions)];
+                      const trimmed = otherText.trim();
+                      if (trimmed) parts.push(trimmed);
+                      if (parts.length > 0) onSubmit(parts.join(', '));
+                    }
+                  }}
+                  placeholder="Type your own..."
+                  className="h-9 text-sm"
+                />
+              )}
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  onClick={() => onSubmit(Array.from(selectedOptions).join(', '))}
-                  disabled={selectedOptions.size === 0}
+                  onClick={() => {
+                    const parts = [...Array.from(selectedOptions)];
+                    const trimmed = otherText.trim();
+                    if (trimmed) parts.push(trimmed);
+                    onSubmit(parts.join(', '));
+                  }}
+                  disabled={selectedOptions.size === 0 && !otherText.trim()}
                 >
                   Submit
                 </Button>

@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const discoveryAnalysisSchema = z.object({
   isBusinessSite: z.boolean(),
   detectedName: z.string().nullable().optional().default(null),
+  acknowledgement: z.string().optional(),
   questions: z.array(z.object({
     id: z.string(),
     question: z.string(),

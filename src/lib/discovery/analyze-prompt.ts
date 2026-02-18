@@ -40,6 +40,7 @@ Respond with a JSON object with this exact structure:
 {
   "isBusinessSite": boolean,
   "detectedName": "string or null",
+  "acknowledgement": "A friendly 1-sentence message acknowledging what the user wants to build and letting them know you'll ask a few quick questions. Example: 'Great, I'll build a dentist website for you! Let me ask a few quick questions to personalize it.' Keep it warm, brief, and specific to their business type. Only include when isBusinessSite is true.",
   "questions": [
     {
       "id": "string",
@@ -84,6 +85,7 @@ function parseAndNormalizeAnalysis(text: string | undefined): DiscoveryAnalysis 
     const normalized: Record<string, unknown> = {
       isBusinessSite: raw.isBusinessSite ?? raw.is_business_site ?? true,
       detectedName: raw.detectedName ?? raw.detectedBusinessName ?? raw.detected_name ?? raw.businessName ?? null,
+      acknowledgement: raw.acknowledgement ?? raw.ack ?? undefined,
       questions: [],
     };
 

@@ -122,6 +122,13 @@ export function Builder() {
     [resolveRawStepModel, effectiveSelectedProvider, effectiveSelectedModel],
   );
 
+  // Ref + wrapper must be declared before useBlueprintGeneration so onFilesReady syncs the ref
+  const currentFilesRef = useRef<ProjectFiles>(currentFiles);
+  const setFilesWithRef = useCallback((files: ProjectFiles, messageId?: string) => {
+    setFiles(files, messageId);
+    currentFilesRef.current = files;
+  }, [setFiles]);
+
   const {
     phase: blueprintPhase,
     blueprint,
@@ -142,7 +149,7 @@ export function Builder() {
     resolveStepModel: resolveBlueprintStepModel,
     savedTimeZone: getSavedTimeZone(),
     browserTimeZone: getBrowserTimeZone(),
-    onFilesReady: setFiles,
+    onFilesReady: setFilesWithRef,
     imageProvider: imageGenConfig.provider,
     imageModel: imageGenConfig.model,
   });
@@ -156,20 +163,12 @@ export function Builder() {
   });
   const pendingBlueprintPromptRef = useRef<string | null>(null);
   const pendingBlueprintConversationIdRef = useRef<string | null>(null);
-  const isDiscoveryActive = discovery.phase !== 'idle' && discovery.phase !== 'complete' && discovery.phase !== 'skipped';
 
-  const currentFilesRef = useRef<ProjectFiles>(currentFiles);
   const streamConversationIdRef = useRef<string | null>(null);
   const partialSavedRef = useRef(false);
   const streamingTextRef = useRef('');
 
   const latestAssistantMessageIdRef = useRef<string | null>(null);
-
-  // Wrapper that keeps ref in sync — avoids one-render-behind useEffect
-  const setFilesWithRef = useCallback((files: ProjectFiles, messageId?: string) => {
-    setFiles(files, messageId);
-    currentFilesRef.current = files;
-  }, [setFiles]);
 
   const {
     messages,
@@ -419,6 +418,7 @@ export function Builder() {
 
       submitWithPrompt();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- discovery.startDiscovery is stable; adding discovery object would cause infinite re-renders
   }, [isLoading, messages.length, availableProviders.length, create, setActiveConversationId, rename, updateModel, resetProgress, setMessages, generateBlueprint, effectiveSelectedProvider, effectiveSelectedModel]);
 
   // Track latest assistant message ID for post-processed race condition fix
@@ -506,6 +506,7 @@ export function Builder() {
         },
       },
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- discovery.startDiscovery is stable; adding discovery object would cause infinite re-renders
   }, [
     input,
     isLoading,
@@ -747,8 +748,10 @@ export function Builder() {
   // Auto-evaluate when all discovery questions are answered
   useEffect(() => {
     if (discovery.phase === 'asking' && discovery.allCurrentQuestionsAnswered) {
-      discovery.evaluateAndContinue();
+      const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
+      discovery.evaluateAndContinue(convId ?? undefined);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to phase and answered state changes
   }, [discovery.phase, discovery.allCurrentQuestionsAnswered, discovery.evaluateAndContinue]);
 
   // Discovery callbacks
@@ -760,12 +763,7 @@ export function Builder() {
     discovery.submitAddressAnswer(questionId, address, enrichment);
   }, [discovery]);
 
-  const handleDiscoveryConfirm = useCallback((profile: import('@/lib/discovery/types').BusinessProfileData) => {
-    const convId = pendingBlueprintConversationIdRef.current ?? activeConversationId;
-    if (convId) {
-      discovery.confirmProfile(convId, profile);
-    }
-  }, [discovery, activeConversationId]);
+
 
 
   return (
@@ -828,13 +826,11 @@ export function Builder() {
                 />
               ) : undefined}
               discoveryPhase={discovery.phase}
+              discoveryAcknowledgement={discovery.acknowledgement}
               discoveryQuestions={discovery.visibleQuestions}
               discoveryAnswers={discovery.answers}
-              discoveryProfile={discovery.businessProfile}
               onDiscoveryAnswer={handleDiscoveryAnswer}
               onDiscoveryAddressAnswer={handleDiscoveryAddressAnswer}
-              onDiscoveryConfirm={handleDiscoveryConfirm}
-              onDiscoveryAddMore={discovery.evaluateAndContinue}
               isBlueprintBusy={isBlueprintBusy}
               blueprintPhase={blueprintPhase}
               blueprint={blueprint}
