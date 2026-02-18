@@ -55,6 +55,7 @@ body {
   font-family: var(--font-body);
   color: var(--color-text);
   background-color: var(--color-bg);
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {

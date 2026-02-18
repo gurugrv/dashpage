@@ -121,7 +121,7 @@ ${headTags}
 </shared_head>
 
 <design_system_reference>
-The :root CSS variables are already defined in styles.css which is linked above. Do NOT redefine them in an inline <style> block — no :root {} declaration in your output at all. Use var(--color-primary), var(--font-heading), etc. directly in your Tailwind classes and markup.
+The :root CSS variables and body/heading base styles are already defined in styles.css which is linked above. Do NOT redefine :root {} OR body {} in an inline <style> block — both are fully handled by styles.css. Only add a <style> block for CSS classes and keyframes unique to this page. Use var(--color-primary), var(--font-heading), etc. directly in your Tailwind classes and markup.
 
 Available CSS custom properties:
   --color-primary, --color-secondary, --color-accent, --color-bg, --color-surface, --color-text, --color-text-muted
@@ -317,6 +317,7 @@ ${footerRequirement}
 6b. EVERY semantic section (nav, header, main, section, footer, aside) MUST have a data-block attribute with a unique, descriptive, kebab-case name (e.g. data-block="hero", data-block="main-nav", data-block="site-footer").
 7. Available tools: writeFile, writeFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
 8. You MUST call writeFile to output the page — do NOT output raw HTML as text.
+9. SVG DEDUPLICATION: When using the same SVG icon more than once, define it ONCE inside a hidden <svg style="display:none"> sprite at the top of <body> using <symbol id="icon-name" viewBox="...">...</symbol>, then reference it everywhere via <svg width="16" height="16"><use href="#icon-name"/></svg>. This applies especially to star ratings, social icons, and any repeated UI icon. Never paste the same SVG path data more than once — duplicate inline SVGs bloat the file dramatically.
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce. The blueprint gives you structure; your job is to bring it to life with craft and creativity.
 </requirements>`;
