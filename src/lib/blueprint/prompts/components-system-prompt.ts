@@ -1,6 +1,6 @@
 import type { Blueprint } from '@/lib/blueprint/types';
 import { BLUEPRINT_DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
-import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
+import { UI_UX_GUIDELINES_COMPACT_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 export function getComponentsSystemPrompt(blueprint: Blueprint): string {
   const { designSystem, sharedComponents, contentStrategy } = blueprint;
@@ -52,7 +52,7 @@ Mood: ${designSystem.mood}
 
 ${BLUEPRINT_DESIGN_QUALITY_SECTION}
 
-${UI_UX_GUIDELINES_SECTION}
+${UI_UX_GUIDELINES_COMPACT_SECTION}
 
 <site_info>
 Site name: ${blueprint.siteName}
@@ -82,13 +82,14 @@ Do NOT output raw HTML as text. You MUST use the writeFiles tool.
 - Sticky/fixed at top with subtle shadow (shadow-sm or shadow-md)
 - Site name "${blueprint.siteName}" as logo/brand text styled with --color-primary and font-heading
 - Desktop: horizontal nav with all links, use Tailwind for layout (flex, gap, etc.)
-- Mobile: hamburger menu button (3-line icon) with data-menu-toggle attribute that toggles a dropdown/slide nav (with data-mobile-menu attribute)
-- Do NOT include inline <script> — a shared scripts.js handles mobile menu toggle via data-menu-toggle/data-mobile-menu attributes
+- Mobile: hamburger menu button (3-line SVG icon) with data-menu-toggle attribute. The mobile nav container must have data-mobile-menu attribute and start hidden (x-cloak or hidden class).
+- Mobile menu toggle is handled by shared scripts.js via data-menu-toggle/data-mobile-menu attributes. Do NOT include inline <script> blocks or Alpine.js toggle logic — just the data attributes.
 - Use design system CSS custom properties: bg-[var(--color-bg)], text-[var(--color-text)], etc.
 - Hover states on all links with transition
 - Current page highlighting: add a data-current-page attribute on the <header> element so pages can mark themselves. Use a class convention like [data-current-page="index.html"] a[href="index.html"] for active styling.
 - Responsive: hidden mobile nav by default, visible on toggle; desktop nav always visible
 - z-index high enough to stay above page content (z-50)
+- Scroll behavior: header should transition from transparent/expanded to solid/compact on scroll. Use a class convention: initial state is transparent with larger padding; scrolled state adds bg-[var(--color-bg)]/95, backdrop-blur, shadow, and reduced padding. The shared scripts.js handles adding a 'scrolled' class on window scroll.
 </header_requirements>
 
 <footer_requirements>
@@ -99,8 +100,10 @@ ${blueprint.siteFacts?.phone ? `- Phone number: "${blueprint.siteFacts.phone}"` 
 ${blueprint.siteFacts?.socialMedia ? `- Social media links: ${blueprint.siteFacts.socialMedia}` : ''}
 - Copyright line: "© ${new Date().getFullYear()} ${blueprint.siteName}. All rights reserved."
 - Use design system tokens for colors and fonts
-- Simple, clean layout — responsive grid or flex
-- Subtle top border or background contrast using --color-surface
+- Footer layout: choose based on content density:
+  - Minimal (few links, no address): single-row flex with logo, links, copyright
+  - Standard (links + contact): 3-column grid — brand/tagline | nav links | contact info + copyright below
+  - Rich (links + contact + social + hours): 4-column grid with generous padding (py-16+), subtle top border, contrasting background using --color-surface
 </footer_requirements>
 
 <available_tools>
