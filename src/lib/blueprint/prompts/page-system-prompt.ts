@@ -46,6 +46,8 @@ export function getPageSystemPrompt(
       if (s.mediaType && s.mediaType !== 'none') meta.push(`media:${s.mediaType}`);
       if (s.interactiveElement && s.interactiveElement !== 'none') meta.push(`interactive:${s.interactiveElement}`);
       if (s.motionIntent && s.motionIntent !== 'none') meta.push(`motion:${s.motionIntent}`);
+      if (s.imageDirection) meta.push(`imagery:${s.imageDirection}`);
+      if (s.contentDepth && s.contentDepth !== 'standard') meta.push(`depth:${s.contentDepth}`);
       const metaStr = meta.length > 0 ? ` [${meta.join(', ')}]` : '';
       return `  ${i + 1}. [${s.id}] ${s.name}: ${s.description}${metaStr}${s.contentNotes ? ` — ${s.contentNotes}` : ''}`;
     })
@@ -91,6 +93,8 @@ Generate a responsive header with:
 Place exactly this HTML comment at the very start of <body>:
 <!-- @component:header -->
 Do NOT generate any header or navigation HTML. A shared header component will be injected here automatically after generation.
+The shared header uses data-current-page for active link styling. After the comment, add this script:
+<script>document.querySelector('header')?.setAttribute('data-current-page', '${page.filename}')</script>
 </header_placeholder>`;
 
   const footerSection = isSinglePage
@@ -132,6 +136,8 @@ Available CSS custom properties:
 
 Mood: ${designSystem.mood}
 Surface Treatment: ${designSystem.surfaceTreatment || 'clean'}
+Visual Style: ${designSystem.visualStyle || 'bold-expressive'} — use this archetype to guide your layout composition, spacing rhythm, and decorative choices.
+Image Style: ${designSystem.imageStyle || 'high-quality photography'} — use this to guide searchImages queries.
 </design_system_reference>`
     : `<design_system>
 CSS Custom Properties to define in <style>:
@@ -152,6 +158,8 @@ CSS Custom Properties to define in <style>:
 
 Mood: ${designSystem.mood}
 Surface Treatment: ${designSystem.surfaceTreatment || 'clean'}
+Visual Style: ${designSystem.visualStyle || 'bold-expressive'} — use this archetype to guide your layout composition, spacing rhythm, and decorative choices.
+Image Style: ${designSystem.imageStyle || 'high-quality photography'} — use this to guide searchImages queries.
 </design_system>`;
 
   const sharedAssetsSection = sharedAssets?.stylesCss
@@ -234,6 +242,14 @@ Your job is to EXPRESS this mood through layout choices, spacing rhythm, visual 
 Choose a layout archetype from layout_archetypes that embodies this mood. Fuse the mood's feeling with the archetype's structure.
 </creative_seed>
 
+<section_contrast>
+Vary visual rhythm between consecutive sections:
+- Alternate backgrounds: bg → surface → bg → primary/dark → bg. Never use the same background on consecutive sections.
+- Vary density: follow a rich section with a minimal one. Dense content grids next to breathing whitespace.
+- Break patterns: after 2 contained-width sections, go full-bleed. After text-heavy sections, go visual-heavy.
+- Section transitions: use subtle dividers (hairline border, gradient fade, diagonal clip-path) between sections with same background color.
+</section_contrast>
+
 ${totalPages > 1 ? `<site_context>
 This is page ${pageIndex + 1} of ${totalPages} in the site.
 Other pages in this site:
@@ -247,7 +263,7 @@ Filename: ${page.filename}
 Title: ${page.title}
 Meta Description: ${page.description}
 Purpose: ${page.purpose}
-
+${page.contentFocus ? `Content Focus: ${page.contentFocus} — this is YOUR unique angle. Do NOT repeat messaging that belongs to other pages.\n` : ''}${page.visualWeight ? `Visual Weight: ${page.visualWeight}\n` : ''}${page.heroApproach ? `Hero Approach: ${page.heroApproach}\n` : ''}
 Sections (generate in this order):
 ${sectionsList}
 </page_spec>
@@ -279,7 +295,9 @@ ${[
     ? `Key Stats: ${contentStrategy.keyStats.map((s: { value: string; label: string }) => `${s.value} ${s.label}`).join(', ')}` : '',
   contentStrategy.brandStory
     ? `Brand Story: ${contentStrategy.brandStory}` : '',
-].filter(Boolean).join('\n')}
+].filter(Boolean).join('\n')}${contentStrategy.contentDistribution && Object.keys(contentStrategy.contentDistribution).length > 0 && contentStrategy.contentDistribution[page.filename]
+  ? `\nYOUR assigned value propositions (use ONLY these, not others): ${contentStrategy.contentDistribution[page.filename].join(' | ')}` : ''}${contentStrategy.seoKeywords && contentStrategy.seoKeywords[page.filename]
+  ? `\nSEO keywords to naturally weave in: ${contentStrategy.seoKeywords[page.filename].join(', ')}` : ''}
 </content_strategy>
 
 ${headerSection}
@@ -311,7 +329,8 @@ ${footerRequirement}
 6b. EVERY semantic section (nav, header, main, section, footer, aside) MUST have a data-block attribute with a unique, descriptive, kebab-case name (e.g. data-block="hero", data-block="main-nav", data-block="site-footer").
 7. Available tools: writeFile, writeFiles, readFile, searchImages, searchIcons, webSearch, fetchUrl.
 8. You MUST call writeFile to output the page — do NOT output raw HTML as text.
-9. SVG DEDUPLICATION: When using the same SVG icon more than once, define it ONCE inside a hidden <svg style="display:none"> sprite at the top of <body> using <symbol id="icon-name" viewBox="...">...</symbol>, then reference it everywhere via <svg width="16" height="16"><use href="#icon-name"/></svg>. This applies especially to star ratings, social icons, and any repeated UI icon. Never paste the same SVG path data more than once — duplicate inline SVGs bloat the file dramatically.
+9. COMPLETION PRIORITY: If approaching output limits, finish the current section completely rather than starting a new section you cannot complete. A page with 4 fully-realized sections is better than 6 sections where the last 2 are stubs.
+10. SVG DEDUPLICATION: When using the same SVG icon more than once, define it ONCE inside a hidden <svg style="display:none"> sprite at the top of <body> using <symbol id="icon-name" viewBox="...">...</symbol>, then reference it everywhere via <svg width="16" height="16"><use href="#icon-name"/></svg>. This applies especially to star ratings, social icons, and any repeated UI icon. Never paste the same SVG path data more than once — duplicate inline SVGs bloat the file dramatically.
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce. The blueprint gives you structure; your job is to bring it to life with craft and creativity.
 </requirements>`;
