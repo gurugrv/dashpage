@@ -308,14 +308,14 @@ This is a NEW website. Your design seed for this project:
 DESIGN SEED:
   Mood: "${seed.mood}" | Hue zone: ${seed.hueRange}° | Strategy: ${seed.strategy}
   Visual feel: ${seed.vibe}
+  Visual style: ${seed.visualStyle} — use this archetype to guide your layout composition, spacing rhythm, and visual weight.
+  Image style: ${seed.imageStyle} — use this to guide your searchImages queries and image treatment.
 
-Choose a layout archetype from layout_archetypes above that best suits this content. Fuse the design seed's aesthetic with the archetype's structure.
+Choose a layout archetype from layout_archetypes above that fits both this visual style and the content. Fuse the design seed's aesthetic with the archetype's structure.
 
 Steps:
-1. Define your :root CSS custom properties (7 HSL colors from the seed's strategy ranges + font families + shadows + radius) and Tailwind config
-2. Use Alpine.js directives for all interactivity — follow the patterns in the interactivity section. Do NOT write inline <script> blocks for UI interactions.
-3. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
-4. After tool calls, write a completion summary (1-3 sentences) describing what you built — mention the layout archetype, color palette, and key sections. Suggest what the user might tweak next
+1. Define your :root CSS custom properties (7 colors from the seed's strategy ranges + font families + shadows + radius) and Tailwind config
+2. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce.
 </first_generation>`;
