@@ -17,14 +17,17 @@ async function getModels(providerKey: string, apiKey: string): Promise<ModelInfo
   if (provider.fetchModels) {
     try {
       models = await provider.fetchModels(apiKey);
-    } catch {
+      cache.set(providerKey, { models, timestamp: Date.now() });
+    } catch (err) {
+      console.warn(`[models] fetchModels failed for ${providerKey}:`, err instanceof Error ? err.message : err);
       models = provider.staticModels;
+      // Don't cache failed results – retry on next request
     }
   } else {
     models = provider.staticModels;
+    cache.set(providerKey, { models, timestamp: Date.now() });
   }
 
-  cache.set(providerKey, { models, timestamp: Date.now() });
   return models;
 }
 
