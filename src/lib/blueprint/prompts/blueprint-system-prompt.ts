@@ -16,28 +16,25 @@ Given the user's website description, produce a JSON object with this structure:
       "title": "Page Title",
       "description": "SEO meta description",
       "purpose": "Role of this page",
+      "contentFocus": "Overview of all value propositions with trust signals",
+      "visualWeight": "hero-heavy",
+      "heroApproach": "full-viewport kinetic headline with floating accent shapes",
       "sections": [
-        { "id": "hero", "name": "Hero Section", "description": "Full-viewport kinetic headline with floating accent shapes", "contentNotes": "Headline: 'We Build What Others Won't'. Oversized 80px+ type with word-by-word reveal.",
+        { "id": "hero", "name": "Hero Section", "description": "Full-viewport kinetic headline with floating accent shapes", "contentNotes": "Headline: 'We Build What Others Won't'. Oversized 80px+ type.",
           "sectionType": "hero", "layoutHint": "cinematic-fullscreen",
-          "mediaType": "gradient-mesh", "motionIntent": "kinetic-type" },
+          "mediaType": "gradient-mesh", "motionIntent": "kinetic-type", "imageDirection": "abstract geometric shapes in brand colors", "contentDepth": "minimal" },
         { "id": "features", "name": "Why Choose Us", "description": "Bento dashboard with mixed-size tiles — large hero tile + 4 supporting", "contentNotes": "Lead tile: primary value prop with stat. Supporting: speed, quality, support, pricing.",
           "sectionType": "features", "layoutHint": "bento-grid", "itemCount": 5,
-          "mediaType": "icons-only", "motionIntent": "staggered-cards", "interactiveElement": "hover-reveal" },
-        { "id": "process", "name": "How It Works", "description": "3-step process with alternating image/text sides", "contentNotes": "Step 1: Discover, Step 2: Design, Step 3: Deliver. Each with specific details.",
+          "mediaType": "icons-only", "motionIntent": "staggered-cards", "interactiveElement": "hover-reveal", "contentDepth": "standard" },
+        { "id": "process", "name": "How It Works", "description": "3-step process with alternating image/text sides", "contentNotes": "Step 1: Discover, Step 2: Design, Step 3: Deliver.",
           "sectionType": "process-steps", "layoutHint": "alternating-sides", "itemCount": 3,
-          "mediaType": "illustration", "motionIntent": "scroll-reveal" },
-        { "id": "stats", "name": "Impact Numbers", "description": "Full-bleed dark band with animated counters", "contentNotes": "4 key metrics with counter animation on scroll entry.",
+          "mediaType": "illustration", "motionIntent": "scroll-reveal", "imageDirection": "clean isometric illustrations of each step", "contentDepth": "standard" },
+        { "id": "stats-cta", "name": "Impact & Action", "description": "Full-bleed dark band with animated counters + embedded CTA", "contentNotes": "4 key metrics with counter animation, primary CTA button below.",
           "sectionType": "stats", "layoutHint": "full-bleed", "itemCount": 4,
-          "mediaType": "background-pattern", "interactiveElement": "counter-animation", "motionIntent": "counter-animation" },
+          "mediaType": "background-pattern", "interactiveElement": "counter-animation", "motionIntent": "counter-animation", "contentDepth": "minimal" },
         { "id": "testimonials", "name": "Client Stories", "description": "Horizontal scroll cards with photos and star ratings", "contentNotes": "Real quotes with names, roles, and companies. Distinct voices.",
           "sectionType": "testimonials", "layoutHint": "horizontal-scroll", "itemCount": 4,
-          "mediaType": "inline-photos", "interactiveElement": "carousel" },
-        { "id": "faq", "name": "Common Questions", "description": "Accordion FAQ with smooth expand animations", "contentNotes": "6 questions covering pricing, timelines, process, support.",
-          "sectionType": "faq", "layoutHint": "centered-minimal", "itemCount": 6,
-          "interactiveElement": "accordion", "motionIntent": "scroll-reveal" },
-        { "id": "cta", "name": "Get Started", "description": "Diagonal-cut CTA band with bold headline", "contentNotes": "Action-specific: 'Start Your Project Today' with secondary 'Book a Free Call'.",
-          "sectionType": "cta-banner", "layoutHint": "diagonal",
-          "mediaType": "background-pattern", "motionIntent": "entrance-reveal" }
+          "mediaType": "inline-photos", "interactiveElement": "carousel", "imageDirection": "professional headshots, warm lighting", "contentDepth": "standard" }
       ]
     }
   ],
@@ -47,7 +44,10 @@ Given the user's website description, produce a JSON object with this structure:
     "textColor": "#hex", "textMutedColor": "#hex",
     "headingFont": "Google Font", "bodyFont": "Google Font",
     "borderRadius": "8px", "mood": "descriptive mood",
-    "surfaceTreatment": "clean"
+    "surfaceTreatment": "clean",
+    "visualStyle": "bold-expressive",
+    "imageStyle": "warm documentary photography with natural light",
+    "fontWeights": { "heading": [400, 700], "body": [400, 500, 600] }
   },
   "sharedComponents": {
     "navLinks": [{ "label": "Home", "href": "index.html" }, { "label": "About", "href": "about.html" }],
@@ -59,7 +59,9 @@ Given the user's website description, produce a JSON object with this structure:
     "valuePropositions": ["prop 1", "prop 2", "prop 3"],
     "differentiators": ["unique point 1", "unique point 2"],
     "keyStats": [{"label": "Happy Clients", "value": "500+"}],
-    "brandStory": "2-3 sentence brand narrative"
+    "brandStory": "2-3 sentence brand narrative",
+    "contentDistribution": { "index.html": ["prop1", "prop2"], "about.html": ["prop3"] },
+    "seoKeywords": { "index.html": ["keyword1", "keyword2"], "about.html": ["keyword3"] }
   },
   "needsResearch": true
 }
@@ -143,6 +145,26 @@ LAYOUT VARIETY — plan diverse section types across pages:
 10. Keep descriptions CONCISE — 1-2 sentences max per section description. contentNotes should give specific content direction: key messages, data points, copy angles — not just "show features".
 11. Section descriptions should hint at LAYOUT VARIETY — not every page should use the same layout patterns. Mix hero sections, asymmetric grids, card layouts, full-width images, testimonial carousels, etc.
 12. Set "needsResearch": true when the user's prompt references a REAL business, person, place, or organization whose actual details (address, phone, hours, etc.) should be looked up. Set false or omit for fictional/generic sites.
+
+<new_fields>
+For each page, you MUST also set:
+- contentFocus: what unique messaging angle this page owns. Distribute value propositions across pages — do NOT repeat the same selling points on every page. The homepage gets the overview; inner pages go deep on specifics.
+- visualWeight: how visually heavy vs content-dense this page should feel. Homepage is typically "hero-heavy", about/team is "balanced", blog/resources is "content-dense".
+- heroApproach: describe the hero section's specific visual approach, e.g. "split layout with photo left, oversized headline right" or "full-bleed video background with centered minimal text".
+
+For the design system, you MUST also set:
+- visualStyle: one of editorial-magazine, tech-minimal, luxury-refined, bold-expressive, organic-warm, brutalist-raw, retro-nostalgic, corporate-clean. This drives the page generator's layout composition and spacing decisions.
+- imageStyle: a descriptive phrase guiding all image searches, e.g. "warm documentary photography with natural light and earth tones".
+- fontWeights: specify actual weights needed for each font. Check Google Fonts — not all fonts have all weights. Common: { "heading": [400, 700], "body": [400, 500, 600] }.
+
+For each section, also set:
+- imageDirection: what specific imagery this section needs, e.g. "overhead shot of team collaboration" or "abstract geometric pattern in brand colors".
+- contentDepth: minimal (headline + 1-2 lines), standard (headline + paragraph + supporting elements), rich (multiple paragraphs, data, testimonials, detailed content).
+
+For content strategy, also set:
+- contentDistribution: map each page filename to which value propositions it should feature. Example: { "index.html": ["prop1", "prop2"], "about.html": ["prop3", "prop4"] }
+- seoKeywords: map each page to 3-5 target keywords. Example: { "index.html": ["keyword1", "keyword2"] }
+</new_fields>
 </rules>
 
 <section_planning>
@@ -162,7 +184,7 @@ mediaType (REQUIRED — only "none" for forms and text-only CTAs):
   hero-image, inline-photos, icons-only, background-pattern, illustration, video-embed, gradient-mesh, none
 
 interactiveElement (set where it adds value — 3-4 per page):
-  accordion (FAQ, expandable details), tabs (pricing tiers, comparisons), carousel (testimonials, gallery), counter-animation (stats, metrics), toggle-switch (pricing annual/monthly), hover-reveal (team bios, feature details), progressive-disclosure (long content), before-after-slider (transformations), tilt-card (portfolio, products), scroll-scrub (timeline, process), none
+  accordion (FAQ, expandable details), tabs (pricing tiers, comparisons), carousel (testimonials, gallery), counter-animation (stats, metrics), toggle-switch (pricing annual/monthly), hover-reveal (team bios, feature details), progressive-disclosure (long content), before-after-slider (transformations), tilt-card (portfolio, products), magnetic-button (premium CTAs), none
 
 motionIntent (set for 3-4 key sections per page):
   entrance-reveal (hero), staggered-cards (grids/mosaics), parallax-bg (full-bleed), counter-animation (stats), kinetic-type (text-hero), hover-showcase (gallery/portfolio), scroll-reveal (content sections), text-reveal (word-by-word headlines), zoom-entrance (images/cards), none
@@ -185,6 +207,15 @@ Pick 2 Google Fonts that create tension and harmony:
 - Heading font carries personality (the mood); body font carries readability (the workhorse)
 - AVOID safe defaults: Inter, Roboto, Open Sans, Poppins, Montserrat are overused — start from less common choices
 - Test: the heading font alone should hint at the site's personality
+
+Proven distinctive pairings (use as starting points, not defaults):
+- Fraunces (serif display) + Plus Jakarta Sans (humanist body) — editorial warmth
+- Syne (geometric display) + Outfit (clean body) — futuristic precision
+- DM Serif Display (refined serif) + DM Sans (matching body) — elegant harmony
+- Space Grotesk (tech display) + Manrope (modern body) — tech-forward warmth
+- Bricolage Grotesque (expressive display) + Inter (neutral body) — personality + readability
+- Cormorant Garamond (luxury serif) + Outfit (clean body) — premium editorial
+- Bebas Neue (condensed impact) + Plus Jakarta Sans (friendly body) — bold energy
 </font_pairing_principles>
 
 Output ONLY the JSON object. No markdown, no code fences, no explanation.`;
