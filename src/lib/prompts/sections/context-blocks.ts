@@ -1,10 +1,17 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
-import { generateManifest } from '@/lib/prompts/manifest/generate-manifest';
+import { extractDesignTokens, generateManifest } from '@/lib/prompts/manifest/generate-manifest';
+import { JS_UTILITIES_SNIPPET, JS_UTILITIES_INSTRUCTION, JS_UTILITIES_MARKER } from './js-utilities';
 
 export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
 
+  // Detect existing design tokens to prevent :root redefinition
+  const indexHtml = currentFiles['index.html'] || '';
+  const existingTokens = extractDesignTokens(indexHtml);
+  const hasDesignTokens = existingTokens.length > 0;
+
+  const hasSharedUtils = indexHtml.includes(JS_UTILITIES_MARKER);
   const hasComponents = Object.keys(currentFiles).some(f => f.startsWith('_components/'));
 
   const componentBlock = hasComponents
@@ -15,6 +22,12 @@ export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
     : '';
 
   const isMultiPage = Object.keys(currentFiles).filter(f => f.endsWith('.html') && !f.startsWith('_components/')).length > 1;
+
+  const designTokenBlock = hasDesignTokens
+    ? `\nDesign system preservation:
+- The :root CSS custom properties are already defined in the page's <style> block. Do NOT redefine them — use var(--color-primary), var(--font-heading), etc. directly.
+- If the user explicitly asks to change colors, fonts, or the design system, update the existing :root values — do not create a second :root block.`
+    : '';
 
   const crossPageBlock = isMultiPage
     ? `\nCross-page awareness:
@@ -38,7 +51,8 @@ Tool selection:
 - editFiles: text-level search/replace for small string changes. MUST call readFile first for exact content.
 - Use readFile before editBlock replace for exact content.
 - writeFiles: full page rewrites or new pages only.
-- deleteFile: remove a page when the user asks to delete one.${componentBlock}${crossPageBlock}
+- deleteFile: remove a page when the user asks to delete one.${designTokenBlock}${hasSharedUtils ? `\nShared JS utilities:
+- The page includes shared JS utilities (wb-utils). Use data-attributes to add interactivity — do NOT write custom JS for: mobile nav (data-menu-toggle/data-menu), scroll reveal (data-reveal), accordion (data-accordion-trigger), counters (data-count-to), carousel (data-carousel). See the existing script for all supported attributes.` : ''}${componentBlock}${crossPageBlock}
 </edit_guidance>`;
 }
 
@@ -297,8 +311,15 @@ Choose a layout archetype from layout_archetypes above that best suits this cont
 
 Steps:
 1. Define your :root CSS custom properties (7 HSL colors from the seed's strategy ranges + font families + shadows + radius) and Tailwind config
-2. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
-3. After tool calls, write a completion summary (1-3 sentences) describing what you built — mention the layout archetype, color palette, and key sections. Suggest what the user might tweak next
+2. Include the shared JS utilities script verbatim before </body> (from shared_js_utilities below) and use its data-attributes for interactivity
+3. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
+4. After tool calls, write a completion summary (1-3 sentences) describing what you built — mention the layout archetype, color palette, and key sections. Suggest what the user might tweak next
+
+${JS_UTILITIES_INSTRUCTION}
+
+<shared_js_utilities>
+${JS_UTILITIES_SNIPPET}
+</shared_js_utilities>
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce.
 </first_generation>`;
