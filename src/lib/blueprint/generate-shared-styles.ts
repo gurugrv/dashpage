@@ -1,4 +1,5 @@
 import type { BlueprintDesignSystem } from '@/lib/blueprint/types';
+import { ALPINE_CDN_TAGS, ALPINE_CLOAK_CSS } from '@/lib/prompts/sections/interactivity';
 
 interface SharedStyles {
   stylesCss: string;
@@ -60,12 +61,15 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-}`;
+}
+
+${ALPINE_CLOAK_CSS}`;
 
   const headTags = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?${fontsParam}&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+${ALPINE_CDN_TAGS}
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {

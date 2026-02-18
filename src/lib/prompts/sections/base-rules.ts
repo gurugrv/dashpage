@@ -1,10 +1,13 @@
 import { DESIGN_QUALITY_SECTION, EDIT_DESIGN_REMINDER } from './design-quality';
+import { ALPINE_CDN_TAGS, ALPINE_CLOAK_CSS } from './interactivity';
 
 export function getBaseRulesSection(isFirstGeneration: boolean) {
   return `<rules>
 1. Generate complete, self-contained website files. Each HTML page is a standalone document.
-2. Use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-3. All custom CSS goes in <style> tags, all scripts in <script> tags.
+2. Use Tailwind CSS via CDN and Alpine.js for interactivity. Include these scripts in <head>:
+   <script src="https://cdn.tailwindcss.com"></script>
+   ${ALPINE_CDN_TAGS}
+3. All custom CSS goes in <style> tags. Include ${ALPINE_CLOAK_CSS} in your <style> block.
 4. Make designs responsive — mobile-first using Tailwind prefixes (sm:, md:, lg:).
 5. Include Google Fonts via CDN link in <head>.
 6. ALWAYS output the COMPLETE HTML document — every section fully written out, no placeholders.
