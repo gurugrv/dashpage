@@ -1,6 +1,7 @@
 import type { Blueprint, BlueprintPage } from '@/lib/blueprint/types';
 import { LAYOUT_ARCHETYPES_SECTION } from '@/lib/prompts/sections/context-blocks';
 import { BLUEPRINT_DESIGN_QUALITY_SECTION } from '@/lib/prompts/sections/design-quality';
+import { INTERACTIVITY_SECTION } from '@/lib/prompts/sections/interactivity';
 import { UI_UX_GUIDELINES_COMPACT_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
 /** Extract a compact API reference from CSS: class names, keyframe names */
@@ -169,18 +170,9 @@ RULES:
 
   const sharedScriptsSection = sharedAssets?.scriptsJs
     ? `<shared_scripts_api>
-The shared scripts.js is loaded via <script defer>. Use these data-attribute hooks — do NOT rewrite the JS:
-
-- data-reveal: scroll-triggered fade-in animation (IntersectionObserver)
-- data-reveal-delay="N": staggered delay in ms for reveal animations
-- data-accordion-trigger / data-accordion-content: accordion toggle
-- data-tab-trigger / data-tab-content: tab switching with keyboard nav
-- data-count-to="N": animate number from 0 to N on scroll
-- data-menu-toggle: mobile hamburger menu trigger
-
-RULES:
-- Do NOT write your own IntersectionObserver, hamburger menu JS, or scroll animation JS
-- Only add a <script> block for JavaScript that is UNIQUE to this specific page
+The shared scripts.js is loaded via <script defer>. It provides smooth-scroll for anchor links.
+All other interactivity (accordions, carousels, counters, mobile menus, scroll reveals, tabs) is handled by Alpine.js — use the patterns from the interactivity section above.
+Do NOT write custom IntersectionObserver, hamburger menu JS, or scroll animation JS.
 </shared_scripts_api>`
     : '';
 
@@ -201,6 +193,8 @@ ${sharedAssetsSection}
 ${sharedScriptsSection}
 
 ${BLUEPRINT_DESIGN_QUALITY_SECTION}
+
+${INTERACTIVITY_SECTION}
 
 <creative_direction>
 Fight generic "AI-generated" aesthetics actively. Every design choice should feel intentional and distinctive.

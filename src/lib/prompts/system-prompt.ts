@@ -10,6 +10,7 @@ import {
   buildTemporalBlock,
   LAYOUT_ARCHETYPES_SECTION,
 } from '@/lib/prompts/sections/context-blocks';
+import { INTERACTIVITY_SECTION } from '@/lib/prompts/sections/interactivity';
 import { TOOL_OUTPUT_FORMAT_SECTION } from '@/lib/prompts/sections/tool-output-format';
 import { UI_UX_GUIDELINES_SECTION } from '@/lib/prompts/sections/ui-ux-guidelines';
 
@@ -57,7 +58,8 @@ ${getBaseRulesSection(isFirstGeneration)}
 ${UI_UX_GUIDELINES_SECTION}
 ${CREATIVE_DIRECTION_SECTION}
 ${LAYOUT_ARCHETYPES_SECTION}
-${toolSection}`;
+${toolSection}
+${INTERACTIVITY_SECTION}`;
 
   const dynamic = `${buildTemporalBlock(temporalContext)}${buildBusinessContextBlock(businessProfile ?? null)}${buildFirstGenerationBlock(isFirstGeneration, userPrompt)}${buildCurrentWebsiteBlock(currentFiles)}${buildEditModeBlock(currentFiles)}
 

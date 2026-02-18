@@ -1,7 +1,7 @@
 import type { ProjectFiles } from '@/types';
 import type { TemporalContext } from '@/lib/prompts/temporal-context';
 import { extractDesignTokens, generateManifest } from '@/lib/prompts/manifest/generate-manifest';
-import { JS_UTILITIES_SNIPPET, JS_UTILITIES_INSTRUCTION, JS_UTILITIES_MARKER } from './js-utilities';
+import { JS_UTILITIES_MARKER } from './js-utilities';
 
 export function buildEditModeBlock(currentFiles?: ProjectFiles): string {
   if (!currentFiles?.['index.html']) return '';
@@ -52,7 +52,7 @@ Tool selection:
 - Use readFile before editBlock replace for exact content.
 - writeFiles: full page rewrites or new pages only.
 - deleteFile: remove a page when the user asks to delete one.${designTokenBlock}${hasSharedUtils ? `\nShared JS utilities:
-- The page includes shared JS utilities (wb-utils). Use data-attributes to add interactivity — do NOT write custom JS for: mobile nav (data-menu-toggle/data-menu), scroll reveal (data-reveal), accordion (data-accordion-trigger), counters (data-count-to), carousel (data-carousel). See the existing script for all supported attributes.` : ''}${componentBlock}${crossPageBlock}
+- The page may include legacy JS utilities (wb-utils). For new interactive elements, prefer Alpine.js directives (x-data, x-show, x-collapse, x-intersect) over data-attributes. See the interactivity patterns in the system prompt.` : ''}${componentBlock}${crossPageBlock}
 </edit_guidance>`;
 }
 
@@ -311,15 +311,9 @@ Choose a layout archetype from layout_archetypes above that best suits this cont
 
 Steps:
 1. Define your :root CSS custom properties (7 HSL colors from the seed's strategy ranges + font families + shadows + radius) and Tailwind config
-2. Include the shared JS utilities script verbatim before </body> (from shared_js_utilities below) and use its data-attributes for interactivity
+2. Use Alpine.js directives for all interactivity — follow the patterns in the interactivity section. Do NOT write inline <script> blocks for UI interactions.
 3. Call writeFiles with the complete HTML — apply your chosen layout archetype's structural pattern
 4. After tool calls, write a completion summary (1-3 sentences) describing what you built — mention the layout archetype, color palette, and key sections. Suggest what the user might tweak next
-
-${JS_UTILITIES_INSTRUCTION}
-
-<shared_js_utilities>
-${JS_UTILITIES_SNIPPET}
-</shared_js_utilities>
 
 Make a strong first impression — the design should feel polished, intentional, and unlike anything a template generator would produce.
 </first_generation>`;
