@@ -4,6 +4,9 @@ import { ALPINE_CDN_TAGS, ALPINE_CLOAK_CSS } from './interactivity';
 export function getBaseRulesSection(isFirstGeneration: boolean) {
   return `<rules>
 1. Generate complete, self-contained website files. Each HTML page is a standalone document.
+1b. ALWAYS include <meta name="viewport" content="width=device-width, initial-scale=1"> in <head>.
+1c. ALWAYS include <meta name="description" content="..."> derived from the page's purpose.
+1d. Use semantic heading hierarchy: exactly one <h1> per page, <h2> for section headings, <h3> for subsections. Never skip levels.
 2. Use Tailwind CSS via CDN and Alpine.js for interactivity. Include these scripts in <head>:
    <script src="https://cdn.tailwindcss.com"></script>
    ${ALPINE_CDN_TAGS}
